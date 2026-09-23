@@ -1,0 +1,19 @@
+{
+  "name": "nidal-content-hub",
+  "version": "0.3.0",
+  "private": true,
+  "type": "module",
+  "description": "Pilotage des contenus, insights, campagnes et agent IA pour Nidal et Nidal Junior",
+  "scripts": {
+    "start": "node server/index.js",
+    "dev": "node --watch server/index.js",
+    "check": "node --check server/index.js && node --check server/db.js && node --check server/repository.js && node --check server/services/meta.js && node --check server/services/agent.js"
+  },
+  "engines": {
+    "node": ">=20"
+  },
+  "dependencies": {
+    "express": "^5.1.0",
+    "pg": "^8.16.3"
+  }
+}

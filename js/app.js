@@ -1,102 +1,82 @@
-/**
- * Nidal Junior — Pilotage éditorial
- * Contrôleur principal, gestion du thème et routeur SPA (4 vues)
- */
-
+/** Routeur principal et theme. */
 const App = (() => {
   let _currentView = 'dashboard';
+  const VIEWS = ['dashboard', 'planning', 'contents', 'agent', 'performance', 'insights', 'quality'];
 
-  function init() {
+  async function init() {
     NidalStore.init();
+    await NidalAPI.init();
+    await NidalStore.syncRemote();
     _initTheme();
-    _initNavigation();
-    _initRouteFromHash();
-
-    // Réactivité globale : rafraîchit la vue courante dès qu'une modification survient
-    NidalStore.subscribe(() => {
-      _renderCurrentView();
-    });
+    _initBrandSwitch();
+    document.querySelectorAll('[data-view]').forEach(button => button.onclick = () => navigateTo(button.dataset.view));
+    window.onpopstate = _routeFromHash;
+    _routeFromHash();
+    NidalStore.subscribe(_renderCurrentView);
   }
 
-  function _initTheme() {
-    const settings = NidalStore.getSettings();
-    document.documentElement.setAttribute('data-theme', settings.theme || 'light');
-    _updateThemeButton(settings.theme);
-
-    const toggle = document.getElementById('theme-toggle');
-    if (toggle) {
-      toggle.onclick = () => {
-        const current = document.documentElement.getAttribute('data-theme');
-        const next = current === 'dark' ? 'light' : 'dark';
-        document.documentElement.setAttribute('data-theme', next);
-        NidalStore.updateSettings({ theme: next });
-        _updateThemeButton(next);
-      };
-    }
-  }
-
-  function _updateThemeButton(theme) {
-    const icon = document.getElementById('theme-icon');
-    const label = document.querySelector('.theme-toggle__label');
-    if (icon) icon.textContent = theme === 'dark' ? '☀️' : '🌙';
-    if (label) label.textContent = theme === 'dark' ? 'Mode clair' : 'Mode sombre';
-  }
-
-  function _initNavigation() {
-    document.querySelectorAll('[data-view]').forEach(btn => {
-      btn.onclick = () => navigateTo(btn.dataset.view);
-    });
-    window.onpopstate = () => _initRouteFromHash();
-  }
-
-  function _initRouteFromHash() {
+  function _routeFromHash() {
     const hash = window.location.hash.replace('#', '');
-    const validViews = ['dashboard', 'planning', 'contents', 'settings'];
-    navigateTo(validViews.includes(hash) ? hash : 'dashboard', false);
+    navigateTo(VIEWS.includes(hash) ? hash : 'dashboard', false);
   }
 
   function navigateTo(viewId, updateHash = true) {
     _currentView = viewId;
     if (updateHash) window.location.hash = viewId;
-
-    // Mise à jour visuelle des onglets de navigation desktop et mobile
-    document.querySelectorAll('[data-view]').forEach(el => {
-      const isActive = el.dataset.view === viewId;
-      el.classList.toggle('active', isActive);
-      if (el.tagName === 'BUTTON') {
-        el.setAttribute('aria-current', isActive ? 'page' : 'false');
-      }
+    document.querySelectorAll('[data-view]').forEach(element => {
+      const active = element.dataset.view === viewId;
+      element.classList.toggle('active', active);
+      element.setAttribute('aria-current', active ? 'page' : 'false');
     });
-
-    // Affichage / masquage des panneaux de vue
     document.querySelectorAll('.view-panel').forEach(panel => {
-      const isActive = panel.id === `view-${viewId}`;
-      panel.classList.toggle('active', isActive);
-      panel.hidden = !isActive;
+      const active = panel.id === `view-${viewId}`;
+      panel.hidden = !active;
+      panel.classList.toggle('active', active);
     });
-
     _renderCurrentView();
-    announceToScreenReader(`Affichage de la vue : ${viewId}`);
+    document.getElementById('main-content').focus({ preventScroll: true });
+    announceToScreenReader(`Affichage de la vue ${viewId}`);
   }
 
   function _renderCurrentView() {
-    switch (_currentView) {
-      case 'dashboard':
-        DashboardView.render();
-        break;
-      case 'planning':
-        PlanningView.render();
-        break;
-      case 'contents':
-        ContentsView.render();
-        break;
-      case 'settings':
-        SettingsView.render();
-        break;
-    }
+    const renderers = { dashboard: DashboardView, planning: PlanningView, contents: ContentsView, agent: AgentView, performance: PerformanceView, insights: InsightsView, quality: QualityView };
+    renderers[_currentView]?.render();
   }
 
+  function _initTheme() {
+    const settings = NidalStore.getSettings();
+    document.documentElement.dataset.theme = settings.theme || 'light';
+    _updateTheme(settings.theme || 'light');
+    document.getElementById('theme-toggle').onclick = () => {
+      const next = document.documentElement.dataset.theme === 'dark' ? 'light' : 'dark';
+      document.documentElement.dataset.theme = next;
+      NidalStore.updateSettings({ theme: next });
+      _updateTheme(next);
+    };
+  }
+
+  function _updateTheme(theme) {
+    document.getElementById('theme-icon').textContent = theme === 'dark' ? '☀' : '◐';
+    document.querySelector('.theme-toggle__label').textContent = theme === 'dark' ? 'Mode clair' : 'Mode sombre';
+  }
+
+  function _initBrandSwitch() {
+    const select = document.getElementById('brand-switch');
+    select.value = getActiveBrand();
+    _updateBrandName();
+    select.onchange = async () => {
+      setActiveBrand(select.value);
+      _updateBrandName();
+      await NidalStore.syncRemote();
+      _renderCurrentView();
+      showToast(`Marque active : ${getActiveBrandLabel()}`, 'success');
+    };
+  }
+
+  function _updateBrandName() {
+    const name = document.querySelector('.sidebar__brand strong');
+    if (name) name.textContent = getActiveBrandLabel();
+  }
   return { init, navigateTo };
 })();
-
 document.addEventListener('DOMContentLoaded', App.init);

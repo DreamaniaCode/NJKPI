@@ -1,86 +1,115 @@
-# Nidal Junior — Pilotage éditorial 🌟
+# Nidal Content Hub - MVP
 
-Application web monopage (SPA) sans framework, conçue pour la gestion et le pilotage de la production éditoriale du magazine jeunesse **Nidal Junior**.
+Centre de pilotage hebdomadaire pour les contenus **Nidal** et **Nidal Junior**.
 
----
+Le MVP regroupe :
 
-## 🚀 Fonctionnalités principales
+- deux plannings hebdomadaires distincts ;
+- Stories, Posts, Carrousels et Videos/Reels ;
+- objectifs, statuts, resultats et controles de conformite ;
+- ajout du lien final Facebook ou Instagram ;
+- synchronisation manuelle des insights Meta ;
+- suivi des campagnes Meta Ads sur les 30 derniers jours ;
+- agent IA pour les plans de semaine, legendes et prompts photo/video ;
+- mode demo lorsqu'une integration n'est pas encore configuree ;
+- PostgreSQL comme source centrale sur Coolify ;
+- localStorage comme secours lorsque le backend est hors ligne.
 
-### 1. 📊 4 Vues complètes
-- **Tableau de bord** : 4 indicateurs KPIs essentiels (*Contenus totaux*, *En cours*, *Publiés*, *Taux d'achèvement*) et 3 graphiques SVG vectoriels (*répartition par type*, *par statut*, et *évolution sur les 6 derniers mois*).
-- **Planning** : Calendrier mensuel interactif permettant de naviguer de mois en mois, de visualiser les publications planifiées sous forme de pastilles thématiques colorées, et de consulter le détail au clic avec ajout rapide.
-- **Contenus** : Tableau de bord de gestion avec recherche textuelle en temps réel, filtres combinés par type et statut, création/édition via fenêtres modales accessibles, suppression sécurisée et exports directs.
-- **Paramètres** : Outils complets de sauvegarde JSON, restauration de fichier, injection de jeux d'essai de démonstration et réinitialisation intégrale.
+WhatsApp ne fait pas partie de cette premiere version.
 
-### 2. 📰 7 Types de contenus éditoriaux
-1. **Article** (📰)
-2. **Interview** (🎤)
-3. **Dossier** (📁)
-4. **Brève** (📋)
-5. **Chronique** (✍️)
-6. **Infographie** (📊)
-7. **Quiz** (❓)
+## Architecture
 
-### 3. 💾 Persistance et Sauvegardes
-- Stockage 100% côté client via **`localStorage`** (clé `nidal-junior-data`).
-- Données persistées automatiquement à chaque ajout, modification ou suppression.
-- Export et import de fichiers de sauvegarde **JSON** complets.
-
-### 4. 📥 Exports professionnels
-- **CSV** : Encodé en UTF-8 avec BOM et séparateur point-virgule (`;`) pour une compatibilité parfaite avec Microsoft Excel en français.
-- **Excel (.xlsx)** : Généré directement via la bibliothèque SheetJS avec dimensionnement automatique des largeurs de colonnes.
-
-### 5. ♿ Accessibilité (WCAG 2.1 AA)
-- Navigation au clavier complète.
-- Piège à focus actif dans les boîtes de dialogue modales (`trapFocus`).
-- Annonce vocale dynamique pour les technologies d'assistance (`aria-live="polite"`).
-- Contrastes de couleurs rigoureusement validés et prise en charge du thème sombre (Dark mode).
-
----
-
-## 📂 Structure du projet
-
-```
-e:\Projects\Nidal Junior KPI\
-│
-├── index.html            # Structure SPA principale
-├── README.md             # Documentation du projet
-│
-├── css/
-│   └── style.css         # Design system, thème clair/sombre, responsive
-│
-└── js/
-    ├── app.js            # Initialisation et routeur des 4 vues
-    ├── utils.js          # Constantes (types, statuts), dates, modales, toasts
-    ├── store.js          # Couche localStorage, KPIs et données de démo
-    ├── charts.js         # Moteur de graphiques SVG accessibles (barres, donut, courbe)
-    ├── export.js         # Moteur d'export CSV et Excel XLSX
-    ├── dashboard.js      # Contrôleur de la vue Tableau de bord
-    ├── planning.js       # Contrôleur de la vue Planning (calendrier)
-    ├── contents.js       # Contrôleur de la vue Contenus (CRUD, filtres)
-    └── settings.js       # Contrôleur de la vue Paramètres (backup/restore)
+```text
+Navigateur
+  -> API Node.js / Express sur Coolify
+      -> PostgreSQL
+      -> Meta Graph API
+      -> Meta Marketing API
+      -> OpenAI Responses API
 ```
 
----
+Les jetons Meta et OpenAI ne sont jamais exposes dans le navigateur. Ils sont stockes dans les variables d'environnement Coolify.
 
-## 🌐 Déploiement sur GitHub Pages
+## Lancer en mode demo avec Docker
 
-L'application ne nécessite aucun serveur ni étape de compilation (Vanilla HTML5 / CSS3 / ES6) :
+1. Copier `.env.example` vers `.env`.
+2. Renseigner au minimum `DATABASE_URL`, `APP_ACCESS_TOKEN` et `DEMO_MODE=true`.
+3. Construire et lancer :
 
-1. Initialisez un dépôt Git dans ce dossier :
-   ```bash
-   git init
-   git add .
-   git commit -m "feat: Nidal Junior pilotage éditorial complet"
-   ```
-2. Créez un dépôt sur GitHub et liez-le :
-   ```bash
-   git remote add origin https://github.com/votre-nom/nidal-junior-kpi.git
-   git branch -M main
-   git push -u origin main
-   ```
-3. Rendez-vous dans les options du dépôt sur GitHub :
-   - Allez dans **Settings** > **Pages**.
-   - Sous **Build and deployment**, sélectionnez la branche `main` et le dossier `/ (root)`.
-   - Cliquez sur **Save**.
-4. Votre application est immédiatement accessible en ligne gratuitement sur GitHub Pages !
+```bash
+docker build -t nidal-content-hub .
+docker run --env-file .env -p 3000:3000 nidal-content-hub
+```
+
+Ouvrir `http://localhost:3000`.
+
+Sans `DATABASE_URL`, le serveur fonctionne temporairement en memoire. Les donnees seront perdues au redemarrage.
+
+## Deploiement Coolify
+
+1. Creer une nouvelle ressource depuis le depot GitHub.
+2. Choisir le deploiement par `Dockerfile`.
+3. Relier le service au PostgreSQL existant avec `DATABASE_URL`.
+4. Ajouter les variables de `.env.example` dans Coolify.
+5. Exposer le port `3000`.
+6. Configurer un domaine HTTPS.
+
+`APP_ACCESS_TOKEN` doit etre long et aleatoire en production. S'il est absent, les endpoints de modification ne sont pas proteges.
+
+## Mode demo
+
+Avec `DEMO_MODE=true` :
+
+- l'agent renvoie des propositions de test sans appeler OpenAI ;
+- un lien final produit des insights simules et marques `Demo` ;
+- deux campagnes Ads de demonstration sont disponibles ;
+- les donnees peuvent etre enregistrees dans PostgreSQL.
+
+Passer `DEMO_MODE=false` pour utiliser les integrations reelles.
+
+## Variables principales
+
+- `DATABASE_URL` : connexion PostgreSQL Coolify.
+- `APP_ACCESS_TOKEN` : protection des endpoints de l'application.
+- `CORS_ORIGIN` : domaine autorise si le frontend est separe.
+- `OPENAI_API_KEY` et `OPENAI_MODEL` : agent IA.
+- `META_ACCESS_TOKEN` : jeton Meta cote serveur.
+- `META_PAGE_ID_*` : Pages Facebook Nidal et Nidal Junior.
+- `META_IG_USER_ID_*` : comptes Instagram professionnels.
+- `META_AD_ACCOUNT_ID_*` : comptes publicitaires.
+
+## Synchroniser une publication
+
+1. Publier le Post, Reel ou contenu final.
+2. Ouvrir `Insights Meta`.
+3. Choisir le contenu correspondant.
+4. Coller son lien final.
+5. Cliquer sur `Recuperer les insights`.
+
+Le backend recherche le media dans les publications recentes du compte configure, enregistre son identifiant Meta puis cree un nouvel instantane de metriques.
+
+## Agent IA
+
+L'agent prepare uniquement des brouillons. Il ne publie rien automatiquement. Chaque sortie doit etre verifiee avant utilisation, notamment les faits, dates, autorisations concernant les mineurs et elements de charte.
+
+## KPI
+
+- Interactions = reactions + commentaires + partages + enregistrements.
+- Engagement = interactions / portee reelle.
+- Les donnees absentes restent affichees avec un tiret.
+- Un contenu est `Conforme` uniquement s'il est publie, approuve et que tous les controles sont valides.
+
+## Fichiers principaux
+
+```text
+server/index.js
+server/db.js
+server/repository.js
+server/schema.sql
+server/services/meta.js
+server/services/agent.js
+js/api.js
+js/store.js
+js/agent.js
+js/insights.js
+```

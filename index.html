@@ -1,116 +1,71 @@
-<!DOCTYPE html>
+<!doctype html>
 <html lang="fr">
 <head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Nidal Junior — Pilotage éditorial</title>
-  <meta name="description" content="Application de pilotage éditorial pour le magazine jeunesse Nidal Junior">
-  
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="theme-color" content="#1746d1">
+  <title>Nidal Junior — Pilotage contenu</title>
+  <meta name="description" content="Planning, performance et controle des contenus Facebook et Instagram de Nidal Junior">
   <link rel="icon" type="image/png" href="./assets/mascot.png">
-  
-  <!-- Feuille de styles principale -->
   <link rel="stylesheet" href="./css/style.css">
-  
-  <!-- SheetJS pour export Excel XLSX -->
-  <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js" defer></script>
-  
-  <!-- Modules JavaScript de l'application -->
   <script src="./js/utils.js" defer></script>
+  <script src="./js/api.js" defer></script>
   <script src="./js/store.js" defer></script>
   <script src="./js/charts.js" defer></script>
   <script src="./js/export.js" defer></script>
   <script src="./js/dashboard.js" defer></script>
   <script src="./js/planning.js" defer></script>
   <script src="./js/contents.js" defer></script>
-  <script src="./js/settings.js" defer></script>
+  <script src="./js/agent.js" defer></script>
+  <script src="./js/performance.js" defer></script>
+  <script src="./js/insights.js" defer></script>
+  <script src="./js/quality.js" defer></script>
   <script src="./js/app.js" defer></script>
 </head>
 <body>
-  <!-- Lien d'évitement pour l'accessibilité au clavier (WCAG) -->
   <a href="#main-content" class="skip-link">Aller au contenu principal</a>
-
   <div class="app-layout">
-    <!-- Barre latérale / Navigation principale -->
-    <aside class="sidebar" id="sidebar" aria-label="Navigation principale">
+    <aside class="sidebar" aria-label="Navigation principale">
       <div class="sidebar__brand">
-        <div class="sidebar__logo-container">
-          <img src="./assets/logo.jpg" alt="Logo Nidal Établissement Privé" class="sidebar__logo-img">
-        </div>
+        <img src="./assets/logo-cropped.png" alt="Etablissement Nidal Prive" class="sidebar__logo-img">
+        <strong>Nidal Junior</strong>
+        <span>Pilotage contenu</span>
+        <label class="brand-switch-label" for="brand-switch">Marque active</label>
+        <select id="brand-switch" class="brand-switch"><option value="nidal-junior">Nidal Junior</option><option value="nidal">Nidal</option></select>
       </div>
-
-      <nav class="sidebar__nav" role="navigation">
-        <button class="nav-item active" data-view="dashboard" aria-current="page">
-          <span class="nav-item__icon" aria-hidden="true">📊</span>
-          <span class="nav-item__label">Tableau de bord</span>
-        </button>
-        <button class="nav-item" data-view="planning" aria-current="false">
-          <span class="nav-item__icon" aria-hidden="true">📅</span>
-          <span class="nav-item__label">Planning</span>
-        </button>
-        <button class="nav-item" data-view="contents" aria-current="false">
-          <span class="nav-item__icon" aria-hidden="true">📝</span>
-          <span class="nav-item__label">Contenus</span>
-        </button>
-        <button class="nav-item" data-view="settings" aria-current="false">
-          <span class="nav-item__icon" aria-hidden="true">⚙️</span>
-          <span class="nav-item__label">Paramètres</span>
-        </button>
+      <nav class="sidebar__nav">
+        <button class="nav-item active" data-view="dashboard" aria-current="page"><span>Vue d’ensemble</span><b>01</b></button>
+        <button class="nav-item" data-view="planning"><span>Planning</span><b>02</b></button>
+        <button class="nav-item" data-view="contents"><span>Contenus</span><b>03</b></button>
+        <button class="nav-item" data-view="agent"><span>Agent IA</span><b>04</b></button>
+        <button class="nav-item" data-view="performance"><span>Performance</span><b>05</b></button>
+        <button class="nav-item" data-view="insights"><span>Insights Meta</span><b>06</b></button>
+        <button class="nav-item" data-view="quality"><span>Controle</span><b>07</b></button>
       </nav>
-
-      <div class="sidebar__footer">
-        <div class="sidebar__mascot-card">
-          <img src="./assets/mascot.png" alt="Mascotte Nidal Junior" class="sidebar__mascot-img">
-          <div class="sidebar__mascot-info">
-            <span class="sidebar__mascot-name">Nidal Junior</span>
-            <span class="sidebar__mascot-tag">Pilotage 2026</span>
-          </div>
-        </div>
-
-        <button class="theme-toggle" id="theme-toggle" aria-label="Basculer en mode sombre">
-          <span class="theme-toggle__icon" id="theme-icon" aria-hidden="true">🌙</span>
-          <span class="theme-toggle__label">Mode sombre</span>
-        </button>
-      </div>
+      <div class="sidebar__character" aria-hidden="true"><img src="./assets/mascot.png" alt=""></div>
+      <div class="sidebar__footer"><button class="theme-toggle" id="theme-toggle" aria-label="Changer le theme"><span id="theme-icon">◐</span><span class="theme-toggle__label">Mode sombre</span></button><div class="brand-links"><span>@GSNIDAL</span><span>GSNIDAL.MA</span><small>PLUS QU’UNE ECOLE, UN AVENIR</small></div></div>
     </aside>
-
-    <!-- Zone de contenu principale (4 vues) -->
     <main class="main-content" id="main-content" tabindex="-1">
-      <div class="view-panel active" id="view-dashboard" role="region" aria-label="Tableau de bord"></div>
-      <div class="view-panel" id="view-planning" role="region" aria-label="Planning éditorial" hidden></div>
-      <div class="view-panel" id="view-contents" role="region" aria-label="Gestion des contenus" hidden></div>
-      <div class="view-panel" id="view-settings" role="region" aria-label="Paramètres de l'application" hidden></div>
+      <div class="view-panel active" id="view-dashboard"></div>
+      <div class="view-panel" id="view-planning" hidden></div>
+      <div class="view-panel" id="view-contents" hidden></div>
+      <div class="view-panel" id="view-agent" hidden></div>
+      <div class="view-panel" id="view-performance" hidden></div>
+      <div class="view-panel" id="view-insights" hidden></div>
+      <div class="view-panel" id="view-quality" hidden></div>
     </main>
-
-    <!-- Navigation mobile basse -->
     <nav class="mobile-nav" aria-label="Navigation mobile">
-      <button class="mobile-nav__item active" data-view="dashboard" aria-label="Tableau de bord">
-        <span class="mobile-nav__icon" aria-hidden="true">📊</span>
-        <span class="mobile-nav__label">Bord</span>
-      </button>
-      <button class="mobile-nav__item" data-view="planning" aria-label="Planning">
-        <span class="mobile-nav__icon" aria-hidden="true">📅</span>
-        <span class="mobile-nav__label">Planning</span>
-      </button>
-      <button class="mobile-nav__item" data-view="contents" aria-label="Contenus">
-        <span class="mobile-nav__icon" aria-hidden="true">📝</span>
-        <span class="mobile-nav__label">Contenus</span>
-      </button>
-      <button class="mobile-nav__item" data-view="settings" aria-label="Paramètres">
-        <span class="mobile-nav__icon" aria-hidden="true">⚙️</span>
-        <span class="mobile-nav__label">Réglages</span>
-      </button>
+      <button class="mobile-nav__item active" data-view="dashboard"><span>Vue</span></button>
+      <button class="mobile-nav__item" data-view="planning"><span>Planning</span></button>
+      <button class="mobile-nav__item" data-view="contents"><span>Contenus</span></button>
+      <button class="mobile-nav__item" data-view="agent"><span>Agent</span></button>
+      <button class="mobile-nav__item" data-view="performance"><span>KPI</span></button>
+      <button class="mobile-nav__item" data-view="insights"><span>Insights</span></button>
+      <button class="mobile-nav__item" data-view="quality"><span>Controle</span></button>
     </nav>
   </div>
-
-  <!-- Modale accessible globale -->
-  <div class="modal-overlay" id="modal-overlay" hidden>
-    <div id="modal-container"></div>
-  </div>
-
-  <!-- Notifications Toasts -->
+  <div class="modal-overlay" id="modal-overlay" hidden><div id="modal-container"></div></div>
   <div class="toast-container" id="toast-container" aria-live="polite" aria-atomic="true"></div>
-
-  <!-- Zone de restitution vocale pour lecteur d'écran (WCAG) -->
   <div id="sr-announcer" class="sr-only" aria-live="polite" aria-atomic="true"></div>
 </body>
 </html>

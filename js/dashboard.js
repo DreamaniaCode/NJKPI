@@ -1,94 +1,72 @@
-/**
- * Nidal Junior — Pilotage éditorial
- * Vue Tableau de bord (Indicateurs clés et graphiques SVG)
- */
-
+/** Vue d'ensemble : production, KPI et priorite. */
 const DashboardView = (() => {
   function render() {
     const view = document.getElementById('view-dashboard');
     if (!view) return;
     const stats = NidalStore.getStats();
+    const contents = NidalStore.getAll();
+    const focus = contents.find(item => item.statut === 'en-production') || contents.find(item => item.statut !== 'publie') || contents[0];
 
     view.innerHTML = `
-      <!-- Bannière d'accueil avec la mascotte officielle -->
-      <section class="dashboard-hero">
-        <div class="dashboard-hero__content">
-          <div class="dashboard-hero__badge">
-            <span class="dashboard-hero__dot"></span>
-            Édition Nidal Junior
-          </div>
-          <h1 class="dashboard-hero__title">Bonjour l'équipe éditoriale ! 👋</h1>
-          <p class="dashboard-hero__subtitle">
-            Bienvenue sur votre espace de pilotage. Actuellement, <strong>${stats.inProgress} contenu(s) sont en rédaction</strong> et <strong>${stats.published} publication(s) sont prêtes</strong> pour le prochain numéro.
-          </p>
-          <div class="dashboard-hero__actions">
-            <button class="btn btn--primary" onclick="ContentsView.openCreateForm()">+ Nouveau contenu</button>
-            <button class="btn btn--secondary" onclick="App.navigateTo('planning')">Consulter le planning 📅</button>
-          </div>
-        </div>
-        <div class="dashboard-hero__mascot-wrapper">
-          <img src="./assets/mascot.png" alt="Mascotte Nidal Junior" class="dashboard-hero__mascot">
-        </div>
+      <header class="view__header workspace-header">
+        <div><span class="section-kicker">Semaine active</span><h1 class="view__title">Vue d’ensemble</h1><p class="view__subtitle">21–27 septembre 2026 · ${escapeHtml(getActiveBrandLabel())}</p></div>
+        <div class="header-actions"><button class="btn btn--secondary" onclick="App.navigateTo('planning')">Ouvrir le planning</button><button class="btn btn--primary" onclick="ContentsView.openCreateForm()">+ Nouveau contenu</button></div>
+      </header>
+
+      <section class="kpi-strip" aria-label="Indicateurs cles">
+        ${_kpi('Contenus planifies', stats.total, `${stats.ready} pret${stats.ready > 1 ? 's' : ''}`, '#1746d1')}
+        ${_kpi('Contenus publies', stats.published, formatPercent(stats.completion), '#d91b5c')}
+        ${_kpi('Portee totale', formatNumber(stats.totalReach), 'Resultats saisis', '#31b9cc')}
+        ${_kpi('Taux d’engagement', formatPercent(stats.engagement), 'Interactions / portee', '#ffc928')}
+        ${_kpi('A controler', stats.controls, 'Validation ou charte', '#172033')}
       </section>
 
-      <section class="kpi-grid" aria-label="Statistiques clés">
-        <div class="kpi-card" tabindex="0" aria-label="Contenus totaux: ${stats.total}">
-          <div class="kpi-card__icon" aria-hidden="true">📝</div>
-          <div class="kpi-card__value">${stats.total}</div>
-          <div class="kpi-card__label">Contenus totaux</div>
-        </div>
-        <div class="kpi-card" tabindex="0" aria-label="En cours de rédaction: ${stats.inProgress}">
-          <div class="kpi-card__icon" aria-hidden="true">⏳</div>
-          <div class="kpi-card__value" style="color:var(--warning)">${stats.inProgress}</div>
-          <div class="kpi-card__label">En cours de rédaction</div>
-        </div>
-        <div class="kpi-card" tabindex="0" aria-label="Contenus publiés: ${stats.published}">
-          <div class="kpi-card__icon" aria-hidden="true">✅</div>
-          <div class="kpi-card__value" style="color:var(--success)">${stats.published}</div>
-          <div class="kpi-card__label">Contenus publiés</div>
-        </div>
-        <div class="kpi-card" tabindex="0" aria-label="Taux d'achèvement: ${stats.completion}%">
-          <div class="kpi-card__icon" aria-hidden="true">🎯</div>
-          <div class="kpi-card__value" style="color:var(--primary)">${stats.completion}%</div>
-          <div class="kpi-card__label">Taux d'achèvement</div>
-          <div class="kpi-card__bar">
-            <div class="kpi-card__bar-fill" style="width:${stats.completion}%" role="progressbar" aria-valuenow="${stats.completion}" aria-valuemin="0" aria-valuemax="100"></div>
+      <section class="dashboard-main-grid">
+        <div class="dashboard-analysis">
+          <div class="section-heading"><div><span class="section-kicker">Production</span><h2>Avancement de la semaine</h2></div><button class="text-button" onclick="App.navigateTo('contents')">Voir tous les contenus</button></div>
+          <div class="status-bars">
+            ${STATUSES.filter(status => status.id !== 'suspendu').map(status => _statusRow(status, stats.byStatus[status.id], stats.total)).join('')}
           </div>
         </div>
+        ${focus ? `
+          <aside class="priority-panel">
+            <div><span class="section-kicker">Priorite du jour</span><h2>${escapeHtml(focus.titre)}</h2><p>${escapeHtml(focus.message || focus.objectif)}</p></div>
+            <div class="priority-meta"><span>${formatDate(focus.datePublication, 'compact')} · ${escapeHtml(focus.heure)}</span><span>${escapeHtml(getContentType(focus.format).label)}</span><span>${escapeHtml(getControlMeta(NidalStore.getControl(focus)).label)}</span></div>
+            <button class="btn btn--primary btn--block" onclick="ContentsView.openEditForm('${focus.id}')">Mettre a jour</button>
+          </aside>` : ''}
       </section>
 
-      <section class="charts-grid" aria-label="Graphiques analytiques">
-        <div class="chart-container">
-          <h2 class="chart-container__title">Répartition par type (7 contenus)</h2>
-          <div id="chart-by-type" class="chart-wrapper"></div>
-        </div>
-        <div class="chart-container">
-          <h2 class="chart-container__title">Répartition par statut</h2>
-          <div id="chart-by-status" class="chart-wrapper"></div>
-        </div>
-        <div class="chart-container chart-container--wide">
-          <h2 class="chart-container__title">Évolution des publications (6 derniers mois)</h2>
-          <div id="chart-monthly" class="chart-wrapper"></div>
-        </div>
+      <section class="dashboard-lower-grid">
+        <div class="analysis-panel"><div class="section-heading"><div><span class="section-kicker">Formats</span><h2>Mix de contenus</h2></div></div><div id="chart-by-format" class="chart-wrapper"></div></div>
+        <div class="analysis-panel"><div class="section-heading"><div><span class="section-kicker">Controle</span><h2>Repartition des statuts</h2></div></div><div id="chart-by-status" class="chart-wrapper"></div></div>
       </section>
-    `;
 
-    NidalCharts.barChart('chart-by-type', CONTENT_TYPES.map(t => ({
-      label: t.label,
-      value: stats.byType[t.id] || 0,
-      color: t.color
-    })));
+      <section class="week-overview">
+        <div class="section-heading"><div><span class="section-kicker">Calendrier</span><h2>Contenus de la semaine</h2></div></div>
+        <div class="week-lines">
+          ${contents.map(item => `
+            <button class="week-line" onclick="ContentsView.openEditForm('${item.id}')">
+              <span class="week-line__date"><strong>${formatDate(item.datePublication, 'compact')}</strong><small>${escapeHtml(item.heure)}</small></span>
+              <span class="week-line__main"><strong>${escapeHtml(item.titre)}</strong><small>${escapeHtml(item.album || item.classes)}</small></span>
+              <span class="week-line__level">${escapeHtml(getLevel(item.niveau).label)}</span>
+              <span>${escapeHtml(getContentType(item.format).label)}</span>
+              <span class="badge badge--${item.statut}">${escapeHtml(getStatus(item.statut).label)}</span>
+              <span class="week-line__arrow" aria-hidden="true">›</span>
+            </button>`).join('')}
+        </div>
+      </section>`;
 
-    NidalCharts.donutChart('chart-by-status', STATUSES.map(s => ({
-      label: s.label,
-      value: stats.byStatus[s.id] || 0,
-      color: s.color
-    })));
+    NidalCharts.barChart('chart-by-format', CONTENT_TYPES.map(type => ({ label: type.label, value: stats.byFormat[type.id] || 0, color: type.color })));
+    NidalCharts.donutChart('chart-by-status', STATUSES.filter(status => (stats.byStatus[status.id] || 0) > 0).map(status => ({ label: status.label, value: stats.byStatus[status.id], color: status.color })));
+  }
 
-    NidalCharts.lineChart('chart-monthly', stats.monthly.map(m => ({
-      label: m.label,
-      value: m.count
-    })));
+  function _kpi(label, value, note, color) {
+    return `<article class="kpi-item" style="--kpi-color:${color}" tabindex="0"><span>${label}</span><strong>${value}</strong><small>${note}</small></article>`;
+  }
+
+  function _statusRow(status, value, total) {
+    const pct = total ? Math.round((value / total) * 100) : 0;
+    return `<div class="status-bar-row"><span>${status.label}</span><div class="status-track"><i style="width:${pct}%;background:${status.color}"></i></div><strong>${value}</strong></div>`;
   }
 
   return { render };

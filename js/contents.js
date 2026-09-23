@@ -1,247 +1,118 @@
-/**
- * Nidal Junior — Pilotage éditorial
- * Vue Gestion des contenus (CRUD, filtres, recherche, modales, exports)
- */
-
+/** Gestion complete des contenus sociaux Nidal Junior. */
 const ContentsView = (() => {
-  let _searchQuery = '';
-  let _selectedType = '';
-  let _selectedStatus = '';
+  let _query = '';
+  let _format = '';
+  let _status = '';
+  let _level = '';
 
   function render() {
     const view = document.getElementById('view-contents');
     if (!view) return;
-
     view.innerHTML = `
-      <header class="view__header">
-        <div>
-          <h1 class="view__title">📝 Gestion des contenus</h1>
-          <p class="view__subtitle">Catalogue et suivi des 7 types de contenus éditoriaux</p>
-        </div>
-        <div style="display:flex;gap:0.5rem;flex-wrap:wrap;">
-          <button class="btn btn--secondary" id="export-csv-btn">📥 Export CSV</button>
-          <button class="btn btn--secondary" id="export-xlsx-btn">📊 Export Excel</button>
-          <button class="btn btn--primary" id="add-content-btn">+ Nouveau contenu</button>
-        </div>
+      <header class="view__header workspace-header">
+        <div><span class="section-kicker">Production</span><h1 class="view__title">Contenus</h1><p class="view__subtitle">Messages, statuts, objectifs et resultats au meme endroit</p></div>
+        <div class="header-actions"><button class="btn btn--secondary" id="export-csv-btn">Exporter CSV</button><button class="btn btn--primary" id="add-content-btn">+ Nouveau contenu</button></div>
       </header>
-
       <div class="contents-toolbar">
-        <div class="filters-group">
-          <input type="search" id="content-search" class="search-input" placeholder="Rechercher par titre, auteur..." value="${escapeHtml(_searchQuery)}" aria-label="Recherche de contenu">
-          <select id="filter-type" class="select-input" aria-label="Filtrer par type">
-            <option value="">Tous les types</option>
-            ${CONTENT_TYPES.map(t => `<option value="${t.id}" ${_selectedType === t.id ? 'selected' : ''}>${t.icon} ${t.label}</option>`).join('')}
-          </select>
-          <select id="filter-status" class="select-input" aria-label="Filtrer par statut">
-            <option value="">Tous les statuts</option>
-            ${STATUSES.map(s => `<option value="${s.id}" ${_selectedStatus === s.id ? 'selected' : ''}>${s.label}</option>`).join('')}
-          </select>
-        </div>
+        <input type="search" id="content-search" class="search-input" placeholder="Rechercher un titre, une classe ou un album" value="${escapeHtml(_query)}" aria-label="Rechercher">
+        <select id="filter-format" class="select-input" aria-label="Filtrer par format"><option value="">Tous les formats</option>${CONTENT_TYPES.map(type => `<option value="${type.id}" ${_format === type.id ? 'selected' : ''}>${type.label}</option>`).join('')}</select>
+        <select id="filter-level" class="select-input" aria-label="Filtrer par niveau"><option value="">Tous les niveaux</option>${LEVELS.map(level => `<option value="${level.id}" ${_level === level.id ? 'selected' : ''}>${level.label}</option>`).join('')}</select>
+        <select id="filter-status" class="select-input" aria-label="Filtrer par statut"><option value="">Tous les statuts</option>${STATUSES.map(status => `<option value="${status.id}" ${_status === status.id ? 'selected' : ''}>${status.label}</option>`).join('')}</select>
       </div>
-
-      <div class="table-responsive">
-        <table class="data-table">
-          <thead>
-            <tr>
-              <th scope="col">Type</th>
-              <th scope="col">Titre</th>
-              <th scope="col">Statut</th>
-              <th scope="col">Auteur</th>
-              <th scope="col">Date de publication</th>
-              <th scope="col" style="text-align:right;">Actions</th>
-            </tr>
-          </thead>
-          <tbody id="contents-tbody"></tbody>
-        </table>
-      </div>
-    `;
-
+      <div class="table-responsive"><table class="data-table"><thead><tr><th>Date</th><th>Contenu</th><th>Public</th><th>Format</th><th>Statut</th><th>Controle</th><th class="actions-column">Actions</th></tr></thead><tbody id="contents-tbody"></tbody></table></div>`;
     document.getElementById('add-content-btn').onclick = () => openCreateForm();
-    document.getElementById('export-csv-btn').onclick = () => NidalExport.exportCSV(_getFilteredContents());
-    document.getElementById('export-xlsx-btn').onclick = () => NidalExport.exportExcel(_getFilteredContents());
-
-    document.getElementById('content-search').oninput = debounce(e => {
-      _searchQuery = e.target.value.toLowerCase();
-      _renderTableBody();
-    });
-
-    document.getElementById('filter-type').onchange = e => {
-      _selectedType = e.target.value;
-      _renderTableBody();
-    };
-
-    document.getElementById('filter-status').onchange = e => {
-      _selectedStatus = e.target.value;
-      _renderTableBody();
-    };
-
-    _renderTableBody();
+    document.getElementById('export-csv-btn').onclick = () => NidalExport.exportCSV(_filtered());
+    document.getElementById('content-search').oninput = debounce(event => { _query = event.target.value.toLowerCase(); _renderRows(); });
+    document.getElementById('filter-format').onchange = event => { _format = event.target.value; _renderRows(); };
+    document.getElementById('filter-level').onchange = event => { _level = event.target.value; _renderRows(); };
+    document.getElementById('filter-status').onchange = event => { _status = event.target.value; _renderRows(); };
+    _renderRows();
   }
 
-  function _getFilteredContents() {
-    return NidalStore.getAll().filter(c => {
-      const matchSearch = !_searchQuery ||
-        c.titre.toLowerCase().includes(_searchQuery) ||
-        c.auteur.toLowerCase().includes(_searchQuery) ||
-        (c.description && c.description.toLowerCase().includes(_searchQuery));
-      const matchType = !_selectedType || c.type === _selectedType;
-      const matchStatus = !_selectedStatus || c.statut === _selectedStatus;
-      return matchSearch && matchType && matchStatus;
+  function _filtered() {
+    return NidalStore.getAll().filter(content => {
+      const haystack = [content.titre, content.classes, content.album, content.message].join(' ').toLowerCase();
+      return (!_query || haystack.includes(_query)) && (!_format || content.format === _format) && (!_status || content.statut === _status) && (!_level || content.niveau === _level);
     });
   }
 
-  function _renderTableBody() {
+  function _renderRows() {
     const tbody = document.getElementById('contents-tbody');
     if (!tbody) return;
-    const items = _getFilteredContents();
-
+    const items = _filtered();
     if (!items.length) {
-      tbody.innerHTML = `
-        <tr>
-          <td colspan="6" style="text-align:center;padding:3rem 1rem;">
-            <div style="display:inline-flex;flex-direction:column;align-items:center;gap:0.75rem;">
-              <img src="./assets/mascot.png" alt="Mascotte Nidal" style="height:75px;object-fit:contain;filter:drop-shadow(0 4px 6px rgba(0,0,0,0.1));">
-              <p style="color:var(--text-muted);margin:0;font-size:0.95rem;">Aucun contenu ne correspond à vos filtres ou à votre recherche.</p>
-              <button class="btn btn--primary btn--sm" onclick="ContentsView.openCreateForm()">+ Créer un nouveau contenu</button>
-            </div>
-          </td>
-        </tr>`;
+      tbody.innerHTML = `<tr><td colspan="7"><div class="empty-state"><img src="./assets/mascot.png" alt=""><div><strong>Aucun contenu trouve</strong><p>Modifiez les filtres ou creez un nouveau contenu.</p></div></div></td></tr>`;
       return;
     }
-
-    tbody.innerHTML = items.map(c => {
-      const type = getContentType(c.type);
-      const st = getStatus(c.statut);
-      return `
-        <tr>
-          <td><span style="display:inline-flex;align-items:center;gap:0.4rem;">${type.icon} ${type.label}</span></td>
-          <td>
-            <strong>${escapeHtml(c.titre)}</strong>
-            ${c.description ? `<p style="color:var(--text-muted);font-size:0.8rem;margin-top:0.2rem;">${escapeHtml(c.description.substring(0, 70))}${c.description.length > 70 ? '…' : ''}</p>` : ''}
-          </td>
-          <td><span class="badge badge--${c.statut}">${st.label}</span></td>
-          <td>${escapeHtml(c.auteur)}</td>
-          <td>${formatDate(c.datePublication)}</td>
-          <td style="text-align:right;white-space:nowrap;">
-            <button class="btn btn--icon btn--sm" onclick="ContentsView.openEditForm('${c.id}')" aria-label="Modifier ${escapeHtml(c.titre)}" title="Modifier">✏️</button>
-            <button class="btn btn--icon btn--sm" onclick="ContentsView.deleteContent('${c.id}')" aria-label="Supprimer ${escapeHtml(c.titre)}" title="Supprimer">🗑️</button>
-          </td>
-        </tr>
-      `;
+    tbody.innerHTML = items.map(content => {
+      const control = getControlMeta(NidalStore.getControl(content));
+      return `<tr>
+        <td><strong>${formatDate(content.datePublication, 'compact')}</strong><small>${escapeHtml(content.heure)}</small></td>
+        <td><strong>${escapeHtml(content.titre)}</strong><small>${escapeHtml(content.album || content.objectif)}</small></td>
+        <td>${escapeHtml(getLevel(content.niveau).label)}<small>${escapeHtml(content.classes)}</small></td>
+        <td>${escapeHtml(getContentType(content.format).label)}<small>${escapeHtml(content.plateforme)}</small></td>
+        <td><span class="badge badge--${content.statut}">${escapeHtml(getStatus(content.statut).label)}</span></td>
+        <td><span class="control-badge ${control.className}">${control.label}</span></td>
+        <td class="actions-column"><button class="btn btn--icon btn--sm" onclick="ContentsView.openEditForm('${content.id}')" aria-label="Modifier ${escapeHtml(content.titre)}" title="Modifier">Modifier</button><button class="btn btn--icon btn--sm btn--danger-text" onclick="ContentsView.deleteContent('${content.id}')" aria-label="Supprimer ${escapeHtml(content.titre)}" title="Supprimer">Supprimer</button></td>
+      </tr>`;
     }).join('');
   }
 
-  function _formHtml(c = {}) {
-    return `
-      <form id="content-form" onsubmit="return false;">
-        <div class="form-group">
-          <label class="form-label" for="form-title">Titre du contenu *</label>
-          <input type="text" id="form-title" class="form-control" required value="${escapeHtml(c.titre || '')}" placeholder="ex: Les dinosaures méconnus">
-        </div>
-        <div class="form-row">
-          <div class="form-group">
-            <label class="form-label" for="form-type">Type de contenu</label>
-            <select id="form-type" class="form-control">
-              ${CONTENT_TYPES.map(t => `<option value="${t.id}" ${c.type === t.id ? 'selected' : ''}>${t.icon} ${t.label}</option>`).join('')}
-            </select>
-          </div>
-          <div class="form-group">
-            <label class="form-label" for="form-status">Statut de publication</label>
-            <select id="form-status" class="form-control">
-              ${STATUSES.map(s => `<option value="${s.id}" ${c.statut === s.id ? 'selected' : ''}>${s.label}</option>`).join('')}
-            </select>
-          </div>
-        </div>
-        <div class="form-row">
-          <div class="form-group">
-            <label class="form-label" for="form-author">Auteur / Rédacteur</label>
-            <input type="text" id="form-author" class="form-control" value="${escapeHtml(c.auteur || '')}" placeholder="ex: Marie Dupont">
-          </div>
-          <div class="form-group">
-            <label class="form-label" for="form-date">Date de publication</label>
-            <input type="date" id="form-date" class="form-control" value="${toISODate(c.datePublication)}">
-          </div>
-        </div>
-        <div class="form-group">
-          <label class="form-label" for="form-desc">Synopsis / Description</label>
-          <textarea id="form-desc" class="form-control" rows="3" placeholder="Résumé ou note d'intention éditoriale...">${escapeHtml(c.description || '')}</textarea>
-        </div>
-        <div class="form-group">
-          <label class="form-label" for="form-tags">Mots-clés / Tags (séparés par des virgules)</label>
-          <input type="text" id="form-tags" class="form-control" value="${(c.tags || []).join(', ')}" placeholder="nature, science, jeunesse">
-        </div>
-      </form>
-    `;
+  function _options(items, selected) { return items.map(item => `<option value="${item.id}" ${selected === item.id ? 'selected' : ''}>${item.label}</option>`).join(''); }
+  function _value(value) { return value === null || value === undefined ? '' : escapeHtml(value); }
+
+  function _formHtml(content = {}) {
+    const checks = content.checks || { logo: true, valeurs: true, footer: true, autorisation: true };
+    const objectifs = content.objectifs || { portee: 1000, interactions: 50, clics: 5 };
+    const resultats = content.resultats || {};
+    return `<form id="content-form" onsubmit="return false;">
+      <div class="form-section"><h3>Publication</h3>
+        <div class="form-group form-group--wide"><label for="form-title">Titre *</label><input id="form-title" class="form-control" required value="${_value(content.titre)}"></div>
+        <div class="form-row form-row--three"><div class="form-group"><label for="form-date">Date</label><input type="date" id="form-date" class="form-control" value="${toISODate(content.datePublication)}"></div><div class="form-group"><label for="form-time">Heure</label><input type="time" id="form-time" class="form-control" value="${_value(content.heure || '18:30')}"></div><div class="form-group"><label for="form-platform">Plateforme</label><select id="form-platform" class="form-control">${['Instagram + Facebook','Instagram Reel + Facebook','Instagram Story','Facebook'].map(value => `<option ${content.plateforme === value ? 'selected' : ''}>${value}</option>`).join('')}</select></div></div>
+        <div class="form-group"><label for="form-final-url">Lien final apres publication</label><input type="url" id="form-final-url" class="form-control" value="${_value(content.finalUrl)}" placeholder="https://www.instagram.com/p/..."></div>
+        <div class="form-row form-row--three"><div class="form-group"><label for="form-format">Format</label><select id="form-format" class="form-control">${_options(CONTENT_TYPES, content.format)}</select></div><div class="form-group"><label for="form-status">Statut</label><select id="form-status" class="form-control">${_options(STATUSES, content.statut)}</select></div><div class="form-group"><label for="form-validation">Validation</label><select id="form-validation" class="form-control">${_options(VALIDATIONS, content.validation)}</select></div></div>
+      </div>
+      <div class="form-section"><h3>Vision editoriale</h3>
+        <div class="form-row"><div class="form-group"><label for="form-level">Niveau</label><select id="form-level" class="form-control">${_options(LEVELS, content.niveau)}</select></div><div class="form-group"><label for="form-classes">Classe(s)</label><input id="form-classes" class="form-control" value="${_value(content.classes)}"></div></div>
+        <div class="form-group"><label for="form-album">Album ou univers</label><input id="form-album" class="form-control" value="${_value(content.album)}"></div>
+        <div class="form-row"><div class="form-group"><label for="form-pillar">Pilier</label><input id="form-pillar" class="form-control" value="${_value(content.pilier)}"></div><div class="form-group"><label for="form-objective">But</label><input id="form-objective" class="form-control" value="${_value(content.objectif)}"></div></div>
+        <div class="form-group"><label for="form-message">Message principal</label><textarea id="form-message" class="form-control" rows="3">${_value(content.message)}</textarea></div>
+        <div class="form-row"><div class="form-group"><label for="form-cta">Appel a l’action</label><input id="form-cta" class="form-control" value="${_value(content.cta)}"></div><div class="form-group"><label for="form-deliverable">Livrable</label><input id="form-deliverable" class="form-control" value="${_value(content.livrable)}"></div></div>
+      </div>
+      <div class="form-section"><h3>Objectifs et resultats</h3>
+        <div class="form-row form-row--three">${_numberField('target-reach','Portee cible',objectifs.portee)}${_numberField('target-interactions','Interactions cibles',objectifs.interactions)}${_numberField('target-clicks','Clics cibles',objectifs.clics)}</div>
+        <div class="form-row form-row--four">${_numberField('result-reach','Portee reelle',resultats.portee)}${_numberField('result-reactions','Reactions',resultats.reactions)}${_numberField('result-comments','Commentaires',resultats.commentaires)}${_numberField('result-shares','Partages',resultats.partages)}${_numberField('result-saves','Enregistrements',resultats.enregistrements)}${_numberField('result-clicks','Clics CTA',resultats.clics)}${_numberField('result-views','Vues video',resultats.vues)}</div>
+      </div>
+      <div class="form-section"><h3>Controle avant publication</h3><div class="check-grid">${_check('check-logo','Logo officiel',checks.logo)}${_check('check-values','Valeurs de la marque',checks.valeurs)}${_check('check-footer','Pied de page',checks.footer)}${_check('check-consent','Autorisations verifiees ou non requises',checks.autorisation)}</div><div class="form-group"><label for="form-notes">Notes</label><textarea id="form-notes" class="form-control" rows="2">${_value(content.notes)}</textarea></div></div>
+    </form>`;
+  }
+
+  function _numberField(id, label, value) { return `<div class="form-group"><label for="${id}">${label}</label><input type="number" min="0" id="${id}" class="form-control" value="${_value(value)}" placeholder="—"></div>`; }
+  function _check(id, label, checked) { return `<label class="check-item"><input type="checkbox" id="${id}" ${checked ? 'checked' : ''}><span>${label}</span></label>`; }
+  function _number(modal, id) { const value = modal.querySelector(`#${id}`).value; return value === '' ? null : Number(value); }
+
+  function _readForm(modal) {
+    return {
+      titre: modal.querySelector('#form-title').value.trim(), datePublication: modal.querySelector('#form-date').value, heure: modal.querySelector('#form-time').value, finalUrl: modal.querySelector('#form-final-url').value.trim(),
+      plateforme: modal.querySelector('#form-platform').value, format: modal.querySelector('#form-format').value, statut: modal.querySelector('#form-status').value, validation: modal.querySelector('#form-validation').value,
+      niveau: modal.querySelector('#form-level').value, classes: modal.querySelector('#form-classes').value.trim(), album: modal.querySelector('#form-album').value.trim(), pilier: modal.querySelector('#form-pillar').value.trim(), objectif: modal.querySelector('#form-objective').value.trim(),
+      message: modal.querySelector('#form-message').value.trim(), cta: modal.querySelector('#form-cta').value.trim(), livrable: modal.querySelector('#form-deliverable').value.trim(), notes: modal.querySelector('#form-notes').value.trim(),
+      objectifs: { portee: _number(modal,'target-reach'), interactions: _number(modal,'target-interactions'), clics: _number(modal,'target-clicks') },
+      resultats: { portee: _number(modal,'result-reach'), reactions: _number(modal,'result-reactions'), commentaires: _number(modal,'result-comments'), partages: _number(modal,'result-shares'), enregistrements: _number(modal,'result-saves'), clics: _number(modal,'result-clicks'), vues: _number(modal,'result-views') },
+      checks: { logo: modal.querySelector('#check-logo').checked, valeurs: modal.querySelector('#check-values').checked, footer: modal.querySelector('#check-footer').checked, autorisation: modal.querySelector('#check-consent').checked }
+    };
   }
 
   function openCreateForm(defaultDate = '') {
-    openModal('Créer un nouveau contenu', _formHtml({ datePublication: defaultDate }), {
-      footer: `
-        <button class="btn btn--secondary" data-close-modal>Annuler</button>
-        <button class="btn btn--primary" id="save-content-btn">Enregistrer</button>
-      `,
-      onOpen: (modal) => {
-        modal.querySelector('#save-content-btn').onclick = () => {
-          const titre = modal.querySelector('#form-title').value.trim();
-          if (!titre) return showToast('Le titre est obligatoire', 'error');
-
-          NidalStore.create({
-            titre,
-            type: modal.querySelector('#form-type').value,
-            statut: modal.querySelector('#form-status').value,
-            auteur: modal.querySelector('#form-author').value.trim(),
-            datePublication: modal.querySelector('#form-date').value,
-            description: modal.querySelector('#form-desc').value.trim(),
-            tags: modal.querySelector('#form-tags').value.split(',').map(t => t.trim()).filter(Boolean)
-          });
-          closeModal();
-          showToast('Nouveau contenu créé avec succès', 'success');
-          render();
-        };
-      }
-    });
+    const initial = { datePublication: defaultDate, heure: '18:30', format: 'post', statut: 'planifie', niveau: 'tous', validation: 'a-valider', plateforme: 'Instagram + Facebook', checks: { logo: true, valeurs: true, footer: true, autorisation: true }, objectifs: { portee: 1000, interactions: 50, clics: 5 }, resultats: {} };
+    openModal('Nouveau contenu', _formHtml(initial), { footer: `<button type="button" class="btn btn--secondary" data-close-modal>Annuler</button><button type="button" class="btn btn--primary" id="save-content-btn">Enregistrer</button>`, onOpen: modal => modal.querySelector('#save-content-btn').onclick = () => { const values = _readForm(modal); if (!values.titre) return showToast('Le titre est obligatoire', 'error'); NidalStore.create(values); closeModal(); showToast('Contenu cree', 'success'); } });
   }
 
   function openEditForm(id) {
-    const item = NidalStore.getById(id);
-    if (!item) return;
-
-    openModal('Modifier le contenu', _formHtml(item), {
-      footer: `
-        <button class="btn btn--secondary" data-close-modal>Annuler</button>
-        <button class="btn btn--primary" id="save-content-btn">Mettre à jour</button>
-      `,
-      onOpen: (modal) => {
-        modal.querySelector('#save-content-btn').onclick = () => {
-          const titre = modal.querySelector('#form-title').value.trim();
-          if (!titre) return showToast('Le titre est obligatoire', 'error');
-
-          NidalStore.update(id, {
-            titre,
-            type: modal.querySelector('#form-type').value,
-            statut: modal.querySelector('#form-status').value,
-            auteur: modal.querySelector('#form-author').value.trim(),
-            datePublication: modal.querySelector('#form-date').value,
-            description: modal.querySelector('#form-desc').value.trim(),
-            tags: modal.querySelector('#form-tags').value.split(',').map(t => t.trim()).filter(Boolean)
-          });
-          closeModal();
-          showToast('Contenu mis à jour', 'success');
-          render();
-        };
-      }
-    });
+    const content = NidalStore.getById(id); if (!content) return;
+    openModal('Modifier le contenu', _formHtml(content), { footer: `<button type="button" class="btn btn--secondary" data-close-modal>Annuler</button><button type="button" class="btn btn--primary" id="save-content-btn">Enregistrer</button>`, onOpen: modal => modal.querySelector('#save-content-btn').onclick = () => { const values = _readForm(modal); if (!values.titre) return showToast('Le titre est obligatoire', 'error'); NidalStore.update(id, values); closeModal(); showToast('Modifications enregistrees', 'success'); } });
   }
 
-  function deleteContent(id) {
-    const item = NidalStore.getById(id);
-    const title = item ? item.titre : 'ce contenu';
-    confirmAction(`Êtes-vous sûr de vouloir supprimer définitivement « ${title} » ?`, () => {
-      NidalStore.remove(id);
-      showToast('Contenu supprimé avec succès', 'success');
-      render();
-    });
-  }
-
+  function deleteContent(id) { const content = NidalStore.getById(id); confirmAction(`Supprimer « ${content?.titre || 'ce contenu'} » ?`, () => { NidalStore.remove(id); showToast('Contenu supprime', 'success'); }); }
   return { render, openCreateForm, openEditForm, deleteContent };
 })();
