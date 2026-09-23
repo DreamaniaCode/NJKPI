@@ -1,0 +1,116 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Nidal Junior — Pilotage éditorial</title>
+  <meta name="description" content="Application de pilotage éditorial pour le magazine jeunesse Nidal Junior">
+  
+  <link rel="icon" type="image/png" href="./assets/mascot.png">
+  
+  <!-- Feuille de styles principale -->
+  <link rel="stylesheet" href="./css/style.css">
+  
+  <!-- SheetJS pour export Excel XLSX -->
+  <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js" defer></script>
+  
+  <!-- Modules JavaScript de l'application -->
+  <script src="./js/utils.js" defer></script>
+  <script src="./js/store.js" defer></script>
+  <script src="./js/charts.js" defer></script>
+  <script src="./js/export.js" defer></script>
+  <script src="./js/dashboard.js" defer></script>
+  <script src="./js/planning.js" defer></script>
+  <script src="./js/contents.js" defer></script>
+  <script src="./js/settings.js" defer></script>
+  <script src="./js/app.js" defer></script>
+</head>
+<body>
+  <!-- Lien d'évitement pour l'accessibilité au clavier (WCAG) -->
+  <a href="#main-content" class="skip-link">Aller au contenu principal</a>
+
+  <div class="app-layout">
+    <!-- Barre latérale / Navigation principale -->
+    <aside class="sidebar" id="sidebar" aria-label="Navigation principale">
+      <div class="sidebar__brand">
+        <div class="sidebar__logo-container">
+          <img src="./assets/logo.jpg" alt="Logo Nidal Établissement Privé" class="sidebar__logo-img">
+        </div>
+      </div>
+
+      <nav class="sidebar__nav" role="navigation">
+        <button class="nav-item active" data-view="dashboard" aria-current="page">
+          <span class="nav-item__icon" aria-hidden="true">📊</span>
+          <span class="nav-item__label">Tableau de bord</span>
+        </button>
+        <button class="nav-item" data-view="planning" aria-current="false">
+          <span class="nav-item__icon" aria-hidden="true">📅</span>
+          <span class="nav-item__label">Planning</span>
+        </button>
+        <button class="nav-item" data-view="contents" aria-current="false">
+          <span class="nav-item__icon" aria-hidden="true">📝</span>
+          <span class="nav-item__label">Contenus</span>
+        </button>
+        <button class="nav-item" data-view="settings" aria-current="false">
+          <span class="nav-item__icon" aria-hidden="true">⚙️</span>
+          <span class="nav-item__label">Paramètres</span>
+        </button>
+      </nav>
+
+      <div class="sidebar__footer">
+        <div class="sidebar__mascot-card">
+          <img src="./assets/mascot.png" alt="Mascotte Nidal Junior" class="sidebar__mascot-img">
+          <div class="sidebar__mascot-info">
+            <span class="sidebar__mascot-name">Nidal Junior</span>
+            <span class="sidebar__mascot-tag">Pilotage 2026</span>
+          </div>
+        </div>
+
+        <button class="theme-toggle" id="theme-toggle" aria-label="Basculer en mode sombre">
+          <span class="theme-toggle__icon" id="theme-icon" aria-hidden="true">🌙</span>
+          <span class="theme-toggle__label">Mode sombre</span>
+        </button>
+      </div>
+    </aside>
+
+    <!-- Zone de contenu principale (4 vues) -->
+    <main class="main-content" id="main-content" tabindex="-1">
+      <div class="view-panel active" id="view-dashboard" role="region" aria-label="Tableau de bord"></div>
+      <div class="view-panel" id="view-planning" role="region" aria-label="Planning éditorial" hidden></div>
+      <div class="view-panel" id="view-contents" role="region" aria-label="Gestion des contenus" hidden></div>
+      <div class="view-panel" id="view-settings" role="region" aria-label="Paramètres de l'application" hidden></div>
+    </main>
+
+    <!-- Navigation mobile basse -->
+    <nav class="mobile-nav" aria-label="Navigation mobile">
+      <button class="mobile-nav__item active" data-view="dashboard" aria-label="Tableau de bord">
+        <span class="mobile-nav__icon" aria-hidden="true">📊</span>
+        <span class="mobile-nav__label">Bord</span>
+      </button>
+      <button class="mobile-nav__item" data-view="planning" aria-label="Planning">
+        <span class="mobile-nav__icon" aria-hidden="true">📅</span>
+        <span class="mobile-nav__label">Planning</span>
+      </button>
+      <button class="mobile-nav__item" data-view="contents" aria-label="Contenus">
+        <span class="mobile-nav__icon" aria-hidden="true">📝</span>
+        <span class="mobile-nav__label">Contenus</span>
+      </button>
+      <button class="mobile-nav__item" data-view="settings" aria-label="Paramètres">
+        <span class="mobile-nav__icon" aria-hidden="true">⚙️</span>
+        <span class="mobile-nav__label">Réglages</span>
+      </button>
+    </nav>
+  </div>
+
+  <!-- Modale accessible globale -->
+  <div class="modal-overlay" id="modal-overlay" hidden>
+    <div id="modal-container"></div>
+  </div>
+
+  <!-- Notifications Toasts -->
+  <div class="toast-container" id="toast-container" aria-live="polite" aria-atomic="true"></div>
+
+  <!-- Zone de restitution vocale pour lecteur d'écran (WCAG) -->
+  <div id="sr-announcer" class="sr-only" aria-live="polite" aria-atomic="true"></div>
+</body>
+</html>
