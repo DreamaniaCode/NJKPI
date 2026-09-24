@@ -410,6 +410,9 @@ app.get('/api/audience-conversions', async (req, res, next) => {
     }
 
     const payload = await syncAudienceConversions(brand);
+    // Chaque vraie lecture Meta non mise en cache devient un point d'historique.
+    // Cela donne un premier point immédiatement après "Actualiser Meta", sans attendre une heure.
+    await saveAudienceSnapshot(brand, payload);
     const cached = setAudienceCache(brand, payload);
     res.json({ ok: true, cached: false, ...cached });
   } catch (error) { next(error); }
