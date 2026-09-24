@@ -126,16 +126,16 @@ const AgentView = (() => {
         topic: 'Le plaisir de lire avec Nounou',
         audience: 'Enfants de maternelle (3 à 6 ans) et familles',
         objective: 'Stimuler la curiosité et l’amour des livres',
-        platform: 'Instagram Reel + Facebook Story',
-        format: 'reel',
+        platform: 'Instagram + Facebook',
+        format: 'post',
         duration: '30 secondes',
         slideCount: '5 slides',
         targetDate: '',
         requiredInfo: '',
-        cta: 'Racontez-nous en commentaire le livre préféré de votre enfant !',
+        cta: 'Quel est le livre préféré de votre enfant en ce moment ? Dites-le-nous en commentaire !',
         assets: 'Mascotte officielle Nounou (assets/mascot.png)',
         includeNounou: true,
-        includeStoryboard: true,
+        includeStoryboard: false,
         language: 'Français',
         notes: ''
       },
@@ -147,11 +147,11 @@ const AgentView = (() => {
     },
     'planning-nidal': {
       brief: {
-        topic: 'Calendrier éditorial de 4 semaines',
+        topic: 'La méthode Active Learning : Favoriser l\'engagement des élèves',
         audience: 'Parents, futurs parents, élèves et communauté GS Nidal',
-        objective: 'Équilibrer les piliers : pédagogie, vie scolaire, conseils et Nidal Junior',
-        platform: 'Multi-plateformes (Instagram, Facebook, LinkedIn)',
-        format: 'calendrier_mois',
+        objective: 'Valoriser l\'apprentissage actif, la motivation et l\'excellence pédagogique',
+        platform: 'Instagram + Facebook',
+        format: 'post_institutionnel',
         duration: '30 secondes',
         slideCount: '5 slides',
         targetDate: '',
@@ -450,13 +450,14 @@ const AgentView = (() => {
 
           <!-- Barre d'onglets du résultat -->
           <div class="agent-tabs">
-            <button class="agent-tab-btn ${currentAgent.activeTab === 'output' ? 'active' : ''}" data-tab="output">📄 Texte complet</button>
+            <button class="agent-tab-btn ${currentAgent.activeTab === 'output' ? 'active' : ''}" data-tab="output">📱 Post & Prompt Image</button>
+            <button class="agent-tab-btn ${currentAgent.activeTab === 'image' ? 'active' : ''}" data-tab="image">🎨 Prompt Image IA</button>
             <button class="agent-tab-btn ${currentAgent.activeTab === 'metadata' ? 'active' : ''}" data-tab="metadata">📋 Fiche planning</button>
             <button class="agent-tab-btn ${currentAgent.activeTab === 'storyboard' ? 'active' : ''}" data-tab="storyboard">
               🎬 Storyboard ${gen?.storyboard ? `(${gen.storyboard.length})` : ''}
             </button>
-            <button class="agent-tab-btn ${currentAgent.activeTab === 'social' ? 'active' : ''}" data-tab="social">📱 Légende & 5 Hashtags</button>
             <button class="agent-tab-btn ${currentAgent.activeTab === 'quality' ? 'active' : ''}" data-tab="quality">🛡️ Contrôle qualité</button>
+            <button class="agent-tab-btn ${currentAgent.activeTab === 'raw' ? 'active' : ''}" data-tab="raw">📄 Texte brut</button>
           </div>
 
           <!-- Panneau de révision rapide -->
@@ -487,7 +488,7 @@ const AgentView = (() => {
   function _formatOptionsHtml(agentKey, selected) {
     if (agentKey === 'studio-junior') {
       return `
-        <option value="post" ${selected === 'post' ? 'selected' : ''}>Post réseaux sociaux (Accroche + Corps aéré + 5 hashtags)</option>
+        <option value="post" ${selected === 'post' ? 'selected' : ''}>Post réseaux sociaux (Accroche + Corps aéré + Prompt Image IA + 5 hashtags)</option>
         <option value="reel" ${selected === 'reel' ? 'selected' : ''}>Reel vidéo avec Nounou (Script minuté & temps décidé)</option>
         <option value="carrousel" ${selected === 'carrousel' ? 'selected' : ''}>Carrousel d’éveil (Découpage slide par slide)</option>
         <option value="quiz" ${selected === 'quiz' ? 'selected' : ''}>Quiz ludo-éducatif interactif (3 questions avec Nounou)</option>
@@ -498,14 +499,131 @@ const AgentView = (() => {
       `;
     }
     return `
-      <option value="post_institutionnel" ${selected === 'post_institutionnel' ? 'selected' : ''}>Publication institutionnelle officielle (5 hashtags ciblés)</option>
+      <option value="post_institutionnel" ${selected === 'post_institutionnel' ? 'selected' : ''}>Publication institutionnelle officielle (Post + Prompt Image IA + 5 hashtags)</option>
       <option value="reel_pedagogique" ${selected === 'reel_pedagogique' ? 'selected' : ''}>Vidéo institutionnelle / Reel (Script minuté)</option>
       <option value="carrousel_methode" ${selected === 'carrousel_methode' ? 'selected' : ''}>Carrousel méthodes pédagogiques (Slide par slide)</option>
-      <option value="calendrier_mois" ${selected === 'calendrier_mois' ? 'selected' : ''}>Calendrier mensuel (4 semaines équilibrées)</option>
+      <option value="calendrier_mois" ${selected === 'calendrier_mois' ? 'selected' : ''}>Calendrier mensuel (Posts complets & prompts images par semaine)</option>
       <option value="planning_semaine" ${selected === 'planning_semaine' ? 'selected' : ''}>Planning hebdomadaire (7 jours détaillés)</option>
       <option value="infographie_conseils" ${selected === 'infographie_conseils' ? 'selected' : ''}>Infographie conseils aux familles</option>
       <option value="annonce_officielle" ${selected === 'annonce_officielle' ? 'selected' : ''}>Annonce administrative validée</option>
     `;
+  }
+
+  function _extractPostAndPrompt(gen, agentKey) {
+    if (!gen) return { postText: '', imagePrompt: '', tags: [] };
+    const data = gen.structuredData || {};
+    let postText = data.postComplet || data.message || '';
+    let imagePrompt = data.imagePrompt || data.promptImage || '';
+    let tags = Array.isArray(data.tags) ? data.tags : [];
+
+    const raw = gen.output || '';
+    const clean = raw
+      .replace(/^[\t >*#-]*\*\*([^*:\n]+?)\s*:?\*\*\s*:?[ \t]*/gm, '$1 : ')
+      .replace(/^[\t >*#-]+([A-ZÀ-Ÿ][a-zA-ZÀ-ÿ0-9 ’'\-_/]+?)\s*:[ \t]*/gm, '$1 : ');
+
+    const STOP = 'Concept créatif|Titre|Prompt image|Idée visuelle|Accroche|Post prêt à publier|Texte principal|Message principal|Information pratique|Appel à l’action|Appel à l\'action|Type|Canal|Plateforme|Statut|Date|Auteur|Tags|Hashtags|STORYBOARD|SCRIPT MINUTÉ|FORMATS VISUELS|CONTRÔLE QUALITÉ';
+
+    // Extraction propre du post
+    if (!postText || /CONTRÔLE QUALITÉ|Statut\s*:|Type de contenu\s*:/i.test(postText)) {
+      const mPost = clean.match(new RegExp(`(?:^|\\n)Post prêt à publier\\s*:\\s*([\\s\\S]*?)(?=\\n(?:${STOP})\\s*:|\\n===|$)`, 'i'));
+      if (mPost && mPost[1].trim()) {
+        postText = mPost[1].trim();
+      } else {
+        const mTexte = clean.match(new RegExp(`(?:^|\\n)(?:Texte principal|Légende sociale d'accompagnement|Légende sociale|Résumé)\\s*:\\s*([\\s\\S]*?)(?=\\n(?:${STOP})\\s*:|\\n===|$)`, 'i'));
+        if (mTexte && mTexte[1].trim()) {
+          postText = mTexte[1].trim();
+        }
+      }
+    }
+
+    // Extraction propre du prompt image
+    if (!imagePrompt || /CONTRÔLE QUALITÉ|Statut\s*:/i.test(imagePrompt)) {
+      const mImg = clean.match(new RegExp(`(?:^|\\n)(?:Prompt image IA|Prompt image|Prompt Midjourney|Image prompt)\\s*:\\s*([\\s\\S]*?)(?=\\n(?:${STOP})\\s*:|\\n===|$)`, 'i'));
+      if (mImg && mImg[1].trim()) {
+        imagePrompt = mImg[1].trim();
+      } else {
+        const mVis = clean.match(new RegExp(`(?:^|\\n)Idée visuelle\\s*:\\s*([\\s\\S]*?)(?=\\n(?:${STOP})\\s*:|\\n===|$)`, 'i'));
+        if (mVis && mVis[1].trim()) {
+          imagePrompt = mVis[1].trim();
+        }
+      }
+    }
+
+    const title = data.titre || gen.brief?.topic || 'Groupe Scolaire Nidal';
+    if (!imagePrompt) {
+      imagePrompt = agentKey === 'studio-junior'
+        ? `A modern cheerful Moroccan kindergarten classroom corner, Nounou the friendly 5-year-old boy mascot illustrating "${title}", warm golden sunlight, royal blue #1746d1, magenta #d91b5c and bright yellow #ffc928, clean 3D Disney/Pixar editorial illustration, high quality, 8k resolution --ar 4:5`
+        : `A prestigious modern private school in Morocco, students collaborating with an inspiring teacher, "${title}", bright state-of-the-art classroom, Canon EOS R5 50mm f/1.8 editorial photography, warm sunlight, royal blue #1746d1 and gold accents, 8k resolution --ar 4:5`;
+    }
+
+    if (!postText) {
+      postText = raw.split(/CONTRÔLE QUALITÉ|FORMATS VISUELS/i)[0].trim();
+    }
+
+    if (!tags.length) {
+      const mTags = clean.match(/(?:^|\n)(?:Tags|Hashtags)\s*:\s*(.+)/i);
+      if (mTags) {
+        tags = mTags[1].split(/[,#\s]+/).filter(t => t.length > 1).map(t => t.startsWith('#') ? t : `#${t}`).slice(0, 5);
+      }
+      if (!tags.length) {
+        tags = agentKey === 'studio-junior'
+          ? ['#GSNidal', '#NidalJunior', '#MaternelleMaroc', '#PlaisirDeLire', '#GrandirEnsemble']
+          : ['#GSNidal', '#GroupeScolaireNidal', '#ExcellenceEducative', '#ReussiteScolaire', '#AvenirDesEleves'];
+      }
+    }
+
+    return { postText, imagePrompt, tags };
+  }
+
+  function _extractCalendarItems(rawText, agentKey) {
+    if (!rawText) return [];
+    const items = [];
+
+    // Pattern 1: Entries with 📌 POST ...
+    if (/📌\s*POST/i.test(rawText)) {
+      const parts = rawText.split(/📌\s*POST/i).slice(1);
+      for (const p of parts) {
+        const titleMatch = p.match(/^([^\n]+)/);
+        const title = titleMatch ? titleMatch[1].replace(/^[—\-:\s]+/, '').trim() : 'Publication';
+        const postMatch = p.match(/📱\s*Post prêt à publier\s*:\s*([\s\S]*?)(?=🎨\s*Prompt image IA|📌|$)/i);
+        const imgMatch = p.match(/🎨\s*Prompt image IA\s*:\s*([\s\S]*?)(?=📌|CONTRÔLE QUALITÉ|$)/i);
+        items.push({
+          title,
+          post: postMatch ? postMatch[1].trim() : '',
+          imagePrompt: imgMatch ? imgMatch[1].trim() : ''
+        });
+      }
+      return items;
+    }
+
+    // Pattern 2: Entries with Date : ... Titre : ...
+    const entryRegex = /(?:^|\n)(?:(?:\*\*\d+\.\s*)?Date\s*:\s*([^\n]+))([\s\S]*?)(?=(?:\n(?:\*\*\d+\.\s*)?Date\s*:)|CONTRÔLE QUALITÉ|$)/gi;
+    let m;
+    while ((m = entryRegex.exec(rawText)) !== null) {
+      const dateVal = m[1].replace(/\*\*/g, '').trim();
+      const body = m[2];
+      const titleM = body.match(/(?:Titre|Concept créatif)\s*:\s*([^\n]+)/i);
+      const resumeM = body.match(/(?:Post prêt à publier|Résumé|Message principal|Texte principal)\s*:\s*([^\n]+(?:\n(?![A-ZÀ-Ÿ\*\-][a-zA-ZÀ-ÿ0-9 ’'\-_/]+:)[^\n]+)*)/i);
+      const ctaM = body.match(/Appel à l[’']action\s*:\s*([^\n]+)/i);
+      const tagsM = body.match(/(?:Tags|Hashtags)\s*:\s*([^\n]+)/i);
+      const imgM = body.match(/(?:Prompt image IA|Prompt image)\s*:\s*([^\n]+(?:\n(?![A-ZÀ-Ÿ\*\-][a-zA-ZÀ-ÿ0-9 ’'\-_/]+:)[^\n]+)*)/i);
+
+      const title = titleM ? titleM[1].replace(/["«»\*]/g, '').trim() : `Publication du ${dateVal}`;
+      const resume = resumeM ? resumeM[1].trim() : '';
+      const cta = ctaM ? ctaM[1].trim() : 'Découvrez notre projet sur gsnidal.ma';
+      const tags = tagsM ? tagsM[1].trim() : '#GSNidal #GroupeScolaireNidal #ExcellenceEducative #AvenirDesEleves #ReussiteScolaire';
+
+      const post = `${title} 🏛️✨\n\n${resume}\n\n👉 ${cta}\n\n${tags}`;
+      const img = imgM ? imgM[1].trim() : `A modern prestigious private school in Morocco, students engaged in "${title}", bright classroom, Canon EOS R5 editorial photography, warm sunlight, royal blue and gold accents, 8k --ar 4:5`;
+
+      items.push({
+        title: `${title} (${dateVal})`,
+        post,
+        imagePrompt: img
+      });
+    }
+
+    return items;
   }
 
   function _renderTabContent(agent) {
@@ -522,13 +640,146 @@ const AgentView = (() => {
     }
 
     const data = gen.structuredData || {};
+    const { postText, imagePrompt, tags } = _extractPostAndPrompt(gen, _activeAgentKey);
+    const isJunior = _activeAgentKey === 'studio-junior';
 
+    // 1. ONGLET PRINCIPAL : POST PRÊT À PUBLIER & PROMPT IMAGE IA
+    if (agent.activeTab === 'output') {
+      const fullCopyPayload = `${postText}\n\n${tags.join(' ')}`;
+      const calendarItems = _extractCalendarItems(gen.output, _activeAgentKey);
+
+      return `
+        <div class="post-preview-container">
+          <!-- Carte 1 : Post prêt à publier -->
+          <div class="post-preview-card">
+            <div class="post-preview-card__head">
+              <div style="display:flex;align-items:center;gap:10px;">
+                <span class="post-preview-icon">📱</span>
+                <div>
+                  <h3 class="post-preview-title">Post prêt à publier</h3>
+                  <p class="post-preview-subtitle">Texte rédigé prêt à copier-coller sur Instagram, Facebook et LinkedIn</p>
+                </div>
+              </div>
+              <button class="btn btn--primary btn--sm" id="btn-copy-post" type="button" title="Copier le post et ses 5 hashtags">
+                📋 Copier le post
+              </button>
+            </div>
+
+            <div class="post-caption-box" id="post-caption-content">${escapeHtml(postText)}</div>
+
+            <div class="post-preview-card__tags">
+              <span class="post-tags-label">5 Hashtags officiels :</span>
+              <div class="post-tags-list">
+                ${tags.map(t => `<span class="badge badge--blue">${escapeHtml(t)}</span>`).join('')}
+              </div>
+            </div>
+          </div>
+
+          <!-- Carte 2 : Prompt Image IA -->
+          <div class="image-prompt-card">
+            <div class="image-prompt-card__head">
+              <div style="display:flex;align-items:center;gap:10px;">
+                <span class="image-prompt-icon">🎨</span>
+                <div>
+                  <h3 class="image-prompt-title">Prompt Image IA (Midjourney / DALL-E / Canva)</h3>
+                  <p class="image-prompt-subtitle">Copiez ce prompt pour générer le visuel officiel dans votre générateur d'image</p>
+                </div>
+              </div>
+              <button class="btn btn--secondary btn--sm" id="btn-copy-image-prompt" type="button" title="Copier le prompt pour Midjourney / DALL-E 3">
+                📋 Copier le prompt image
+              </button>
+            </div>
+
+            <div class="image-prompt-box" id="image-prompt-content">${escapeHtml(imagePrompt)}</div>
+
+            <div class="image-prompt-footer">
+              <div class="image-prompt-tips">
+                💡 <b>Conseil rendu :</b> ${isJunior ? 'Style 3D Pixar mignon ou photo d’éveil chaleureuse avec Nounou' : 'Photo éditoriale haut de gamme Canon EOS R5 50mm, lumière naturelle dorée'} · Ratio : <b>--ar 4:5</b> (feed) ou <b>--ar 9:16</b> (Reel/Story)
+              </div>
+            </div>
+          </div>
+
+          <!-- Si plusieurs publications ont été générées (Calendrier) -->
+          ${calendarItems.length > 1 ? `
+            <div class="calendar-posts-section">
+              <div class="calendar-posts-header">
+                <span class="section-kicker">Publications du planning</span>
+                <h3>📅 Toutes les publications générées (${calendarItems.length} posts complets)</h3>
+              </div>
+              <div class="calendar-posts-grid">
+                ${calendarItems.map((item, idx) => `
+                  <div class="calendar-post-item">
+                    <div class="calendar-post-item__head">
+                      <strong>${idx + 1}. ${escapeHtml(item.title)}</strong>
+                      <button class="btn btn--secondary btn--sm btn-copy-inline" data-copy-text="${escapeHtml(item.post)}" type="button">
+                        📋 Copier ce post
+                      </button>
+                    </div>
+                    <div class="calendar-post-item__body">${escapeHtml(item.post)}</div>
+                    ${item.imagePrompt ? `
+                      <div class="calendar-post-item__prompt">
+                        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:4px;">
+                          <strong style="color:var(--magenta);font-size:11px;">🎨 Prompt Image IA :</strong>
+                          <button class="btn btn--outline btn--sm btn-copy-inline" data-copy-text="${escapeHtml(item.imagePrompt)}" type="button" style="padding:2px 6px;font-size:10px;">
+                            Copier prompt
+                          </button>
+                        </div>
+                        <code>${escapeHtml(item.imagePrompt)}</code>
+                      </div>
+                    ` : ''}
+                  </div>
+                `).join('')}
+              </div>
+            </div>
+          ` : ''}
+        </div>`;
+    }
+
+    // 2. ONGLET PROMPT IMAGE IA DÉDIÉ
+    if (agent.activeTab === 'image') {
+      return `
+        <div class="image-prompt-studio">
+          <div class="image-prompt-card" style="margin-top:0;">
+            <div class="image-prompt-card__head">
+              <div style="display:flex;align-items:center;gap:10px;">
+                <span class="image-prompt-icon">🎨</span>
+                <div>
+                  <h3 class="image-prompt-title">Générateur de visuels IA</h3>
+                  <p class="image-prompt-subtitle">Prompt optimisé pour Midjourney v6, DALL-E 3, Flux 1.1 Pro et Canva Magic Media</p>
+                </div>
+              </div>
+              <button class="btn btn--primary btn--sm" id="btn-copy-image-prompt" type="button">
+                📋 Copier le prompt image
+              </button>
+            </div>
+
+            <div class="image-prompt-box" style="font-size:13px;line-height:1.7;">${escapeHtml(imagePrompt)}</div>
+
+            <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-top:14px;font-size:11.5px;">
+              <div style="background:#fff;padding:12px;border:1px solid var(--line);border-radius:6px;">
+                <strong style="color:var(--blue);display:block;margin-bottom:6px;">📐 Paramètres recommandés</strong>
+                <div>• Format Feed : <code>--ar 4:5</code> (1080 × 1350 px)</div>
+                <div>• Format Story / Reel : <code>--ar 9:16</code> (1080 × 1920 px)</div>
+                <div>• Format Carré : <code>--ar 1:1</code> (1080 × 1080 px)</div>
+              </div>
+              <div style="background:#fff;padding:12px;border:1px solid var(--line);border-radius:6px;">
+                <strong style="color:var(--magenta);display:block;margin-bottom:6px;">🎨 Palette & Identité GS Nidal</strong>
+                <div>• Bleu Roi officiel : <code>#1746d1</code></div>
+                <div>• Magenta vif : <code>#d91b5c</code></div>
+                <div>• Jaune soleil : <code>#ffc928</code></div>
+              </div>
+            </div>
+          </div>
+        </div>`;
+    }
+
+    // 3. ONGLET FICHE PLANNING (METADATA)
     if (agent.activeTab === 'metadata') {
       return `
         <div style="background:var(--surface);padding:18px;border-radius:6px;font-size:12px;line-height:1.7;">
           <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:14px;">
             <div><strong style="color:var(--muted);">TITRE :</strong><br><b style="font-size:14px;color:var(--ink);">${escapeHtml(data.titre || 'Sans titre')}</b></div>
-            <div><strong style="color:var(--muted);">TYPE & STATUT :</strong><br><span class="badge badge--blue">${escapeHtml(data.format || 'article')}</span> <span class="badge badge--yellow">${escapeHtml(gen.status || 'brouillon')}</span></div>
+            <div><strong style="color:var(--muted);">TYPE & STATUT :</strong><br><span class="badge badge--blue">${escapeHtml(data.format || 'post')}</span> <span class="badge badge--yellow">${escapeHtml(gen.status || 'brouillon')}</span></div>
           </div>
           <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:14px;">
             <div><strong style="color:var(--muted);">DATE PROPOSÉE :</strong><br>${escapeHtml(data.datePublication || 'Date à confirmer')}</div>
@@ -538,13 +789,14 @@ const AgentView = (() => {
           <div style="margin-bottom:12px;"><strong style="color:var(--muted);">OBJECTIF :</strong><br>${escapeHtml(data.objectif || 'Pédagogique et bienveillant')}</div>
           <div style="margin-bottom:12px;"><strong style="color:var(--muted);">ACCROCHE :</strong><br><em>« ${escapeHtml(data.accroche || data.titre)} »</em></div>
           <div style="margin-bottom:12px;"><strong style="color:var(--muted);">APPEL À L'ACTION :</strong><br>${escapeHtml(data.cta || 'Partagez vos impressions')}</div>
-          <div><strong style="color:var(--muted);">TAGS :</strong><br>${(data.tags || []).map(t => `<span class="badge" style="margin-right:4px;">${escapeHtml(t)}</span>`).join('')}</div>
+          <div><strong style="color:var(--muted);">TAGS (5) :</strong><br>${tags.map(t => `<span class="badge" style="margin-right:4px;">${escapeHtml(t)}</span>`).join('')}</div>
         </div>`;
     }
 
+    // 4. ONGLET STORYBOARD (POUR REELS / VIDÉOS)
     if (agent.activeTab === 'storyboard') {
       if (!gen.storyboard || !gen.storyboard.length) {
-        return `<p style="padding:20px;text-align:center;color:var(--muted);">Aucun storyboard détaillé détecté pour ce format. Cochez la case « Storyboard minuté » et choisissez un format Reel/Vidéo pour en générer un.</p>`;
+        return `<p style="padding:20px;text-align:center;color:var(--muted);">Aucun storyboard détaillé détecté pour ce format. Choisissez le format Reel/Vidéo pour générer un script minuté scène par scène.</p>`;
       }
       return `
         <div class="storyboard-timeline">
@@ -574,24 +826,7 @@ const AgentView = (() => {
         </div>`;
     }
 
-    if (agent.activeTab === 'social') {
-      const tagsString = (data.tags || []).join(' ');
-      return `
-        <div style="background:var(--surface);padding:18px;border-radius:6px;font-size:12px;line-height:1.7;">
-          <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px;">
-            <strong style="color:var(--blue);">Légende prête à publier :</strong>
-            <button class="btn btn--secondary btn--sm" id="btn-copy-caption">Copier la légende</button>
-          </div>
-          <div id="caption-body" style="background:#ffffff;padding:14px;border:1px solid var(--line);border-radius:4px;white-space:pre-wrap;font-family:inherit;">${escapeHtml(data.message || gen.output)}</div>
-          <div style="margin-top:14px;">
-            <strong style="color:var(--muted);display:block;margin-bottom:6px;">Hashtags optimisés (5 à 10) :</strong>
-            <div style="display:flex;flex-wrap:wrap;gap:6px;">
-              ${(data.tags || []).map(t => `<span class="badge badge--blue">${escapeHtml(t)}</span>`).join('')}
-            </div>
-          </div>
-        </div>`;
-    }
-
+    // 5. ONGLET CONTRÔLE QUALITÉ
     if (agent.activeTab === 'quality') {
       const q = gen.qualityCheck || {};
       return `
@@ -620,8 +855,8 @@ const AgentView = (() => {
         </div>`;
     }
 
-    // Default: full formatted output
-    return `<pre style="white-space:pre-wrap;font-family:inherit;font-size:12.5px;line-height:1.65;margin:0;">${escapeHtml(gen.output)}</pre>`;
+    // 6. ONGLET TEXTE BRUT
+    return `<pre style="white-space:pre-wrap;font-family:inherit;font-size:12px;line-height:1.65;margin:0;background:var(--surface);padding:16px;border-radius:6px;border:1px solid var(--line);">${escapeHtml(gen.output)}</pre>`;
   }
 
   function _renderHistorySection(agent) {
@@ -703,14 +938,34 @@ const AgentView = (() => {
 
     const btnCopyAll = document.getElementById('btn-copy-all');
     if (btnCopyAll && gen) {
-      btnCopyAll.onclick = () => navigator.clipboard.writeText(gen.output).then(() => showToast('Contenu copié dans le presse-papiers', 'success'));
+      btnCopyAll.onclick = () => navigator.clipboard.writeText(gen.output).then(() => showToast('Contenu complet copié dans le presse-papiers', 'success'));
     }
 
-    const btnCopyCaption = document.getElementById('btn-copy-caption');
-    if (btnCopyCaption && gen) {
-      const captionText = gen.structuredData?.message || gen.output;
-      btnCopyCaption.onclick = () => navigator.clipboard.writeText(captionText).then(() => showToast('Légende copiée', 'success'));
+    const btnCopyPost = document.getElementById('btn-copy-post');
+    if (btnCopyPost && gen) {
+      btnCopyPost.onclick = () => {
+        const { postText, tags } = _extractPostAndPrompt(gen, _activeAgentKey);
+        const fullPost = `${postText}\n\n${tags.join(' ')}`.trim();
+        navigator.clipboard.writeText(fullPost).then(() => showToast('Post et hashtags copiés dans le presse-papiers !', 'success'));
+      };
     }
+
+    const btnCopyImgPrompt = document.getElementById('btn-copy-image-prompt');
+    if (btnCopyImgPrompt && gen) {
+      btnCopyImgPrompt.onclick = () => {
+        const { imagePrompt } = _extractPostAndPrompt(gen, _activeAgentKey);
+        navigator.clipboard.writeText(imagePrompt).then(() => showToast('Prompt Image IA copié ! Collez-le dans Midjourney / DALL-E / Canva.', 'success'));
+      };
+    }
+
+    document.querySelectorAll('.btn-copy-inline').forEach(btn => {
+      btn.onclick = () => {
+        const txt = btn.dataset.copyText || '';
+        if (txt) {
+          navigator.clipboard.writeText(txt).then(() => showToast('Copié dans le presse-papiers !', 'success'));
+        }
+      };
+    });
 
     const btnSaveDraft = document.getElementById('btn-save-draft');
     if (btnSaveDraft && gen) {

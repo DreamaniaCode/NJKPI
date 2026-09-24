@@ -36,9 +36,13 @@ async function runTests() {
   assert.strictEqual(postGen.structuredData.tags.length, 5, 'STRICTEMENT 5 hashtags');
   assert(!/SCÈNE\s+\d+/i.test(postGen.output), 'Pas de storyboard dans un post');
   assert(/Accroche\s*:/i.test(postGen.output), 'Accroche présente');
+  assert(/Prompt image IA\s*:/i.test(postGen.output), 'Prompt image IA présent');
+  assert(/Post prêt à publier\s*:/i.test(postGen.output), 'Post prêt à publier présent');
+  assert(postGen.structuredData.postComplet && postGen.structuredData.postComplet.length > 80, 'postComplet extrait sur plusieurs paragraphes');
+  assert(postGen.structuredData.promptImage && postGen.structuredData.promptImage.length > 40, 'promptImage extrait');
   assert(/Idée visuelle\s*:/i.test(postGen.output), 'Idée visuelle présente');
   assert(/Appel à l’action\s*:/i.test(postGen.output), 'CTA présent');
-  console.log('✓ Post Studio Junior : pas de storyboard, 5 hashtags stricts, accroche & visuel clairs');
+  console.log('✓ Post Studio Junior : pas de storyboard, post prêt à publier, prompt image IA & 5 hashtags stricts');
 
   console.log('\n--- 3. TEST STUDIO JUNIOR - FORMAT REEL (SCRIPT MINUTÉ & DURÉE DÉCIDÉE) ---');
   const reelGen = await generateEditorialOutput({

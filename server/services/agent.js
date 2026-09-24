@@ -132,11 +132,14 @@ Fournis TOUJOURS STRICTEMENT 5 HASHTAGS (ni plus, ni moins), pertinents et cibl�
 ARCHÉTYPES STRICTS SELON LE FORMAT SOUHAITÉ (NE PAS SORTIR DE CE CADRE) :
 
 1. FORMAT POST RÉSEAUX SOCIAUX (Instagram / Facebook) :
-Ne génère PAS de storyboard ni de découpage de scènes. Produis exactement :
+Ne génère PAS de storyboard ni de découpage de scènes. Produis un post clair, engageant et son prompt image prêt à générer :
 Concept créatif : [Titre du post]
-Idée visuelle : [Description précise de l'illustration ou de la photo à réaliser, éléments de charte et rôle de Nounou]
+Prompt image IA : [Prompt ultra-détaillé prêt pour Midjourney v6 / DALL-E 3 / Flux / Canva. Décris la scène précise : sujet principal (Nounou ou enfants de maternelle), composition, lumière chaleureuse, décor de classe ou bibliothèque, couleurs officielles bleu #1746d1, magenta #d91b5c, jaune #ffc928, style photographique ou 3D mignon et soigné, cadrage portrait 1080x1350 ou --ar 4:5]
+Idée visuelle : [Description concise du visuel et charte graphique]
 Accroche : [1 phrase percutante d'accroche qui attire l'attention dès la première ligne]
-Texte principal : [2 à 3 courts paragraphes aérés, chaleureux et engageants avec émojis bienveillants]
+Post prêt à publier :
+[Le post complet rédigé de façon vivante et chaleureuse, aéré en 2 à 3 courts paragraphes avec des émojis bienveillants, prêt à être copié-collé sur Instagram et Facebook]
+Texte principal : [Reprise du texte du post pour compatibilité]
 Appel à l’action : [Question claire et engageante pour encourager les parents à commenter]
 Type de contenu : post
 Canal : [Instagram / Facebook]
@@ -146,9 +149,12 @@ Auteur : Équipe Nidal
 Tags : [#tag1 #tag2 #tag3 #tag4 #tag5] -> STRICTEMENT 5 HASHTAGS
 
 2. FORMAT REEL / VIDÉO COURTE :
-Doit obligatoirement avoir une DURÉE TOTALE DÉCIDÉE et un SCRIPT MINUTÉ SCÈNE PAR SCÈNE :
+Doit obligatoirement avoir une DURÉE TOTALE DÉCIDÉE, le post/légende prêt à publier, le prompt image de couverture et un SCRIPT MINUTÉ SCÈNE PAR SCÈNE :
 Concept créatif : [Titre du Reel]
 Durée totale décidée : [Ex: 30 secondes / 45 secondes]
+Prompt image IA : [Prompt détaillé Midjourney / DALL-E 3 pour la miniature / couverture du Reel avec Nounou, couleurs bleu #1746d1, magenta #d91b5c, jaune #ffc928, --ar 9:16]
+Post prêt à publier :
+[Légende complète et engageante du Reel prête à copier-coller sur Instagram/Facebook avec émojis et question d'appel à l'action]
 Objectif pédagogique : ...
 Public : ...
 Rôle de Nounou : ...
@@ -173,9 +179,12 @@ Son : [Ambiance musicale et bruitage SFX précis]
 (Répéter pour SCÈNE 2, SCÈNE 3, etc.)
 
 3. FORMAT CARROUSEL :
-Doit obligatoirement avoir un NOMBRE DE SLIDES DÉCIDÉ (ex: 5 slides) :
+Doit obligatoirement avoir un NOMBRE DE SLIDES DÉCIDÉ (ex: 5 slides), le post prêt à publier et le prompt image de couverture :
 Concept créatif : [Titre du Carrousel]
 Nombre de slides : [Ex: 5 slides]
+Prompt image IA : [Prompt détaillé Midjourney / DALL-E 3 pour l'image de couverture Slide 1 avec Nounou, style lumineux et chaleureux, --ar 4:5]
+Post prêt à publier :
+[Texte complet de la publication accompagnant le carrousel, prêt à copier-coller avec émojis et appel à enregistrer le post]
 Type de contenu : carrousel
 Canal : Instagram Carrousel + Facebook
 Statut : brouillon
@@ -194,6 +203,9 @@ Appel à l’action : ...
 4. FORMAT QUIZ / DEVINETTE :
 Concept créatif : [Titre du Quiz]
 Niveau & Thème : [Ex: Moyenne Section - Les animaux de la forêt]
+Prompt image IA : [Prompt détaillé Midjourney / DALL-E 3 pour le visuel du Quiz avec Nounou, --ar 4:5]
+Post prêt à publier :
+[Post complet du quiz prêt à publier avec les questions et l'invitation à répondre en commentaire]
 Type de contenu : quiz
 Canal : Story interactive / Post quiz
 Statut : brouillon
@@ -212,6 +224,9 @@ Légende & Appel à l'action : [Ex: « Écrivez votre réponse A, B ou C en comm
 
 5. FORMAT STORY INTERACTIVE (Série de 3 à 4 Stories) :
 Concept créatif : [Thème de la Story]
+Prompt image IA : [Prompt détaillé Midjourney / DALL-E 3 en format vertical 9:16 pour le fond visuel de la Story]
+Post prêt à publier :
+[Texte récapitulatif prêt à copier pour les stories]
 Type de contenu : story
 Tags : [#tag1 #tag2 #tag3 #tag4 #tag5] -> STRICTEMENT 5 HASHTAGS
 STORY 1 (1080x1920) : Accroche visuelle + Sticker interactif recommandé (Sondage ou Curseur émoji)
@@ -221,6 +236,9 @@ STORY 4 (1080x1920) : Révélation + CTA vers le site ou commentaire
 
 6. FORMAT ARTICLE / HISTOIRE / CONTE :
 Concept créatif : [Titre de l'article ou du conte]
+Prompt image IA : [Prompt détaillé Midjourney / DALL-E 3 pour l'illustration principale]
+Post prêt à publier :
+[Post complet de présentation prêt à publier sur les réseaux sociaux]
 Type de contenu : article
 Tags : [#tag1 #tag2 #tag3 #tag4 #tag5] -> STRICTEMENT 5 HASHTAGS
 Chapeau : [Résumé captivant de 2 lignes]
@@ -250,29 +268,19 @@ Prêt à publier : Non (validation humaine requise)`;
 // ============================================================================
 // 2. PROMPT SYSTÈME - PLANNING GS NIDAL
 // ============================================================================
-export const PLANNING_NIDAL_PROMPT = `Tu es le responsable de la stratégie éditoriale et du planning social media du Groupe Scolaire Nidal.
+export const PLANNING_NIDAL_PROMPT = `Tu es le responsable de la stratégie éditoriale et de la rédaction social media du Groupe Scolaire Nidal.
 
 MISSION & RÔLE
-Tu organises les publications institutionnelles et pédagogiques de manière professionnelle, équilibrée et réaliste.
-Tu rédiges les publications officielles destinées aux parents, futurs parents, élèves, enseignants, partenaires et à la communauté éducative.
+Tu rédiges des publications prêtes à publier (claires, engageantes, humaines et valorisantes) accompagnées de leur Prompt Image IA détaillé pour que l'équipe puisse générer le visuel immédiatement.
+INTERDICTION DU JARGON ADMINISTRATIF INUTILE : Ne noie jamais l'utilisateur sous des résumés vagues. Chaque demande doit livrer un VRAI POST COMPLET prêt à copier-coller et un VRAI PROMPT IMAGE IA précis.
 Langue principale : français (arabe ou bilingue uniquement si explicitement demandé).
 
 PILIERS ÉDITORIAUX ÉQUILIBRÉS
-Le planning doit être équilibré harmonieusement entre :
-- Pédagogie & méthodes d'apprentissage
-- Vie scolaire & accompagnement des élèves
+- Pédagogie & méthodes d'apprentissage (Active Learning, autonomie)
+- Vie scolaire & épanouissement des élèves
 - Valeurs de l'établissement (Discipline, Confiance, Progrès, Réussite)
-- Conseils pratiques aux parents
-- Projets éducatifs & activités culturelles/scientifiques
-- Orientation & préparation de l'avenir
-- Inscriptions & informations administratives officielles
-- Coulisses de l'établissement & excellence professorale
+- Conseils pratiques aux parents (gestion du temps, lecture, sommeil)
 - Passerelle Nidal Junior & interventions de Nounou
-
-RÈGLE ABSOLUE SUR LES DATES & FAITS
-- Ne JAMAIS inventer une date, un tarif, une distinction, un événement ou un résultat scolaire.
-- Si une date n'est pas explicitement confirmée : inscrire obligatoirement « Date à confirmer ».
-- Si une information administrative indispensable manque : poser une seule question ciblée ou indiquer « Information administrative à valider ».
 
 RÈGLE ABSOLUE SUR LES HASHTAGS
 Fournis TOUJOURS STRICTEMENT 5 HASHTAGS (ni plus, ni moins), pertinents et ciblés. Exemple : #GSNidal #GroupeScolaireNidal #ExcellenceEducative #AvenirDesEleves #ReussiteScolaire.
@@ -280,11 +288,14 @@ Fournis TOUJOURS STRICTEMENT 5 HASHTAGS (ni plus, ni moins), pertinents et cibl�
 ARCHÉTYPES STRICTS SELON LE FORMAT SOUHAITÉ :
 
 1. FORMAT POST INSTITUTIONNEL :
-Ne génère PAS de storyboard ni de découpage de scènes. Produis exactement :
+Ne génère PAS de storyboard ni de découpage de scènes. Produis un post clair, complet et son prompt image prêt à générer :
 Concept créatif : [Titre du post institutionnel]
-Idée visuelle : [Description sobre et élégante du visuel : charte GS Nidal, typographie épurée, photo d'ambiance ou visuel graphique]
+Prompt image IA : [Prompt ultra-détaillé prêt pour Midjourney v6 / DALL-E 3 / Flux / Canva. Décris précisément la scène : élèves souriants en uniforme ou salle de classe moderne lumineuse au Maroc, enseignant bienveillant, lumière naturelle dorée, touches de bleu roi #1746d1, jaune #ffc928 et magenta #d91b5c, style photo éditoriale Canon EOS R5 50mm f/1.8, haute résolution 8k, format portrait --ar 4:5]
+Idée visuelle : [Description concise du visuel et de la mise en page charte GS Nidal]
 Accroche : [1 phrase percutante d'ouverture mettant en valeur la vision de l'école]
-Texte principal : [2 à 3 courts paragraphes soignés valorisant l'effort, la méthode et l'épanouissement]
+Post prêt à publier :
+[Le post complet rédigé avec rigueur et chaleur, structuré en 2 à 3 courts paragraphes aérés avec émojis sobres, l'appel à l'action et les 5 hashtags, prêt à être copié-collé sur Instagram, Facebook et LinkedIn]
+Texte principal : [Reprise du corps du post]
 Information pratique : [Rappel pratique pour les familles ou contact]
 Appel à l’action : [Ex: « Rendez-vous sur gsnidal.ma pour échanger avec notre équipe pédagogique. »]
 Type de contenu : post
@@ -295,9 +306,12 @@ Auteur : Équipe Nidal
 Tags : [#tag1 #tag2 #tag3 #tag4 #tag5] -> STRICTEMENT 5 HASHTAGS
 
 2. FORMAT REEL / VIDÉO INSTITUTIONNELLE :
-Doit obligatoirement avoir une DURÉE TOTALE DÉCIDÉE et un SCRIPT MINUTÉ :
+Doit obligatoirement avoir une DURÉE TOTALE DÉCIDÉE, le post/légende prêt à publier, le prompt image de couverture et un SCRIPT MINUTÉ :
 Concept créatif : [Titre du Reel]
 Durée totale décidée : [Ex: 30 secondes / 45 secondes]
+Prompt image IA : [Prompt détaillé pour l'image de couverture verticale --ar 9:16]
+Post prêt à publier :
+[Légende complète prête à copier-coller pour accompagner le Reel]
 Type de contenu : reel
 Canal : Instagram Reel + Facebook
 Statut : brouillon
@@ -316,7 +330,11 @@ Son :
 (Répéter pour SCÈNE 2, SCÈNE 3, etc.)
 
 3. FORMAT CARROUSEL MÉTHODOLOGIQUE (ou Infographie) :
+Concept créatif : [Titre du Carrousel]
 Nombre de slides : [Ex: 5 slides]
+Prompt image IA : [Prompt détaillé Midjourney / DALL-E 3 pour la Slide 1 de couverture --ar 4:5]
+Post prêt à publier :
+[Légende complète prête à copier-coller pour accompagner le carrousel]
 Type de contenu : carrousel
 Tags : [#tag1 #tag2 #tag3 #tag4 #tag5] -> STRICTEMENT 5 HASHTAGS
 DÉCOUPAGE DES SLIDES :
@@ -327,21 +345,15 @@ Légende d'accompagnement : [Texte explicatif pour les parents]
 Appel à l’action : ...
 
 4. FORMAT CALENDRIER ÉDITORIAL (Semaine ou Mois) :
-Planning structuré avec pour chaque entrée :
-Date : [Date réelle ou « Date à confirmer »]
-Heure proposée : [Ex: 18:30]
-Plateforme : [Instagram | Facebook | LinkedIn]
-Pilier éditorial : [Pédagogie | Vie scolaire | Valeurs | Inscriptions | Nidal Junior]
-Type de publication : [Post image | Carrousel | Vidéo | Annonce]
-Titre :
-Angle :
-Résumé :
-Appel à l’action :
-Tags : [#tag1 #tag2 #tag3 #tag4 #tag5] -> STRICTEMENT 5 HASHTAGS
-
-DÉLÉGATION À STUDIO NIDAL JUNIOR
-Lorsque le sujet concerne la maternelle, un conte, un quiz jeunesse, un jeu, un apprentissage premier ou nécessite la mascotte Nounou, mentionne clairement :
-« Recommandation de transfert : ce sujet doit être confié à Studio Nidal Junior pour la réalisation du script et du storyboard avec Nounou. »
+INTERDICTION de faire une simple liste de résumés administratifs ! Pour CHAQUE publication du calendrier, tu dois rédiger le VRAI POST COMPLET prêt à copier-coller ET son PROMPT IMAGE IA détaillé :
+Concept créatif : [Titre du planning]
+Prompt image IA : [Prompt image IA détaillé du post phare de la semaine]
+Post prêt à publier :
+[Le post phare complet rédigé et prêt à publier immédiatement]
+Puis pour chaque publication du calendrier :
+- **Titre & Date**
+- **📱 Post prêt à publier :** [Texte intégral rédigé avec accroche, paragraphes aérés, émojis, appel à l'action et 5 hashtags]
+- **🎨 Prompt image IA :** [Prompt précis Midjourney / DALL-E 3 / Canva pour générer l'image associée]
 
 CONTRÔLE QUALITÉ OBLIGATOIRE
 Termine impérativement par ce bloc :
@@ -738,38 +750,45 @@ function buildUserPrompt(briefData = {}, context = '') {
 
   if (/post/i.test(format)) {
     parts.push(`- INTERDICTION ABSOLUE DE PRODUIRE UN STORYBOARD OU DES SCÈNES.
-- Rédige un POST RÉSEAUX SOCIAUX limpide, digeste et prêt à publier.
+- Rédige un POST RÉSEAUX SOCIAUX limpide, complet, percutant et prêt à publier immédiatement.
+- Fournis obligatoirement le PROMPT IMAGE IA détaillé (DALL-E 3 / Midjourney) pour générer l'illustration ou la photo.
 - Structure obligatoire :
   1. Concept créatif : Titre du post
-  2. Idée visuelle : Description précise du visuel à concevoir (composition, charte, rôle de Nounou)
-  3. Accroche : 1 phrase d'accroche percutante qui donne envie de lire
-  4. Texte principal : 2 à 3 courts paragraphes aérés, chaleureux et clairs avec des émojis bienveillants
-  5. Appel à l'action : Question chaleureuse invitant les familles à interagir
-  6. Tags : STRICTEMENT 5 HASHTAGS ciblés (ni plus, ni moins)
-  7. Formats visuels & Charte Nidal
-  8. Contrôle qualité`);
+  2. Prompt image IA : Prompt ultra-détaillé pour Midjourney / DALL-E 3 (description précise de la scène, composition, lumière, couleurs bleu #1746d1, jaune #ffc928, magenta #d91b5c, style photo ou 3D, ratio --ar 4:5)
+  3. Idée visuelle : Description concise du visuel et charte graphique
+  4. Accroche : 1 phrase percutante d'accroche qui donne envie de lire
+  5. Post prêt à publier : Texte complet rédigé avec soin (2-3 courts paragraphes aérés, chaleureux et engageants avec des émojis bienveillants)
+  6. Texte principal : [Reprise du texte du post]
+  7. Appel à l'action : Question chaleureuse invitant les familles à interagir
+  8. Tags : STRICTEMENT 5 HASHTAGS ciblés (ni plus, ni moins)
+  9. Contrôle qualité`);
   } else if (/reel|vidéo|video/i.test(format)) {
     const dur = briefData.duration || '30 secondes';
     parts.push(`- Produis un SCRIPT VIDÉO / REEL avec une DURÉE TOTALE DÉCIDÉE : ${dur}.
 - Découpe le script en scènes minutées avec timing exact ([00:00 - 00:05], etc.).
 - Pour chaque scène : Cadrage, Visuel, Action de Nounou, Voix mot à mot, Texte à l'écran, Transition, Son/SFX.
-- Ajoute une légende sociale courte (1 à 2 phrases) et STRICTEMENT 5 HASHTAGS.`);
+- Ajoute une légende sociale courte (1 à 2 phrases), le Prompt image de couverture et STRICTEMENT 5 HASHTAGS.`);
   } else if (/carrousel/i.test(format)) {
     const slides = briefData.slideCount || '5 slides';
     parts.push(`- Produis un CARROUSEL structuré avec un NOMBRE DE SLIDES DÉCIDÉ : ${slides}.
-- Découpe chaque slide : Slide 1 (Couverture / Hook), Slides 2 à 4 (Contenu pédagogique par étapes avec 2 puces et idée visuelle), Slide finale (Synthèse & CTA enregistrement).
-- Ajoute une légende sociale d'accompagnement courte et STRICTEMENT 5 HASHTAGS.`);
+- Découpe chaque slide : Slide 1 (Couverture / Hook avec Prompt image IA de couverture), Slides 2 à 4 (Contenu pédagogique par étapes avec 2 puces et idée visuelle), Slide finale (Synthèse & CTA enregistrement).
+- Ajoute la légende sociale d'accompagnement complète et STRICTEMENT 5 HASHTAGS.`);
   } else if (/quiz/i.test(format)) {
     parts.push(`- Produis un QUIZ INTERACTIF ludo-éducatif avec Nounou.
 - 3 questions claires à choix multiples (A, B, C), bonnes réponses indiquées, explications bienveillantes de Nounou.
-- Légende invitant à répondre en commentaire et STRICTEMENT 5 HASHTAGS.`);
+- Prompt image de couverture, légende invitant à répondre en commentaire et STRICTEMENT 5 HASHTAGS.`);
   } else if (/story/i.test(format)) {
     parts.push(`- Produis une série de 3 à 4 STORIES INTERACTIVES (format 1080x1920) avec stickers interactifs (sondage, quiz, curseur émoji), visuel par story, et STRICTEMENT 5 HASHTAGS.`);
   } else if (/calendrier|planning/i.test(format)) {
-    parts.push(`- Produis un PLANNING / CALENDRIER ÉDITORIAL équilibré (pédagogie, vie scolaire, valeurs, conseils, Nidal Junior).
-- Chaque entrée doit comporter : Date réelle ou « Date à confirmer », Heure, Plateforme, Format, Titre, Résumé, CTA, et STRICTEMENT 5 HASHTAGS.`);
+    parts.push(`- Produis un PLANNING / CALENDRIER ÉDITORIAL clair et directement exploitable (pédagogie, vie scolaire, valeurs, conseils, Nidal Junior).
+- Pour CHAQUE publication, fournis directement :
+  • Date & Heure conseillées
+  • Titre & Format
+  • Post prêt à publier (texte rédigé complet avec accroche et appel à l'action)
+  • Prompt image IA (pour générer le visuel du post)
+  • STRICTEMENT 5 HASHTAGS`);
   } else {
-    parts.push(`- Produis un contenu éditorial soigné avec Titre, Chapeau, Corps structuré en 3 parties, Appel à l'action et STRICTEMENT 5 HASHTAGS.`);
+    parts.push(`- Produis un contenu éditorial soigné avec Titre, Chapeau, Corps structuré en 3 parties, Prompt image IA, Appel à l'action et STRICTEMENT 5 HASHTAGS.`);
   }
 
   if (context) {
@@ -789,8 +808,34 @@ export function shouldAutoSave(brief = '') {
 
 export function parseStructuredEditorial(text, agentKey = 'studio-junior', defaultBrand = 'nidal-junior') {
   if (!text) return null;
+
+  // Normalize markdown bold/bullets around field labels (e.g. "- **Titre :**" -> "Titre :")
+  const cleanText = text
+    .replace(/^[\t >*#-]*\*\*([^*:\n]+?)\s*:?\*\*\s*:?[ \t]*/gm, '$1 : ')
+    .replace(/^[\t >*#-]+([A-ZÀ-Ÿ][a-zA-ZÀ-ÿ0-9 ’'\-_/]+?)\s*:[ \t]*/gm, '$1 : ');
+
   const find = (re) => {
-    const m = text.match(re);
+    const m = cleanText.match(re) || text.match(re);
+    return m ? m[1].replace(/^["«]+|["»]+$/g, '').trim() : '';
+  };
+
+  const STOP_LABELS = [
+    'Concept créatif', 'Titre', 'Prompt image IA', 'Prompt image', 'Prompt Midjourney',
+    'Idée visuelle', 'Accroche', 'Post prêt à publier', 'Texte principal', 'Message principal',
+    'Information pratique', 'Appel à l’action', 'Appel à l\'action', 'Légende sociale d\'accompagnement',
+    'Légende sociale courte', 'Légende & Appel à l\'action', 'Légende d\'accompagnement',
+    'Type de contenu', 'Type de publication', 'Type', 'Canal', 'Plateforme',
+    'Statut', 'Date proposée', 'Date', 'Auteur', 'Responsable', 'Tags', 'Hashtags',
+    'STORYBOARD', 'SCRIPT MINUTÉ', 'SCÈNE 1', 'DÉCOUPAGE', 'QUESTION 1', 'STORY 1',
+    'FORMATS VISUELS', 'CONTRÔLE QUALITÉ'
+  ].join('|');
+
+  const extractBlock = (labelPattern) => {
+    const re = new RegExp(
+      `(?:^|\\n)(?:${labelPattern})\\s*:\\s*([\\s\\S]*?)(?=\\n(?:${STOP_LABELS})(?:\\s*:|\\b)|\\n===|$)`,
+      'i'
+    );
+    const m = cleanText.match(re);
     return m ? m[1].trim() : '';
   };
 
@@ -799,16 +844,31 @@ export function parseStructuredEditorial(text, agentKey = 'studio-junior', defau
   const statutRaw = find(/(?:^|\n)Statut\s*:\s*([a-zA-Z0-9_\-]+)/i).toLowerCase();
   const publicCible = find(/(?:^|\n)Public\s*:\s*(.+)/i) || (agentKey === 'studio-junior' ? 'Enfants et familles' : 'Parents et communauté GS Nidal');
   const objectif = find(/(?:^|\n)(?:Objectif|Objectif pédagogique)\s*:\s*(.+)/i);
-  const accroche = find(/(?:^|\n)Accroche\s*:\s*(.+)/i);
-  const message = find(/(?:^|\n)(?:Texte principal|Message principal|Résumé|Légende sociale|Légende sociale courte)\s*:\s*(.+)/i);
+  const accroche = find(/(?:^|\n)(?:Accroche|Accroche de Nounou)\s*:\s*(.+)/i);
+
+  const postBlock = extractBlock('Post prêt à publier')
+    || extractBlock('Texte principal|Légende sociale d\'accompagnement|Légende d\'accompagnement|Légende sociale courte|Message principal|Résumé');
+  const singleLineMessage = find(/(?:^|\n)(?:Post prêt à publier|Texte principal|Message principal|Résumé|Légende sociale|Légende sociale courte)\s*:\s*(.+)/i);
+  const infoPratique = find(/(?:^|\n)Information pratique\s*:\s*(.+)/i);
+  const cta = find(/(?:^|\n)(?:Appel à l’action|Appel à l'action|Légende & Appel à l'action)\s*:\s*(.+)/i);
+
+  const promptImageBlock = extractBlock('Prompt image IA|Prompt image|Prompt Midjourney \\/ DALL-E|Image prompt')
+    || find(/(?:^|\n)(?:Prompt image IA|Prompt image|Prompt Midjourney \/ DALL-E|Image prompt)\s*:\s*(.+)/i)
+    || find(/(?:^|\n)Idée visuelle\s*:\s*(.+)/i);
+
+  const defaultPromptImage = agentKey === 'studio-junior'
+    ? `Modern bright kindergarten classroom in Morocco, Nounou the cheerful 5-year-old boy mascot illustrating "${titre}", warm sunlight, playful educational atmosphere, royal blue #1746d1, magenta #d91b5c and sunny yellow #ffc928 palette, high-end 3D/photorealistic editorial style, 8k resolution, portrait --ar 4:5`
+    : `Modern prestigious private school campus in Morocco, "${titre}", smiling students and inspiring teacher in a bright sunlit classroom, royal blue #1746d1, warm gold #ffc928 and magenta #d91b5c color accents, Canon EOS R5 50mm f/1.8 editorial photography, cinematic natural lighting, 8k, portrait --ar 4:5`;
+
+  const promptImage = promptImageBlock || defaultPromptImage;
+
   const auteur = find(/(?:^|\n)(?:Auteur|Responsable)\s*:\s*(.+)/i) || 'Équipe Nidal';
   const dateRaw = find(/(?:^|\n)(?:Date proposée|Date)\s*:\s*(.+)/i);
   const tagsRaw = find(/(?:^|\n)(?:Tags|Hashtags)\s*:\s*(.+)/i);
-  const cta = find(/(?:^|\n)Appel à l’action\s*:\s*(.+)/i);
   const canal = find(/(?:^|\n)(?:Canal|Plateforme)\s*:\s*(.+)/i) || 'Instagram + Facebook';
 
   const validTypes = ['article', 'interview', 'dossier', 'breve', 'chronique', 'infographie', 'quiz', 'post', 'carrousel', 'video', 'story', 'reel'];
-  const format = validTypes.includes(typeRaw) ? (typeRaw === 'reel' ? 'video' : typeRaw) : 'article';
+  const format = validTypes.includes(typeRaw) ? (typeRaw === 'reel' ? 'video' : typeRaw) : 'post';
   const statut = ['brouillon', 'en-cours', 'relecture', 'publie'].includes(statutRaw) ? statutRaw : 'brouillon';
 
   let datePublication = '';
@@ -838,6 +898,24 @@ export function parseStructuredEditorial(text, agentKey = 'studio-junior', defau
   }
   const tags = extractedTags.slice(0, 5);
 
+  // Construire un postComplet propre, aéré et prêt à copier-coller (sans métadonnées techniques)
+  let postComplet = postBlock || singleLineMessage || '';
+  if (!postComplet) {
+    const bodyParts = [];
+    if (accroche) bodyParts.push(accroche);
+    if (infoPratique) bodyParts.push(`📍 ${infoPratique}`);
+    if (cta) bodyParts.push(`👉 ${cta}`);
+    postComplet = bodyParts.join('\n\n') || titre;
+  } else {
+    // Si l'accroche n'est pas déjà au début du postComplet, on l'ajoute
+    if (accroche && !postComplet.toLowerCase().includes(accroche.slice(0, 25).toLowerCase())) {
+      postComplet = `${accroche}\n\n${postComplet}`;
+    }
+    if (cta && !postComplet.toLowerCase().includes(cta.slice(0, 20).toLowerCase())) {
+      postComplet = `${postComplet}\n\n👉 ${cta}`;
+    }
+  }
+
   return {
     brand: defaultBrand,
     titre: titre.slice(0, 180),
@@ -847,7 +925,10 @@ export function parseStructuredEditorial(text, agentKey = 'studio-junior', defau
     publicCible,
     objectif: objectif || 'Valoriser les apprentissages et l’excellence',
     accroche: accroche || titre,
-    message: message || text.slice(0, 400),
+    message: postComplet,
+    postComplet,
+    imagePrompt: promptImage,
+    promptImage,
     fullOutput: text,
     canal,
     plateforme: canal,
@@ -931,17 +1012,25 @@ export const parseStructuredContent = (text, defaultBrand) => parseStructuredEdi
 // ============================================================================
 function demoStudioJunior(briefData, brand = 'nidal-junior') {
   const topic = briefData.topic || briefData.brief || 'Le plaisir de lire avec Nounou';
-  const format = String(briefData.format || 'reel').toLowerCase();
+  const format = String(briefData.format || 'post').toLowerCase();
 
   // 1. FORMAT POST RÉSEAUX SOCIAUX
   if (/post/i.test(format)) {
     return `Concept créatif : ${topic}
+Prompt image IA : A delightful modern kindergarten classroom corner, Nounou the friendly 5-year-old boy mascot sitting comfortably on a soft colorful rug holding a large illustrated children's storybook, joyful and warm expression, soft natural sunlight streaming through large windows, colorful wooden bookshelves filled with books in the background, educational wooden toys, clean corporate school palette of royal blue #1746d1, cheerful magenta #d91b5c, and sunny yellow #ffc928, photorealistic style, high quality photography, soft depth of field, 8k resolution, portrait aspect ratio --ar 4:5
 Idée visuelle : Nounou assis dans le coin bibliothèque avec un grand livre ouvert, regard curieux et sourire bienveillant. Palette officielle bleu, magenta et jaune, logo Nidal Junior officiel en haut à gauche.
 Accroche : Et si aujourd'hui, un livre devenait notre plus beau voyage ? 📖✨
+Post prêt à publier :
+Et si aujourd'hui, un livre devenait notre plus beau voyage ? 📖✨
+
+Chaque jour à Nidal Junior, nos petits explorateurs découvrent que tourner une page, c’est s’envoler vers des univers merveilleux ! Accompagnés par Nounou, ils apprennent à écouter les histoires, à poser des questions et à enrichir leur imaginaire dans la joie et la bienveillance. 🌈
+
+Que ce soit avant la sieste ou pendant les ateliers d'éveil du matin, le rituel sacré de la lecture développe le vocabulaire, apaise les émotions et nourrit la curiosité naturelle des enfants dès la petite section. 💛
+
+💬 Quel est le livre ou le conte préféré de votre enfant en ce moment ? Partagez son titre en commentaire, Nounou vous répondra ! 👇
 Texte principal : Chaque jour à Nidal Junior, nos petits explorateurs découvrent que tourner une page, c’est s’envoler vers des univers merveilleux ! Accompagnés par Nounou, ils apprennent à écouter les histoires, à poser des questions et à enrichir leur imaginaire dans la joie et la bienveillance.
 
 Que ce soit avant la sieste ou pendant les ateliers du matin, le rituel de lecture développe le vocabulaire, apaise les émotions et nourrit la curiosité naturelle des enfants dès la petite section.
-
 Appel à l’action : Quel est le livre ou le conte préféré de votre enfant en ce moment ? Partagez son titre en commentaire ! 💛
 Type de contenu : post
 Canal : Instagram + Facebook
@@ -970,6 +1059,16 @@ Prêt à publier : Non (validation humaine requise)`;
     const slides = briefData.slideCount || '5 slides';
     return `Concept créatif : ${topic}
 Nombre de slides : ${slides}
+Prompt image IA : Bright and cheerful kindergarten reading corner, Nounou the cute 5-year-old boy mascot holding a giant magnifying glass next to an open magical popup book with glowing stars and animals, royal blue #1746d1, vibrant magenta #d91b5c and sunny yellow #ffc928 color palette, Pixar-inspired 3D editorial illustration, warm lighting, 8k, Instagram carousel cover --ar 4:5
+Post prêt à publier :
+Comment donner le goût de la lecture aux tout-petits dès la maternelle ? 📖✨
+
+Développer l’amour des livres commence bien avant de savoir lire ! À Nidal Junior, Nounou accompagne nos élèves chaque jour autour de 3 rituels tout doux :
+1️⃣ 10 minutes d’histoire calme chaque soir sans écran
+2️⃣ Jouer avec les voix et pointer les images pour éveiller le langage
+3️⃣ Laisser les livres à hauteur d’enfant pour encourager l’autonomie
+
+💾 Enregistrez ce carrousel pour vos lectures du soir et dites-nous en commentaire quel est le livre préféré de votre enfant ! 💛👇
 Type de contenu : carrousel
 Canal : Instagram Carrousel + Facebook
 Statut : brouillon
@@ -1026,6 +1125,22 @@ Prêt à publier : Non (validation humaine requise)`;
   if (/quiz/i.test(format)) {
     return `Concept créatif : Le Grand Quiz Découverte de Nounou
 Niveau & Thème : Maternelle & Primaire — Les animaux et la nature
+Prompt image IA : Colorful and playful educational quiz illustration for children, Nounou the cheerful 5-year-old boy mascot wearing an explorer hat in a sunny garden with a cute owl, a blooming flower, and artist paintbrushes, royal blue #1746d1, magenta #d91b5c and yellow #ffc928 accents, bright 3D illustration style, 8k --ar 4:5
+Post prêt à publier :
+🐾 LE GRAND QUIZ DÉCOUVERTE DE NOUNOU ! 🌟
+
+Coucou les champions ! Aujourd'hui, on joue ensemble autour de la nature et des couleurs. Demandez à votre enfant de répondre à ces 3 devinettes :
+
+1️⃣ Quel animal se réveille la nuit et a de grands yeux ronds pour voir dans le noir ?
+A) L'écureuil malin 🐿️ | B) La chouette protectrice 🦉 | C) Le poussin joyeux 🐥
+
+2️⃣ De quoi a besoin une petite graine pour devenir une belle fleur ?
+A) D'eau, de terre et de soleil ☀️ | B) De chocolat 🍫 | C) Seulement du vent 🌬️
+
+3️⃣ Quelle couleur obtient-on en mélangeant du bleu et du jaune ?
+A) Le violet 💜 | B) Le vert 💚 | C) L'orange 🧡
+
+💬 Écrivez les réponses de votre enfant en commentaire (ex : 1B, 2A, 3B), Nounou lui enverra une médaille d'honneur ! 🏅👇
 Type de contenu : quiz
 Canal : Story interactive + Post Instagram
 Statut : brouillon
@@ -1075,6 +1190,13 @@ Prêt à publier : Non (validation humaine requise)`;
   // 4. FORMAT STORY INTERACTIVE
   if (/story/i.test(format)) {
     return `Concept créatif : Un jour à Nidal Junior avec Nounou
+Prompt image IA : Vertical Instagram story background, Nounou the joyful 5-year-old boy mascot waving with his school backpack at the sunny entrance of Nidal Junior kindergarten, bright colors royal blue #1746d1, magenta #d91b5c and yellow #ffc928, clean space at center for story stickers, 8k --ar 9:16
+Post prêt à publier :
+☀️ Bienvenue à Nidal Junior avec Nounou !
+Aujourd'hui en Story :
+🎨 L'atelier créatif avec le groupe des Papillons
+🪄 La devinette du mot magique ("MERCI !")
+💛 Découvrez notre univers bienveillant sur gsnidal.ma !
 Type de contenu : story
 Canal : Instagram Story + Facebook Story
 Statut : brouillon
@@ -1118,6 +1240,13 @@ Prêt à publier : Non (validation humaine requise)`;
   const duration = briefData.duration || '30 secondes';
   return `Concept créatif : ${topic}
 Durée totale décidée : ${duration}
+Prompt image IA : Vertical Reel cover thumbnail, Nounou the cheerful 5-year-old boy mascot sitting in a bright colorful kindergarten reading corner opening a magical glowing storybook, warm sunlight, royal blue #1746d1, magenta #d91b5c and yellow #ffc928 palette, 8k resolution --ar 9:16
+Post prêt à publier :
+Le pouvoir magique des histoires avec Nounou ! 📖✨
+
+Chaque jour à Nidal Junior, ouvrir un livre est une porte magique vers l'imaginaire, le vocabulaire et la confiance en soi. Lire un tout petit peu chaque jour, c'est devenir plus grand et plus curieux ! 🌈💛
+
+💬 Et vous, quelle histoire lisez-vous ce soir avec votre enfant ? Racontez-la-nous en commentaire ! 👇
 Objectif pédagogique : Stimuler la curiosité, le plaisir de la lecture autonome et le vocabulaire chez les jeunes enfants
 Public : Enfants de maternelle (3 à 6 ans) et leurs familles
 Message principal : Ouvrir un livre, c’est s’envoler pour mille aventures d’apprentissage passionnantes !
@@ -1173,7 +1302,7 @@ FORMATS VISUELS & CHARTE NIDAL
 2. Publication Instagram (1080 × 1350 px) : Format portrait optimisé, composition épurée, marges de sécurité respectées.
 3. Publication carrée (1080 × 1080 px) : Vignette compacte, logo officiel préservé en haut à gauche.
 4. Publication Facebook (1200 × 630 px) : Format paysage avec Nounou à gauche et accroche percutante à droite.
-Charte graphique : Couleurs dominantes bleu (#1746d1), magenta (#d91b5c), jaune (#ffc928). Logo officiel officiel sans retouche. Slogan « PLUS QU’UNE ÉCOLE, UN AVENIR ».
+Charte graphique : Couleurs dominantes bleu (#1746d1), magenta (#d91b5c), jaune (#ffc928). Logo officiel sans retouche. Slogan « PLUS QU’UNE ÉCOLE, UN AVENIR ».
 
 CONTRÔLE QUALITÉ
 Informations vérifiées : Utilisation exclusive de la mascotte officielle Nounou (assets/mascot.png), respect des valeurs et du ton jeunesse.
@@ -1189,18 +1318,27 @@ Prêt à publier : Non (validation humaine requise)`;
 // DÉMO PLANNING GS NIDAL (RÉPONSES COMPLÈTES & PERSONNALISÉES PAR FORMAT)
 // ============================================================================
 function demoPlanningNidal(briefData, brand = 'nidal') {
-  const topic = briefData.topic || briefData.brief || 'Calendrier éditorial de 4 semaines';
-  const format = String(briefData.format || 'calendrier_mois').toLowerCase();
+  const topic = briefData.topic || briefData.brief || 'La méthode Active Learning : Favoriser l\'engagement des élèves';
+  const format = String(briefData.format || 'post_institutionnel').toLowerCase();
 
   // 1. FORMAT POST INSTITUTIONNEL
   if (/post/i.test(format)) {
     return `Concept créatif : ${topic}
+Prompt image IA : A modern and prestigious private school campus in Morocco, bright sunlit classroom, smiling Moroccan students in smart uniforms actively collaborating on a hands-on project with an inspiring teacher, natural warm sunlight, royal blue #1746d1, warm gold #ffc928, and magenta #d91b5c color harmony, high-end editorial photography, Canon EOS R5 50mm f/1.8 lens, sharp focus, 8k resolution, portrait aspect ratio --ar 4:5
 Idée visuelle : Composition institutionnelle sobre et haut de gamme. Dégradé bleu profond (#1746d1), typographie dorée/jaune, logo officiel Nidal net en haut à gauche. Marge de sécurité respectée et slogan « PLUS QU’UNE ÉCOLE, UN AVENIR » en pied de page.
-Accroche : À Nidal, nous croyons que la réussite scolaire se bâtit chaque jour sur la confiance et l'effort partagé.
+Accroche : À Nidal, nous croyons que la réussite scolaire se bâtit chaque jour sur la confiance et l'apprentissage actif.
+Post prêt à publier :
+À Nidal, nous croyons que la réussite scolaire se bâtit chaque jour sur la confiance et l'apprentissage actif. 🏛️✨
+
+Grâce à notre approche pédagogique active (Active Learning), chaque élève devient pleinement acteur de ses découvertes : manipuler, questionner, débattre et expérimenter en classe permet d'ancrer durablement les savoirs tout en cultivant l'esprit critique et l'autonomie.
+
+De la maternelle au lycée, nos enseignants accompagnent chaque enfant avec exigence et bienveillance autour de nos quatre piliers : Discipline, Confiance, Progrès et Réussite.
+
+📍 Nos équipes d'orientation et de direction sont à votre écoute pour échanger sur le projet éducatif de votre enfant.
+👉 Rendez-vous sur gsnidal.ma pour planifier votre visite et rencontrer notre équipe éducative !
 Texte principal : De la toute petite section aux classes d'examen, notre mission quotidienne repose sur quatre piliers indissociables : la discipline bienveillante pour structurer l'effort, la confiance en soi pour oser entreprendre, le progrès régulier mesuré sans jugement, et l'excellence partagée pour ouvrir grand les portes de l'avenir.
 
 Chaque élève bénéficie d'un suivi attentif et personnalisé au sein d'un environnement moderne, chaleureux et sécurisant, pensé pour cultiver le sens de l'autonomie et l'amour d'apprendre.
-
 Information pratique : Nos équipes d'orientation et de direction sont à votre écoute pour échanger sur le projet éducatif de votre enfant.
 Appel à l’action : Rendez-vous sur gsnidal.ma pour planifier votre visite et rencontrer notre équipe éducative.
 Type de contenu : post
@@ -1213,7 +1351,7 @@ Tags : #GSNidal #GroupeScolaireNidal #ExcellenceEducative #AvenirDesEleves #Reus
 FORMATS VISUELS & CHARTE NIDAL
 1. Publication Facebook (1200 × 630 px) : Format horizontal avec citation forte et logo officiel à gauche.
 2. Publication Instagram & LinkedIn (1080 × 1350 px) : Portrait officiel soigné avec piliers fondateurs.
-Charte graphique : Couleurs dominantes bleu (#1746d1), magenta (#d91b5c), jaune (#ffc928). Logo officiel officiel sans retouche. Slogan « PLUS QU’UNE ÉCOLE, UN AVENIR ».
+Charte graphique : Couleurs dominantes bleu (#1746d1), magenta (#d91b5c), jaune (#ffc928). Logo officiel sans retouche. Slogan « PLUS QU’UNE ÉCOLE, UN AVENIR ».
 
 CONTRÔLE QUALITÉ
 Informations vérifiées : Alignement sur le projet d'établissement officiel et les 4 valeurs cardinales.
@@ -1229,6 +1367,17 @@ Prêt à publier : Non (validation humaine requise)`;
   if (/carrousel/i.test(format)) {
     return `Concept créatif : Les 4 piliers de l'excellence pédagogique à Nidal
 Nombre de slides : 5 slides
+Prompt image IA : Clean modern architectural facade and bright classroom of a prestigious Moroccan private school, warm sunlight, royal blue #1746d1 and gold #ffc928 editorial graphic overlay space, smiling confident students, Canon EOS R5 editorial photography, 8k --ar 4:5
+Post prêt à publier :
+Comment préparons-nous nos élèves à réussir leur avenir avec sérénité ? 🏛️✨
+
+Au Groupe Scolaire Nidal, l'excellence académique est indissociable de l'épanouissement personnel. Notre méthode éducative repose sur 4 piliers vécus au quotidien :
+1️⃣ La discipline bienveillante : un cadre rassurant et équitable
+2️⃣ La confiance en soi : valoriser chaque progrès individuel
+3️⃣ Le progrès continu : un suivi personnalisé avec les familles
+4️⃣ La réussite partagée : préparer les citoyens de demain
+
+💾 Enregistrez ce carrousel et rendez-vous sur gsnidal.ma pour découvrir notre projet pédagogique !
 Type de contenu : carrousel
 Canal : Instagram + LinkedIn + Facebook
 Statut : brouillon
@@ -1280,91 +1429,73 @@ Prêt à enregistrer : Oui
 Prêt à publier : Non (validation humaine requise)`;
   }
 
-  // 3. FORMAT CALENDRIER ÉDITORIAL (PAR DÉFAUT POUR PLANNING NIDAL)
-  return `STRATÉGIE ÉDITORIALE & CALENDRIER — GROUPE SCOLAIRE NIDAL
-Objectif stratégique : Équilibrer la visibilité institutionnelle entre excellence pédagogique, vie scolaire, conseils aux familles et passerelle jeunesse Nidal Junior.
-Publics ciblés : Parents d’élèves, futurs parents, communauté éducative et partenaires.
-Règle appliquée : Aucune date inventée — toutes les dates sans événement arrêté portent la mention « Date à confirmer ».
+  // 3. FORMAT CALENDRIER ÉDITORIAL (AVEC VRAIS POSTS RÉDIGÉS ET PROMPTS IMAGES)
+  return `Concept créatif : ${topic}
+Prompt image IA : Bright modern classroom at Groupe Scolaire Nidal in Morocco, enthusiastic students raising hands and collaborating around an interactive project with a warm inspiring teacher, natural sunlight streaming through windows, royal blue #1746d1, gold #ffc928 and magenta #d91b5c color accents, Canon EOS R5 50mm f/1.8 editorial photography, 8k --ar 4:5
+Post prêt à publier :
+Apprendre en étant acteur de sa réussite : c'est la force de l'Active Learning au Groupe Scolaire Nidal ! 🎓✨
+
+Dans nos salles de classe, les élèves ne se contentent pas d'écouter : ils expérimentent, questionnent, travaillent en projet et construisent leurs propres raisonnements aux côtés d'enseignants passionnés. Cette pédagogie active éveille la curiosité, renforce la motivation et développe une confiance durable.
+
+👉 Découvrez notre projet éducatif complet et prenez rendez-vous sur gsnidal.ma !
+Type de contenu : post
+Canal : Instagram + Facebook + LinkedIn
+Statut : brouillon
+Date proposée : ${briefData.targetDate || 'Date à confirmer'}
+Auteur : Équipe Nidal
+Tags : #GSNidal #PedagogieActive #ExcellenceEducative #MotivationScolaire #AvenirDesEleves
 
 ================================================================================
-SEMAINE 1 — PILIER : PÉDAGOGIE & MÉTHODES D’APPRENTISSAGE
+POSTS DU CALENDRIER PRÊTS À PUBLIER + PROMPTS IMAGES IA
 ================================================================================
-Date : Date à confirmer (Lundi recommandé, 18:30)
-Plateforme : Instagram + Facebook
-Public : Parents et futurs parents
-Pilier éditorial : Pédagogie
-Type de publication : Carrousel (5 pages)
-Titre : Comment nos enseignants cultivent l'autonomie et le plaisir d'apprendre
-Angle : Regard concret sur les rituels de classe et la pédagogie bienveillante.
-Résumé : Décryptage des 4 étapes clés mises en œuvre au quotidien pour aider chaque élève à progresser à son rythme.
-Format visuel : 1080 × 1350 px (Carrousel graphique charte bleu-magenta-jaune)
-Appel à l’action : Enregistrez ce carrousel pour découvrir nos méthodes éducatives !
-Tags : #GSNidal #PedagogieActive #ExcellenceEducative #ApprendreAutrement #ReussiteScolaire
 
-Date : Date à confirmer (Jeudi recommandé, 11:00)
-Plateforme : Instagram Reel + Facebook Story
-Public : Familles de maternelle et primaire
-Pilier éditorial : Nidal Junior & Mascotte Nounou
-Type de publication : Reel avec Nounou
-Titre : Le voyage imaginaire de Nounou au pays des livres
-Angle : Récit doux et inspirant autour du coin lecture.
-Résumé : Nounou présente son livre illustré et invite les enfants à partager leur histoire favorite.
-Recommandation de transfert : ce sujet doit être confié à Studio Nidal Junior pour la réalisation du script et du storyboard avec Nounou.
-Format visuel : 1080 × 1920 px (Vidéo verticale minutée)
-Appel à l’action : Racontez-nous en commentaire le livre préféré de votre enfant !
-Tags : #GSNidal #NidalJunior #PlaisirDeLire #MaternelleMaroc #GrandirEnsemble
+📌 POST 1 — PÉDAGOGIE : La méthode Active Learning
+📱 Post prêt à publier :
+Apprendre en étant acteur de sa réussite : c'est la force de l'Active Learning au Groupe Scolaire Nidal ! 🎓✨
+Dans nos classes, les élèves expérimentent, débattent et réalisent des projets concrets qui donnent du sens à chaque leçon. Résultat : plus d'engagement, une meilleure mémorisation et le plaisir d'apprendre chaque matin !
+👉 Découvrez notre approche pédagogique sur gsnidal.ma
+#GSNidal #PedagogieInnovante #ActiveLearning #MotivationScolaire #ReussiteScolaire
+🎨 Prompt image IA :
+Bright modern classroom in Morocco, students collaborating on a science and reading table project with an encouraging teacher, warm morning sunlight, royal blue #1746d1 and yellow #ffc928 school accents, photorealistic editorial photography, 8k --ar 4:5
 
-================================================================================
-SEMAINE 2 — PILIER : VIE SCOLAIRE & ÉCOUTE BIENVEILLANTE
-================================================================================
-Date : Date à confirmer (Mardi, 18:30)
-Plateforme : Facebook + Instagram
-Public : Parents actuels
-Pilier éditorial : Vie scolaire
-Type de publication : Post image
-Titre : Grandir en confiance : l'écoute active au cœur de chaque journée
-Angle : Témoignage professionnel de l’équipe encadrante sur le climat scolaire serein.
-Résumé : Présentation des rituels du matin qui permettent aux élèves d'exprimer leurs émotions et d'aborder la journée avec sérénité.
-Format visuel : 1080 × 1080 px (Visuel sobre avec citation inspirante)
-Appel à l’action : Partagez un mot d’encouragement pour nos équipes !
-Tags : #GSNidal #VieScolaire #ConfianceEnSoi #BienveillanceScolaire #ClimatScolaire
+📌 POST 2 — VALEURS : La discipline bienveillante
+📱 Post prêt à publier :
+La discipline bienveillante : grandir dans un cadre rassurant, juste et structurant. 🤝🏛️
+Au Groupe Scolaire Nidal, nous croyons que l'exigence et l'écoute marchent main dans la main. Un cadre clair permet à chaque élève de se sentir en sécurité, de respecter les autres et de donner le meilleur de lui-même.
+💬 Quelle valeur compte le plus pour l'épanouissement de votre enfant ? Partagez votre avis en commentaire !
+#GSNidal #ValeursEducatives #DisciplineBienveillante #ConfianceEnSoi #ClimatScolaire
+🎨 Prompt image IA :
+Warm and respectful interaction between a smiling school teacher and a young student in uniform in a bright modern school courtyard, soft golden sunlight, royal blue and gold color palette, authentic editorial portrait, 8k --ar 4:5
 
-================================================================================
-SEMAINE 3 — PILIER : CONSEILS AUX FAMILLES & COÉDUCATION
-================================================================================
-Date : Date à confirmer (Mercredi, 18:30)
-Plateforme : Instagram + Facebook + LinkedIn
-Public : Parents d'élèves de tous niveaux
-Pilier éditorial : Conseils aux parents
-Type de publication : Infographie / Carrousel
-Titre : 5 habitudes du soir pour un sommeil réparateur et une concentration optimale
-Angle : Conseils pratiques d'ergonomie mentale et de repos pour réussir sa scolarité.
-Résumé : Synthèse pédagogique rappelant l'importance des rituels sans écran et du temps calme avant le coucher.
-Format visuel : 1080 × 1350 px (Infographie numérotée lisible et soignée)
-Appel à l’action : Quelle astuce fonctionne le mieux chez vous ?
-Tags : #GSNidal #ConseilParents #Coeducation #SommeilEnfant #ReussiteEducative
+📌 POST 3 — NIDAL JUNIOR : Le plaisir de lire avec Nounou
+📱 Post prêt à publier :
+Et si aujourd'hui, un livre devenait notre plus beau voyage ? 📖🧸
+Aux côtés de Nounou, nos petits explorateurs de maternelle s'éveillent chaque jour à la magie des contes, enrichissent leur vocabulaire et développent leur imaginaire dans la joie !
+👉 Quel est le livre préféré de votre enfant en ce moment ? Dites-le-nous en commentaire !
+#GSNidal #NidalJunior #PlaisirDeLire #MaternelleMaroc #GrandirEnsemble
+🎨 Prompt image IA :
+Cozy colorful kindergarten reading corner, Nounou the cute 5-year-old boy mascot sitting on a soft rug holding an open illustrated storybook, warm sunlight, wooden bookshelves, royal blue #1746d1, magenta #d91b5c and yellow #ffc928, 3D/photorealistic style, 8k --ar 4:5
 
-================================================================================
-SEMAINE 4 — PILIER : VALEURS, ORIENTATION & EXCELLENCE CONFIRMÉE
-================================================================================
-Date : Date à confirmer (Vendredi, 18:30)
-Plateforme : Instagram + Facebook + LinkedIn
-Public : Futurs parents et communauté locale
-Pilier éditorial : Valeurs de l'établissement
-Type de publication : Publication institutionnelle officielle
-Titre : Plus qu'une école, un avenir : notre engagement pour l'épanouissement de chaque élève
-Angle : Bilan d’étape sur les projets pédagogiques et l’accompagnement vers l’excellence.
-Résumé : Rappel des piliers fondateurs qui guident l'équipe de Nidal depuis l'école maternelle jusqu'au collège-lycée.
-Format visuel : 1200 × 630 px (Facebook) + 1080 × 1350 px (Instagram)
-Appel à l’action : Découvrez notre projet pédagogique complet sur gsnidal.ma !
-Tags : #GSNidal #GroupeScolaireNidal #DisciplineConfianceProgresReussite #AvenirDesEleves #PlusQuUneEcoleUnAvenir
+📌 POST 4 — CONSEILS PARENTS : 5 astuces pour une routine du soir sereine
+📱 Post prêt à publier :
+Comment transformer les devoirs et la routine du soir en un moment serein ? ⏳💡
+Voici les 5 conseils de nos enseignants :
+1️⃣ Un coin calme et rangé dédié au travail
+2️⃣ 20 minutes de concentration puis une courte pause
+3️⃣ Valoriser l'effort plutôt que la seule note
+4️⃣ Préparer le cartable ensemble la veille
+5️⃣ Éteindre les écrans 1h avant le coucher pour un sommeil réparateur
+💾 Enregistrez ce post pratique et partagez vos astuces en commentaire !
+#GSNidal #ConseilsAuxParents #GestionDuTemps #Coeducation #ReussiteEducative
+🎨 Prompt image IA :
+Cozy warm home study desk in the evening, a parent and child smiling together over an open notebook, warm desk lamp, tidy school supplies, calm and encouraging atmosphere, editorial lifestyle photography, 8k --ar 4:5
 
 CONTRÔLE QUALITÉ
-Informations vérifiées : Équilibre des piliers éditoriaux respecté, absence totale de dates inventées (« Date à confirmer » apposée sur chaque entrée), sujet jeunesse fléché vers Studio Nidal Junior.
-Informations à confirmer : Calendrier officiel des vacances scolaires et disponibilités de la direction.
-Conformité éditoriale : Conforme (ton respectueux, sérieux, institutionnel et engageant).
-Conformité visuelle : Conforme (application de la charte GS Nidal complète).
-Autorisation d’image nécessaire : Non requise pour les infographies et visuels graphiques ; obligatoire pour tout visuel photo.
+Informations vérifiées : Posts complets rédigés et prompts images IA fournis pour chaque publication, Slogan « PLUS QU’UNE ÉCOLE, UN AVENIR » respecté.
+Informations à confirmer : Dates définitives de publication.
+Conformité éditoriale : Conforme.
+Conformité visuelle : Conforme.
+Autorisation d’image nécessaire : Non.
 Prêt à enregistrer : Oui
 Prêt à publier : Non (validation humaine requise)`;
 }
