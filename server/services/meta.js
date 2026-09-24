@@ -556,3 +556,68 @@ function demoAds(brand) {
     { campaign_id: `demo-${brand}-2`, campaign_name: 'Decouverte Nidal Junior', impressions: '17600', reach: '12800', clicks: '428', spend: '1375.00', actions: [{ action_type: 'onsite_conversion.messaging_conversation_started_7d', value: '53' }], isDemo: true, isPending }
   ];
 }
+
+
+async function publishFacebookPost(brand, job) {
+  const pageId = brandEnv('META_PAGE_ID', brand);
+  if (!pageId) throw new Error(`META_PAGE_ID non configuré pour ${brand}`);
+  const pageToken = await resolvePageAccessToken(brand);
+
+  if (job.media_url && job.media_type === 'image') {
+    return graph(`${pageId}/photos`, {
+      url: job.media_url,
+      caption: job.message || '',
+      published: 'true'
+    }, pageToken);
+  }
+
+  return graph(`${pageId}/feed`, {
+    message: job.message || '',
+    link: job.link_url || undefined
+  }, pageToken);
+}
+
+async function publishInstagramPost(brand, job) {
+  const igUserId = brandEnv('META_IG_USER_ID', brand);
+  if (!igUserId) throw new Error(`META_IG_USER_ID non configuré pour ${brand}`);
+  if (!job.media_url) throw new Error('Instagram exige une URL média publique (image ou vidéo).');
+
+  const mediaType = String(job.media_type || 'image').toLowerCase();
+  const createParams = { caption: job.message || '' };
+
+  if (mediaType === 'video' || mediaType === 'reel') {
+    createParams.media_type = 'REELS';
+    createParams.video_url = job.media_url;
+  } else {
+    createParams.image_url = job.media_url;
+  }
+
+  const container = await graph(`${igUserId}/media`, createParams);
+  if (!container?.id) throw new Error('Meta n’a pas retourné de conteneur Instagram.');
+
+  const published = await graph(`${igUserId}/media_publish`, { creation_id: container.id });
+  return { ...published, creation_id: container.id };
+}
+
+export async function publishSocialJob(job) {
+  const brand = job.brand_slug || job.brand || 'nidal-junior';
+  const platforms = Array.isArray(job.platforms) ? job.platforms : [];
+  const result = {};
+  const errors = {};
+
+  if (platforms.includes('instagram')) {
+    try { result.instagram = await publishInstagramPost(brand, job); }
+    catch (error) { errors.instagram = error.message; }
+  }
+
+  if (platforms.includes('facebook')) {
+    try { result.facebook = await publishFacebookPost(brand, job); }
+    catch (error) { errors.facebook = error.message; }
+  }
+
+  if (!Object.keys(result).length) {
+    throw new Error(Object.values(errors).join(' | ') || 'Aucune plateforme sélectionnée');
+  }
+
+  return { result, errors };
+}
