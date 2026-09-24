@@ -40,12 +40,11 @@ export const SUPPORTED_AI_PROVIDERS = [
   {
     id: 'gemini',
     name: 'Google Gemini',
-    description: 'API officielle Google Gemini (Gemini 2.0 Flash, 1.5 Pro)',
-    defaultModel: 'gemini-2.0-flash',
+    description: 'API officielle Google Gemini (Gemini 2.5 Flash, 2.5 Pro)',
+    defaultModel: 'gemini-2.5-flash',
     models: [
-      { id: 'gemini-2.0-flash', name: 'Gemini 2.0 Flash (Très rapide & récent)', recommended: true },
-      { id: 'gemini-1.5-flash', name: 'Gemini 1.5 Flash (Équilibré)' },
-      { id: 'gemini-1.5-pro', name: 'Gemini 1.5 Pro (Haute réflexion)' }
+      { id: 'gemini-2.5-flash', name: 'Gemini 2.5 Flash (Rapide & recommandé)', recommended: true },
+      { id: 'gemini-2.5-pro', name: 'Gemini 2.5 Pro (Raisonnement avancé)' }
     ],
     allowCustomModel: true
   },
@@ -367,9 +366,53 @@ Prêt à enregistrer : Oui
 Prêt à publier : Non (validation humaine requise)`;
 
 // ============================================================================
+// 3. PROMPT SYSTÈME - KPI & GROWTH MANAGER
+// ============================================================================
+export const KPI_MANAGER_PROMPT = `Tu es le KPI & Growth Manager interne du Groupe Scolaire Nidal.
+
+MISSION
+Tu analyses exclusivement les données KPI fournies par NJKPI et proposes des actions éditoriales mesurables pour Nidal Junior et Groupe Scolaire Nidal.
+
+RÈGLES ABSOLUES
+- Ne jamais inventer un chiffre, une tendance, une causalité ou un résultat.
+- Distinguer clairement les données réelles, les données de démonstration et les données manquantes.
+- Ne jamais considérer une corrélation comme une causalité.
+- Ne jamais publier, supprimer ou modifier un contenu public automatiquement.
+- Toute recommandation de publication reste un brouillon soumis à validation humaine.
+- Ne jamais exposer de clé API, jeton Meta, mot de passe ou donnée personnelle d'un élève ou parent.
+
+OBJECTIFS
+- croissance qualifiée des abonnés ;
+- portée et vues utiles ;
+- commentaires, partages et enregistrements ;
+- visites du profil et trafic vers gsnidal.ma lorsque disponibles ;
+- demandes de visite, leads et inscriptions lorsque disponibles ;
+- progression vers les objectifs KPI avec échéances.
+
+FORMAT DE RÉPONSE
+1. Résumé exécutif : 3 à 5 phrases factuelles.
+2. Écarts aux objectifs : KPI, valeur actuelle, cible, écart, échéance et rythme requis si disponible.
+3. Ce qui fonctionne : maximum 5 constats appuyés par des chiffres.
+4. Points faibles / données insuffisantes : maximum 5 constats.
+5. Actions prioritaires sur 7 jours : maximum 5 actions, chacune avec priorité, justification KPI, format conseillé et KPI à surveiller.
+6. Expériences à tester : maximum 3 hypothèses mesurables, formulées comme tests et non comme certitudes.
+7. Alertes : uniquement si une donnée fournie justifie clairement l'alerte.
+8. Validation humaine : rappeler que toute publication reste à valider.
+
+Si les données sont insuffisantes, dis-le explicitement et recommande d'abord la collecte des métriques manquantes.`;
+
+// ============================================================================
 // DÉFINITION DES AGENTS
 // ============================================================================
 export const EDITORIAL_AGENTS = {
+  'kpi-manager': {
+    key: 'kpi-manager',
+    name: 'Nidal KPI & Growth Manager',
+    role: 'Analyse KPI, croissance & recommandations',
+    brand: 'nidal-junior',
+    avatar: './assets/logo-cropped.png',
+    prompt: KPI_MANAGER_PROMPT
+  },
   'studio-junior': {
     key: 'studio-junior',
     name: 'Studio Nidal Junior',
@@ -407,9 +450,9 @@ export function agentConfigured(aiConfig = {}) {
 
 export function getAiProvider(aiConfig = {}) {
   if (aiConfig?.provider) return aiConfig.provider;
+  if (process.env.GEMINI_API_KEY) return 'gemini';
   if (process.env.OPENROUTER_API_KEY) return 'openrouter';
   if (process.env.OPENAI_API_KEY) return 'openai';
-  if (process.env.GEMINI_API_KEY) return 'gemini';
   if (process.env.ANTHROPIC_API_KEY) return 'anthropic';
   if (process.env.GROQ_API_KEY) return 'groq';
   if (process.env.DEEPSEEK_API_KEY) return 'deepseek';
@@ -576,7 +619,7 @@ export async function generateEditorialOutput({
 
   // 3. GOOGLE GEMINI
   if (provider === 'gemini') {
-    const model = (aiConfig.model || 'gemini-2.0-flash').trim();
+    const model = (aiConfig.model || process.env.GEMINI_MODEL || 'gemini-2.5-flash').trim();
     const geminiUrl = `https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(model)}:generateContent?key=${encodeURIComponent(apiKey)}`;
     const response = await fetch(geminiUrl, {
       method: 'POST',
@@ -588,9 +631,29 @@ export async function generateEditorialOutput({
       })
     });
     const payload = await response.json();
-    if (!response.ok) throw new Error(payload.error?.message || `Google Gemini API ${response.status}`);
-    const output = payload.candidates?.[0]?.content?.parts?.[0]?.text;
-    if (!output) throw new Error('Réponse Gemini vide');
+    if (!response.ok || !payload.candidates?.[0]?.content?.parts?.[0]?.text) {
+      const geminiError = payload.error?.message || (!response.ok ? `Google Gemini API ${response.status}` : 'Réponse Gemini vide');
+      const canFallback = !aiConfig.disableFallback
+        && !aiConfig.apiKey
+        && Boolean(process.env.OPENROUTER_API_KEY);
+      if (canFallback) {
+        console.warn(`Gemini indisponible (${geminiError}). Bascule automatique vers OpenRouter.`);
+        return generateEditorialOutput({
+          agentKey,
+          brand: targetBrand,
+          briefData,
+          context,
+          aiConfig: {
+            provider: 'openrouter',
+            model: process.env.OPENROUTER_MODEL || 'openrouter/free',
+            apiKey: '',
+            disableFallback: true
+          }
+        });
+      }
+      throw new Error(geminiError);
+    }
+    const output = payload.candidates[0].content.parts[0].text;
 
     return {
       output,

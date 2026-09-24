@@ -20,6 +20,7 @@ import {
 import { initAuth, authenticate, authorize, loginUser, listUsers, createUser, updateUserRole, isAuthEnabled } from './middleware/auth.js';
 import { generatePdfExport, generateExcelExport, generateMarkdownExport, generateCsvExport } from './services/export.js';
 import { parseContentUrl, buildContentFromUrl } from './services/url-parser.js';
+import { buildKpiContext, formatKpiContext, buildKpiAutomationBrief } from './services/kpi-ai.js';
 
 const app = express();
 const port = Number(process.env.PORT || 3000);
@@ -47,6 +48,14 @@ function requireAccess(req, res, next) {
   next();
 }
 
+async function getAiKpiContext(brand) {
+  const [targetsRecord, contents] = await Promise.all([
+    getKpiTargets(brand),
+    listContents(brand)
+  ]);
+  return buildKpiContext({ brand, targetsRecord, contents });
+}
+
 app.get('/api/health', async (_req, res) => {
   const hasMeta = metaConfigured('nidal') || metaConfigured('nidal-junior');
   res.json({
@@ -56,13 +65,71 @@ app.get('/api/health', async (_req, res) => {
     integrations: {
       ai: agentConfigured(),
       aiProvider: getAiProvider(),
-      openai: agentConfigured(),
+      gemini: Boolean(process.env.GEMINI_API_KEY),
+      openrouter: Boolean(process.env.OPENROUTER_API_KEY),
+      aiFallback: process.env.OPENROUTER_API_KEY ? 'openrouter' : null,
       metaNidal: metaConfigured('nidal'),
       metaNidalJunior: metaConfigured('nidal-junior'),
       metaReady: hasMeta,
       metaStatus: hasMeta ? 'connected' : 'pending'
     }
   });
+});
+
+app.post('/webhooks/kpi-ai', async (req, res, next) => {
+  try {
+    const expected = process.env.NIDAL_WEBHOOK_SECRET;
+    if (!expected) return res.status(503).json({ error: 'NIDAL_WEBHOOK_SECRET non configuré' });
+    const supplied = req.headers['x-nidal-webhook-secret'];
+    if (supplied !== expected) return res.status(401).json({ error: 'Webhook non autorisé' });
+
+    const event = String(req.body?.event || 'kpi.updated');
+    const brand = req.body?.brand === 'nidal' ? 'nidal' : 'nidal-junior';
+    const kpiContext = await getAiKpiContext(brand);
+    const formattedKpi = formatKpiContext(kpiContext);
+    const brief = buildKpiAutomationBrief({ event, brand });
+
+    const generated = await generateEditorialOutput({
+      agentKey: 'kpi-manager',
+      brand,
+      briefData: {
+        topic: brief,
+        brief,
+        audience: 'Équipe communication et direction',
+        objective: 'Analyse KPI et recommandations éditoriales',
+        platform: 'NJKPI',
+        format: 'article',
+        notes: 'Analyse interne uniquement. Ne rien publier automatiquement.'
+      },
+      context: formattedKpi,
+      aiConfig: {}
+    });
+
+    const run = {
+      id: crypto.randomUUID(),
+      brand,
+      task: 'kpi-automation',
+      brief,
+      output: generated.output,
+      model: generated.model,
+      isDemo: generated.isDemo,
+      createdAt: new Date().toISOString()
+    };
+    await saveAgentRun(run);
+
+    res.json({
+      ok: true,
+      event,
+      brand,
+      provider: generated.provider,
+      model: generated.model,
+      isDemo: generated.isDemo,
+      kpiContext,
+      analysis: generated.output
+    });
+  } catch (error) {
+    next(error);
+  }
 });
 
 app.use('/api', requireAccess);
@@ -272,6 +339,13 @@ app.post('/api/kpi/targets', async (req, res, next) => {
   } catch (error) { next(error); }
 });
 
+app.get('/api/kpi/ai-context', async (req, res, next) => {
+  try {
+    const brand = req.query.brand === 'nidal' ? 'nidal' : 'nidal-junior';
+    res.json(await getAiKpiContext(brand));
+  } catch (error) { next(error); }
+});
+
 app.post('/api/agent/generate', async (req, res, next) => {
   try {
     const { brand = 'nidal-junior', task = 'article', brief, context = '' } = req.body;
@@ -279,15 +353,25 @@ app.post('/api/agent/generate', async (req, res, next) => {
 
     let enrichedContext = context;
     try {
-      const existing = await listContents(brand);
+      const [existing, targetsRecord] = await Promise.all([
+        listContents(brand),
+        getKpiTargets(brand)
+      ]);
+
       if (existing?.length) {
         const recentTitles = existing.slice(0, 15).map(c => `• ${c.data?.titre || c.data?.title || 'Sans titre'} (${c.data?.statut || 'brouillon'}, ${c.data?.format || 'article'})`).join('\n');
         enrichedContext = enrichedContext
           ? `${enrichedContext}\n\nContenus récents existants dans l’application (éviter doublons) :\n${recentTitles}`
           : `Contenus récents existants dans l’application (éviter doublons) :\n${recentTitles}`;
       }
+
+      const kpiContext = buildKpiContext({ brand, targetsRecord, contents: existing || [] });
+      const formattedKpi = formatKpiContext(kpiContext);
+      enrichedContext = enrichedContext
+        ? `${enrichedContext}\n\n${formattedKpi}`
+        : formattedKpi;
     } catch (e) {
-      console.warn('Contexte existant non injecté:', e.message);
+      console.warn('Contexte KPI/existant non injecté:', e.message);
     }
 
     const generated = await generateAgentOutput({ brand, task, brief: brief.trim(), context: enrichedContext });
@@ -363,15 +447,25 @@ app.post('/api/editorial/generate', async (req, res, next) => {
 
     let enrichedContext = context;
     try {
-      const existing = await listContents(brand);
+      const [existing, targetsRecord] = await Promise.all([
+        listContents(brand),
+        getKpiTargets(brand)
+      ]);
+
       if (existing?.length) {
         const recentTitles = existing.slice(0, 15).map(c => `• ${c.data?.titre || c.data?.title || 'Sans titre'} (${c.data?.statut || 'brouillon'}, ${c.data?.format || 'article'})`).join('\n');
         enrichedContext = enrichedContext
           ? `${enrichedContext}\n\nContenus récents existants dans l’application (éviter doublons) :\n${recentTitles}`
           : `Contenus récents existants dans l’application (éviter doublons) :\n${recentTitles}`;
       }
+
+      const kpiContext = buildKpiContext({ brand, targetsRecord, contents: existing || [] });
+      const formattedKpi = formatKpiContext(kpiContext);
+      enrichedContext = enrichedContext
+        ? `${enrichedContext}\n\n${formattedKpi}`
+        : formattedKpi;
     } catch (e) {
-      console.warn('Contexte existant non injecté:', e.message);
+      console.warn('Contexte KPI/existant non injecté:', e.message);
     }
 
     const briefData = {

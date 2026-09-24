@@ -37,8 +37,8 @@ const AgentView = (() => {
     {
       id: 'gemini',
       name: 'Google Gemini',
-      description: 'API officielle Google Gemini (Gemini 2.0 Flash, 1.5 Pro)',
-      defaultModel: 'gemini-2.0-flash',
+      description: 'API officielle Google Gemini (Gemini 2.5 Flash, 2.5 Pro)',
+      defaultModel: 'gemini-2.5-flash',
       models: [
         { id: 'gemini-2.0-flash', name: 'Gemini 2.0 Flash (Très rapide & récent)', recommended: true },
         { id: 'gemini-1.5-flash', name: 'Gemini 1.5 Flash (Équilibré)' },
@@ -101,16 +101,16 @@ const AgentView = (() => {
       if (raw) {
         const parsed = JSON.parse(raw);
         return {
-          provider: parsed.provider || 'openrouter',
-          model: parsed.model || 'meta-llama/llama-3.3-70b-instruct',
+          provider: parsed.provider || 'gemini',
+          model: parsed.model || 'gemini-2.5-flash',
           customModel: parsed.customModel || '',
           apiKey: parsed.apiKey || ''
         };
       }
     } catch {}
     return {
-      provider: 'openrouter',
-      model: 'meta-llama/llama-3.3-70b-instruct',
+      provider: 'gemini',
+      model: 'gemini-2.5-flash',
       customModel: '',
       apiKey: ''
     };
