@@ -31,7 +31,7 @@ import { buildKpiContext, formatKpiContext, buildKpiAutomationBrief } from './se
 const app = express();
 const port = Number(process.env.PORT || 3000);
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
-const uploadsDir = path.join(root, 'uploads');
+const uploadsDir = path.resolve(process.env.MEDIA_UPLOAD_DIR || path.join(root, 'uploads'));
 
 app.disable('x-powered-by');
 app.set('trust proxy', 1);
@@ -818,6 +818,11 @@ app.use((req, res, next) => {
   }
   next();
 });
+// Les médias doivent rester publics pour que Meta puisse les télécharger.
+app.use('/uploads', express.static(uploadsDir, {
+  fallthrough: true,
+  maxAge: process.env.NODE_ENV === 'production' ? '7d' : 0
+}));
 app.use(express.static(root, { index: 'index.html', extensions: ['html'] }));
 app.use((_req, res) => {
   res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate');
