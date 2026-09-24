@@ -339,6 +339,13 @@ app.post('/api/kpi/targets', async (req, res, next) => {
   } catch (error) { next(error); }
 });
 
+app.get('/api/kpi/ai-context', async (req, res, next) => {
+  try {
+    const brand = req.query.brand === 'nidal' ? 'nidal' : 'nidal-junior';
+    res.json(await getAiKpiContext(brand));
+  } catch (error) { next(error); }
+});
+
 app.post('/api/agent/generate', async (req, res, next) => {
   try {
     const { brand = 'nidal-junior', task = 'article', brief, context = '' } = req.body;
@@ -440,15 +447,25 @@ app.post('/api/editorial/generate', async (req, res, next) => {
 
     let enrichedContext = context;
     try {
-      const existing = await listContents(brand);
+      const [existing, targetsRecord] = await Promise.all([
+        listContents(brand),
+        getKpiTargets(brand)
+      ]);
+
       if (existing?.length) {
         const recentTitles = existing.slice(0, 15).map(c => `• ${c.data?.titre || c.data?.title || 'Sans titre'} (${c.data?.statut || 'brouillon'}, ${c.data?.format || 'article'})`).join('\n');
         enrichedContext = enrichedContext
           ? `${enrichedContext}\n\nContenus récents existants dans l’application (éviter doublons) :\n${recentTitles}`
           : `Contenus récents existants dans l’application (éviter doublons) :\n${recentTitles}`;
       }
+
+      const kpiContext = buildKpiContext({ brand, targetsRecord, contents: existing || [] });
+      const formattedKpi = formatKpiContext(kpiContext);
+      enrichedContext = enrichedContext
+        ? `${enrichedContext}\n\n${formattedKpi}`
+        : formattedKpi;
     } catch (e) {
-      console.warn('Contexte existant non injecté:', e.message);
+      console.warn('Contexte KPI/existant non injecté:', e.message);
     }
 
     const briefData = {
