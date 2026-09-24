@@ -52,7 +52,7 @@ const NidalAPI = (() => {
   const deleteEditorialGeneration = id => request(`/api/editorial/generations/${encodeURIComponent(id)}?confirm=true`, { method: 'DELETE' });
 
   return {
-    init, isOnline, getHealth, getConfig, saveConfig,
+    init, isOnline, getHealth, getConfig, saveConfig, request,
     listContents, upsertContent, deleteContent, syncContent,
     generate, listAds, syncAds, getKpiTargets, saveKpiTargets,
     listEditorialAgents, listEditorialProviders, listEditorialGenerations, generateEditorial,

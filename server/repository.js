@@ -7,6 +7,30 @@ const memory = {
   agentRuns: []
 };
 
+/* ── Réinitialisation complète ──────────────────────────────────────── */
+export async function resetAllData() {
+  if (hasDatabase) {
+    try {
+      await query('DELETE FROM agent_transfers');
+      await query('DELETE FROM agent_generations');
+      await query('DELETE FROM agent_conversations');
+      await query('DELETE FROM content_metrics');
+      await query('DELETE FROM ad_campaigns');
+      await query('DELETE FROM agent_runs');
+      await query('DELETE FROM contents');
+      await query('DELETE FROM kpi_targets');
+      console.log('✓ Toutes les données ont été supprimées (PostgreSQL)');
+    } catch (error) {
+      console.error('Erreur réinitialisation PostgreSQL:', error.message);
+    }
+  }
+  // Réinitialiser aussi la mémoire
+  memory.contents.clear();
+  memory.metrics.length = 0;
+  memory.ads.clear();
+  memory.agentRuns.length = 0;
+}
+
 export async function listBrands() {
   if (!hasDatabase) return [{ slug: 'nidal', name: 'Nidal' }, { slug: 'nidal-junior', name: 'Nidal Junior' }];
   try {

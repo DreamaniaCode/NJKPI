@@ -19,8 +19,11 @@
   <script src="./js/agent.js?v=20260924-6" defer></script>
   <script src="./js/performance.js?v=20260924-6" defer></script>
   <script src="./js/insights.js?v=20260924-6" defer></script>
-  <script src="./js/quality.js?v=20260924-6" defer></script>
-  <script src="./js/app.js?v=20260924-6" defer></script>
+  <script src="./js/quality.js?v=20260924-7" defer></script>
+  <script src="./js/settings.js?v=20260924-7" defer></script>
+  <script src="./js/auth.js?v=20260924-7" defer></script>
+  <script src="./js/import.js?v=20260924-7" defer></script>
+  <script src="./js/app.js?v=20260924-7" defer></script>
 </head>
 <body>
   <a href="#main-content" class="skip-link">Aller au contenu principal</a>
@@ -41,7 +44,9 @@
         <button class="nav-item" data-view="performance"><span>Performance</span><b>05</b></button>
         <button class="nav-item" data-view="insights"><span>Insights Meta</span><b>06</b></button>
         <button class="nav-item" data-view="quality"><span>Controle</span><b>07</b></button>
+        <button class="nav-item" data-view="settings"><span>Paramètres</span><b>⚙</b></button>
       </nav>
+      <div class="sidebar__user-badge" id="sidebar-user-badge"></div>
       <div class="sidebar__character" aria-hidden="true"><img src="./assets/mascot.png" alt=""></div>
       <div class="sidebar__footer"><button class="theme-toggle" id="theme-toggle" aria-label="Changer le theme"><span id="theme-icon">◐</span><span class="theme-toggle__label">Mode sombre</span></button><div class="brand-links"><span>@GSNIDAL</span><span>GSNIDAL.MA</span><small>PLUS QU’UNE ECOLE, UN AVENIR</small></div></div>
     </aside>
@@ -53,7 +58,9 @@
       <div class="view-panel" id="view-performance" hidden></div>
       <div class="view-panel" id="view-insights" hidden></div>
       <div class="view-panel" id="view-quality" hidden></div>
+      <div class="view-panel" id="view-settings" hidden></div>
     </main>
+    <div class="login-page" id="login-page" hidden></div>
     <nav class="mobile-nav" aria-label="Navigation mobile">
       <button class="mobile-nav__item active" data-view="dashboard"><span>Vue</span></button>
       <button class="mobile-nav__item" data-view="planning"><span>Planning</span></button>

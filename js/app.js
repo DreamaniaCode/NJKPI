@@ -1,7 +1,7 @@
 /** Routeur principal et theme. */
 const App = (() => {
   let _currentView = 'dashboard';
-  const VIEWS = ['dashboard', 'planning', 'contents', 'agent', 'performance', 'insights', 'quality'];
+  const VIEWS = ['dashboard', 'planning', 'contents', 'agent', 'performance', 'insights', 'quality', 'settings'];
 
   async function init() {
     // 1. Initialisation locale et affichage immédiat (0ms) pour éviter tout écran blanc
@@ -13,9 +13,24 @@ const App = (() => {
     });
     window.onpopstate = _routeFromHash;
     NidalStore.subscribe(_renderCurrentView);
+
+    // 2. Auth check — si le module NidalAuth est disponible
+    if (typeof NidalAuth !== 'undefined') {
+      try {
+        await NidalAuth.init();
+        if (NidalAuth.isAuthEnabled() && !NidalAuth.isAuthenticated()) {
+          _showLoginPage();
+          return;
+        }
+        _applyAuth();
+      } catch (err) {
+        console.warn('Auth init différée:', err);
+      }
+    }
+
     _routeFromHash();
 
-    // 2. Synchronisation avec le serveur en arrière-plan (non-bloquante)
+    // 3. Synchronisation avec le serveur en arrière-plan (non-bloquante)
     try {
       await NidalAPI.init();
       await NidalStore.syncRemote();
@@ -25,12 +40,57 @@ const App = (() => {
     }
   }
 
+  function _showLoginPage() {
+    const loginPage = document.getElementById('login-page');
+    const appLayout = document.querySelector('.app-layout');
+    if (loginPage && appLayout) {
+      appLayout.hidden = true;
+      loginPage.hidden = false;
+      loginPage.innerHTML = NidalAuth.renderLoginPage();
+      NidalAuth.bindLoginEvents(loginPage);
+    }
+  }
+
+  function _hideLoginPage() {
+    const loginPage = document.getElementById('login-page');
+    const appLayout = document.querySelector('.app-layout');
+    if (loginPage && appLayout) {
+      loginPage.hidden = true;
+      appLayout.hidden = false;
+    }
+  }
+
+  function _applyAuth() {
+    _hideLoginPage();
+    // Render user badge in sidebar
+    const badge = document.getElementById('sidebar-user-badge');
+    if (badge && typeof NidalAuth !== 'undefined' && NidalAuth.isAuthenticated()) {
+      badge.innerHTML = NidalAuth.renderUserBadge();
+      badge.querySelector('#btn-logout')?.addEventListener('click', () => NidalAuth.logout());
+    }
+    // Apply role visibility — hide Agent nav for viewers
+    if (typeof NidalAuth !== 'undefined') {
+      NidalAuth.applyRoleVisibility();
+    }
+  }
+
+  function onLoginSuccess() {
+    _applyAuth();
+    _routeFromHash();
+    NidalAPI.init().then(() => NidalStore.syncRemote()).then(() => _renderCurrentView()).catch(() => {});
+  }
+
   function _routeFromHash() {
     const hash = window.location.hash.replace('#', '');
     navigateTo(VIEWS.includes(hash) ? hash : 'dashboard', false);
   }
 
   function navigateTo(viewId, updateHash = true) {
+    // Block viewer from accessing agent view
+    if (viewId === 'agent' && typeof NidalAuth !== 'undefined' && NidalAuth.isAuthEnabled() && !NidalAuth.canViewAgents()) {
+      showToast('Accès réservé aux éditeurs et administrateurs', 'error');
+      viewId = 'dashboard';
+    }
     _currentView = viewId;
     if (updateHash) window.location.hash = viewId;
     document.querySelectorAll('[data-view]').forEach(element => {
@@ -57,7 +117,8 @@ const App = (() => {
       agent: typeof AgentView !== 'undefined' ? AgentView : null,
       performance: typeof PerformanceView !== 'undefined' ? PerformanceView : null,
       insights: typeof InsightsView !== 'undefined' ? InsightsView : null,
-      quality: typeof QualityView !== 'undefined' ? QualityView : null
+      quality: typeof QualityView !== 'undefined' ? QualityView : null,
+      settings: typeof SettingsView !== 'undefined' ? SettingsView : null
     };
     try {
       renderers[_currentView]?.render();
@@ -68,9 +129,9 @@ const App = (() => {
         panel.innerHTML = `<div class="empty-state" style="padding:40px;text-align:center;">
           <div style="color:var(--red);font-size:32px;margin-bottom:12px;">⚠️</div>
           <div>
-            <strong>Erreur d’affichage de la vue « ${_currentView} »</strong>
+            <strong>Erreur d'affichage de la vue « ${_currentView} »</strong>
             <p style="margin-top:6px;color:var(--muted);">${escapeHtml(err.message)}</p>
-            <button class="btn btn--secondary btn--sm" onclick="location.reload()" style="margin-top:10px;">Recharger l’application</button>
+            <button class="btn btn--secondary btn--sm" onclick="location.reload()" style="margin-top:10px;">Recharger l'application</button>
           </div>
         </div>`;
       }
@@ -118,6 +179,6 @@ const App = (() => {
     const name = document.querySelector('.sidebar__brand strong');
     if (name) name.textContent = getActiveBrandLabel();
   }
-  return { init, navigateTo };
+  return { init, navigateTo, onLoginSuccess };
 })();
 document.addEventListener('DOMContentLoaded', App.init);

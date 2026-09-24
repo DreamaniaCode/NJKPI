@@ -11,7 +11,7 @@ const ContentsView = (() => {
     view.innerHTML = `
       <header class="view__header workspace-header">
         <div><span class="section-kicker">Production</span><h1 class="view__title">Contenus</h1><p class="view__subtitle">Messages, statuts, objectifs et resultats au meme endroit</p></div>
-        <div class="header-actions"><button class="btn btn--secondary" id="export-csv-btn">Exporter CSV</button><button class="btn btn--primary" id="add-content-btn">+ Nouveau contenu</button></div>
+        <div class="header-actions"><button class="btn btn--secondary" id="export-btn">📤 Exporter</button><button class="btn btn--secondary" id="import-url-btn">🔗 Importer</button><button class="btn btn--primary" id="add-content-btn">+ Nouveau contenu</button></div>
       </header>
       <div class="contents-toolbar">
         <input type="search" id="content-search" class="search-input" placeholder="Rechercher un titre, une classe ou un album" value="${escapeHtml(_query)}" aria-label="Rechercher">
@@ -21,7 +21,8 @@ const ContentsView = (() => {
       </div>
       <div class="table-responsive"><table class="data-table"><thead><tr><th>Date</th><th>Contenu</th><th>Public</th><th>Format</th><th>Statut</th><th>Controle</th><th class="actions-column">Actions</th></tr></thead><tbody id="contents-tbody"></tbody></table></div>`;
     document.getElementById('add-content-btn').onclick = () => openCreateForm();
-    document.getElementById('export-csv-btn').onclick = () => NidalExport.exportCSV(_filtered());
+    document.getElementById('export-btn').onclick = () => NidalExport.openExportModal();
+    document.getElementById('import-url-btn').onclick = () => { if (typeof NidalImport !== 'undefined') NidalImport.openImportModal(); else showToast('Module d\'import non disponible', 'error'); };
     document.getElementById('content-search').oninput = debounce(event => { _query = event.target.value.toLowerCase(); _renderRows(); });
     document.getElementById('filter-format').onchange = event => { _format = event.target.value; _renderRows(); };
     document.getElementById('filter-level').onchange = event => { _level = event.target.value; _renderRows(); };

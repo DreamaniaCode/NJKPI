@@ -10,7 +10,7 @@ const DashboardView = (() => {
     view.innerHTML = `
       <header class="view__header workspace-header">
         <div><span class="section-kicker">Semaine active</span><h1 class="view__title">Vue d’ensemble</h1><p class="view__subtitle">21–27 septembre 2026 · ${escapeHtml(getActiveBrandLabel())}</p></div>
-        <div class="header-actions"><button class="btn btn--secondary" onclick="App.navigateTo('planning')">Ouvrir le planning</button><button class="btn btn--primary" onclick="ContentsView.openCreateForm()">+ Nouveau contenu</button></div>
+        <div class="header-actions"><button class="btn btn--secondary" onclick="NidalExport.openExportModal()">📤 Exporter</button><button class="btn btn--secondary" onclick="App.navigateTo('planning')">Ouvrir le planning</button><button class="btn btn--primary" onclick="ContentsView.openCreateForm()">+ Nouveau contenu</button></div>
       </header>
 
       <section class="kpi-strip" aria-label="Indicateurs cles">

@@ -17,6 +17,9 @@ import {
   parseStructuredEditorial, parseStoryboard, parseQualityCheck,
   SUPPORTED_AI_PROVIDERS
 } from './services/agent.js';
+import { initAuth, authenticate, authorize, loginUser, listUsers, createUser, updateUserRole, isAuthEnabled } from './middleware/auth.js';
+import { generatePdfExport, generateExcelExport, generateMarkdownExport, generateCsvExport } from './services/export.js';
+import { parseContentUrl, buildContentFromUrl } from './services/url-parser.js';
 
 const app = express();
 const port = Number(process.env.PORT || 3000);
@@ -63,6 +66,146 @@ app.get('/api/health', async (_req, res) => {
 });
 
 app.use('/api', requireAccess);
+
+// ── Auth routes (pas de requireAccess sur login) ──────────────────────
+app.post('/api/auth/login', async (req, res, next) => {
+  try {
+    const { username, password } = req.body;
+    if (!username || !password) return res.status(400).json({ error: 'Identifiants requis' });
+    const result = await loginUser(username, password);
+    if (!result) return res.status(401).json({ error: 'Identifiants invalides' });
+    res.json(result);
+  } catch (error) { next(error); }
+});
+
+app.get('/api/auth/me', async (req, res) => {
+  // Try JWT auth
+  const hdr = req.headers.authorization || '';
+  const token = hdr.startsWith('Bearer ') ? hdr.slice(7) : null;
+  if (token) {
+    try {
+      const { verifyToken } = await import('./middleware/auth.js');
+      const payload = verifyToken(token);
+      if (payload) return res.json({ user: payload, authEnabled: isAuthEnabled() });
+    } catch {}
+  }
+  res.json({ user: null, authEnabled: isAuthEnabled() });
+});
+
+app.get('/api/auth/users', authorize('admin'), async (_req, res, next) => {
+  try { res.json(await listUsers()); } catch (error) { next(error); }
+});
+
+app.post('/api/auth/users', authorize('admin'), async (req, res, next) => {
+  try {
+    const { username, password, email, role, display_name } = req.body;
+    if (!username || !password) return res.status(400).json({ error: 'Nom d\'utilisateur et mot de passe requis' });
+    const user = await createUser({ username, password, email, role, display_name });
+    res.status(201).json(user);
+  } catch (error) { next(error); }
+});
+
+app.put('/api/auth/users/:id/role', authorize('admin'), async (req, res, next) => {
+  try {
+    const { role } = req.body;
+    if (!['admin', 'editor', 'viewer'].includes(role)) return res.status(400).json({ error: 'Rôle invalide' });
+    await updateUserRole(req.params.id, role);
+    res.json({ ok: true });
+  } catch (error) { next(error); }
+});
+
+// ── Reset all data ────────────────────────────────────────────────────
+app.delete('/api/data/reset', authorize('admin'), async (req, res, next) => {
+  try {
+    if (req.query.confirm !== 'RESET') return res.status(400).json({ error: 'Ajoutez ?confirm=RESET pour confirmer' });
+    await repo.resetAllData();
+    res.json({ ok: true, message: 'Toutes les données ont été supprimées' });
+  } catch (error) { next(error); }
+});
+
+// ── Export endpoints ──────────────────────────────────────────────────
+app.get('/api/export/:format', async (req, res, next) => {
+  try {
+    const brand = req.query.brand || 'nidal-junior';
+    const contents = await listContents(brand);
+    const targets = await getKpiTargets(brand);
+    const data = { contents, kpiTargets: targets, brand };
+
+    switch (req.params.format) {
+      case 'pdf': {
+        const result = generatePdfExport(data, brand);
+        res.setHeader('Content-Type', result.contentType);
+        res.setHeader('Content-Disposition', `attachment; filename="${result.filename}"`);
+        return res.send(result.buffer);
+      }
+      case 'excel': {
+        const result = generateExcelExport(data, brand);
+        res.setHeader('Content-Type', result.contentType);
+        res.setHeader('Content-Disposition', `attachment; filename="${result.filename}"`);
+        return res.send(result.buffer);
+      }
+      case 'markdown': {
+        const result = generateMarkdownExport(data, brand);
+        res.setHeader('Content-Type', result.contentType);
+        res.setHeader('Content-Disposition', `attachment; filename="${result.filename}"`);
+        return res.send(result.text);
+      }
+      case 'csv': {
+        const result = generateCsvExport(data, brand);
+        res.setHeader('Content-Type', result.contentType);
+        res.setHeader('Content-Disposition', `attachment; filename="${result.filename}"`);
+        return res.send(result.text);
+      }
+      default:
+        return res.status(400).json({ error: 'Format non supporté. Utilisez: pdf, excel, markdown, csv' });
+    }
+  } catch (error) { next(error); }
+});
+
+// ── URL import ────────────────────────────────────────────────────────
+app.post('/api/import/url', async (req, res, next) => {
+  try {
+    const { url, brand } = req.body;
+    if (!url) return res.status(400).json({ error: 'URL requise' });
+    const parsed = parseContentUrl(url);
+    if (!parsed.isValid) return res.status(400).json({ error: 'URL non reconnue', parsed });
+    const contentSkeleton = buildContentFromUrl(parsed);
+    const content = await upsertContent({
+      brand_slug: brand || 'nidal-junior',
+      data: contentSkeleton,
+      final_url: parsed.normalizedUrl,
+      platform: parsed.platform,
+      sync_status: 'pending'
+    });
+    // Try to sync metrics immediately
+    try {
+      const isDemo = process.env.DEMO_MODE === 'true' || !metaConfigured(brand || 'nidal-junior');
+      const metrics = await syncContentFromUrl({ brand: brand || 'nidal-junior', finalUrl: parsed.normalizedUrl, platform: parsed.platform });
+      await saveMetrics(content.id, 'meta', metrics, isDemo);
+      res.json({ ok: true, content, metrics, isDemo, parsed });
+    } catch {
+      res.json({ ok: true, content, metrics: null, parsed });
+    }
+  } catch (error) { next(error); }
+});
+
+app.post('/api/import/bulk-urls', async (req, res, next) => {
+  try {
+    const { urls, brand } = req.body;
+    if (!Array.isArray(urls) || !urls.length) return res.status(400).json({ error: 'Liste d\'URLs requise' });
+    const results = [];
+    for (const url of urls.slice(0, 20)) {
+      try {
+        const parsed = parseContentUrl(url);
+        if (!parsed.isValid) { results.push({ url, error: 'URL non reconnue' }); continue; }
+        const skeleton = buildContentFromUrl(parsed);
+        const content = await upsertContent({ brand_slug: brand || 'nidal-junior', data: skeleton, final_url: parsed.normalizedUrl, platform: parsed.platform, sync_status: 'pending' });
+        results.push({ url, ok: true, content, parsed });
+      } catch (e) { results.push({ url, error: e.message }); }
+    }
+    res.json({ ok: true, results, imported: results.filter(r => r.ok).length, total: results.length });
+  } catch (error) { next(error); }
+});
 
 app.get('/api/brands', async (_req, res, next) => { try { res.json(await listBrands()); } catch (error) { next(error); } });
 app.get('/api/contents', async (req, res, next) => { try { res.json(await listContents(req.query.brand)); } catch (error) { next(error); } });
@@ -381,7 +524,7 @@ process.on('unhandledRejection', reason => {
 
 const server = app.listen(port, '0.0.0.0', () => {
   console.log(`Nidal Content Hub demarre sur http://0.0.0.0:${port}`);
-  initDatabase().catch(error => {
+  initDatabase().then(() => initAuth()).catch(error => {
     console.error('Avertissement initialisation base:', error.message);
   });
 });
