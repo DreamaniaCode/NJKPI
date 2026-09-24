@@ -29,12 +29,43 @@ export function metaConfigured(brand) {
   return Boolean(process.env.META_ACCESS_TOKEN && (brandEnv('META_PAGE_ID', brand) || brandEnv('META_IG_USER_ID', brand)));
 }
 
+async function syncInstagramAccountInsights(igUserId) {
+  const metrics = ['profile_views', 'reach', 'accounts_engaged'];
+  const values = {};
+  const errors = [];
+
+  for (const metric of metrics) {
+    try {
+      const payload = await graph(`${igUserId}/insights`, {
+        metric,
+        period: 'day',
+        metric_type: 'total_value'
+      });
+      const item = payload.data?.[0];
+      values[metric] = Number(item?.total_value?.value ?? item?.values?.[0]?.value ?? item?.value ?? 0);
+    } catch (error) {
+      errors.push({ metric, message: error.message });
+    }
+  }
+
+  return {
+    period: 'day',
+    metricType: 'total_value',
+    profileViews: values.profile_views ?? null,
+    reach: values.reach ?? null,
+    accountsEngaged: values.accounts_engaged ?? null,
+    errors
+  };
+}
+
 async function syncInstagramProfile(brand) {
   const igUserId = brandEnv('META_IG_USER_ID', brand);
   if (!igUserId) throw new Error(`META_IG_USER_ID non configuré pour ${brand}`);
 
   const fields = 'id,username,name,biography,website,followers_count,follows_count,media_count,profile_picture_url';
   const profile = await graph(igUserId, { fields });
+  const insights = await syncInstagramAccountInsights(igUserId);
+  const hasInsights = [insights.profileViews, insights.reach, insights.accountsEngaged].some(value => value !== null);
 
   return {
     platform: 'instagram',
@@ -49,7 +80,8 @@ async function syncInstagramProfile(brand) {
     mediaCount: Number(profile.media_count || 0),
     profilePictureUrl: profile.profile_picture_url || null,
     profileUrl: profile.username ? `https://www.instagram.com/${profile.username}/` : null,
-    insightsAvailable: true
+    insightsAvailable: hasInsights,
+    insights
   };
 }
 
@@ -74,7 +106,7 @@ async function syncFacebookProfile(brand) {
     mediaCount: null,
     profilePictureUrl: profile.picture?.data?.url || null,
     profileUrl: profile.link || (profile.id ? `https://www.facebook.com/${profile.id}` : null),
-    insightsAvailable: true
+    insightsAvailable: false
   };
 }
 
