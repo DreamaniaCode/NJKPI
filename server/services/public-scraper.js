@@ -208,3 +208,60 @@ export async function scrapeSocialPost(url) {
   }
   return { success: false, error: 'Plateforme non supportée pour le scraping public' };
 }
+
+
+/**
+ * Extraction publique limitée d'un profil/page.
+ * Ne garantit pas les followers ni les Insights : Meta peut bloquer ou masquer ces données.
+ */
+export async function scrapeSocialProfile(rawUrl) {
+  const cleanUrl = cleanSocialUrl(rawUrl);
+  if (!/instagram\.com|facebook\.com/i.test(cleanUrl)) {
+    return { success: false, error: 'URL Instagram/Facebook requise' };
+  }
+
+  try {
+    const res = await fetch(cleanUrl, {
+      headers: {
+        'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
+        'Accept-Language': 'fr-FR,fr;q=0.9,en;q=0.8'
+      }
+    });
+    if (!res.ok) return { success: false, error: `HTTP ${res.status}` };
+
+    const html = await res.text();
+    const getMeta = (prop) => {
+      const patterns = [
+        new RegExp(`<meta\\s+(?:property|name)=["']${prop}["']\\s+content=["']([^"']*)["']`, 'i'),
+        new RegExp(`<meta\\s+content=["']([^"']*)["']\\s+(?:property|name)=["']${prop}["']`, 'i')
+      ];
+      for (const reg of patterns) {
+        const m = html.match(reg);
+        if (m) return decodeEntities(m[1]);
+      }
+      return null;
+    };
+
+    const isInstagram = /instagram\.com/i.test(cleanUrl);
+    const title = getMeta('og:title') || getMeta('twitter:title') || (isInstagram ? 'Profil Instagram' : 'Page Facebook');
+    const description = getMeta('og:description') || getMeta('description') || '';
+    const image = getMeta('og:image') || null;
+
+    return {
+      success: true,
+      source: 'public',
+      platform: isInstagram ? 'instagram' : 'facebook',
+      profileUrl: cleanUrl,
+      name: title,
+      biography: description,
+      profilePictureUrl: image,
+      followers: null,
+      follows: null,
+      mediaCount: null,
+      insightsAvailable: false,
+      warning: 'Lecture publique limitée : les followers et Insights nécessitent l’API Meta officielle.'
+    };
+  } catch (error) {
+    return { success: false, error: error.message };
+  }
+}
