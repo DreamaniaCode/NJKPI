@@ -1,4 +1,5 @@
 import crypto from 'node:crypto';
+import fs from 'node:fs/promises';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import express from 'express';
@@ -30,9 +31,16 @@ import { buildKpiContext, formatKpiContext, buildKpiAutomationBrief } from './se
 const app = express();
 const port = Number(process.env.PORT || 3000);
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
+const uploadsDir = path.join(root, 'uploads');
 
 app.disable('x-powered-by');
-app.use(express.json({ limit: '1mb' }));
+app.set('trust proxy', 1);
+// Upload binaire direct : évite de transformer les images en base64/JSON.
+app.use('/api/uploads', express.raw({
+  type: ['image/*', 'video/*', 'application/octet-stream'],
+  limit: process.env.MEDIA_UPLOAD_LIMIT || '50mb'
+}));
+app.use(express.json({ limit: '2mb' }));
 app.use((req, res, next) => {
   const allowed = process.env.CORS_ORIGIN;
   if (allowed) {
@@ -329,6 +337,48 @@ app.post('/api/contents/:id/sync', async (req, res, next) => {
 
 app.get('/api/ads', async (req, res, next) => { try { res.json(await listAds(req.query.brand || 'nidal-junior')); } catch (error) { next(error); } });
 app.post('/api/ads/sync', async (req, res, next) => { try { const brand = req.body.brand || 'nidal-junior'; const campaigns = await syncAds(brand); res.json(await saveAds(brand, campaigns)); } catch (error) { next(error); } });
+
+app.post('/api/uploads', authenticate, authorize('admin', 'editor'), async (req, res, next) => {
+  try {
+    if (!Buffer.isBuffer(req.body) || !req.body.length) {
+      return res.status(400).json({ error: 'Fichier image ou vidéo obligatoire.' });
+    }
+
+    const rawName = decodeURIComponent(String(req.headers['x-file-name'] || 'media'));
+    const mime = String(req.headers['content-type'] || 'application/octet-stream').split(';')[0].toLowerCase();
+    const allowedMime = /^(image\/(jpeg|png|webp|gif)|video\/(mp4|quicktime|webm))$/;
+    if (!allowedMime.test(mime)) {
+      return res.status(400).json({ error: 'Format non supporté. Utilisez JPG, PNG, WEBP, GIF, MP4, MOV ou WEBM.' });
+    }
+
+    const extByMime = {
+      'image/jpeg': '.jpg',
+      'image/png': '.png',
+      'image/webp': '.webp',
+      'image/gif': '.gif',
+      'video/mp4': '.mp4',
+      'video/quicktime': '.mov',
+      'video/webm': '.webm'
+    };
+    const originalExt = path.extname(rawName).toLowerCase();
+    const ext = extByMime[mime] || originalExt || '.bin';
+    const filename = `${Date.now()}-${crypto.randomUUID()}${ext}`;
+
+    await fs.mkdir(uploadsDir, { recursive: true });
+    await fs.writeFile(path.join(uploadsDir, filename), req.body);
+
+    const baseUrl = String(process.env.PUBLIC_BASE_URL || `${req.protocol}://${req.get('host')}`).replace(/\/$/, '');
+    res.status(201).json({
+      ok: true,
+      filename,
+      originalName: rawName,
+      mime,
+      size: req.body.length,
+      path: `/uploads/${filename}`,
+      url: `${baseUrl}/uploads/${filename}`
+    });
+  } catch (error) { next(error); }
+});
 
 app.get('/api/audience-history', async (req, res, next) => {
   try {
