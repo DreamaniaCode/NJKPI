@@ -1,6 +1,7 @@
 /** Audience, conversions et meilleurs contenus Meta. */
 const AudienceView = (() => {
   let _data = null;
+  let _history = [];
   let _loading = false;
   let _error = '';
 
@@ -32,13 +33,31 @@ const AudienceView = (() => {
     _error = '';
     render();
     try {
-      _data = await NidalAPI.getAudienceConversions(getActiveBrand(), refresh);
+      const [current, history] = await Promise.all([
+        NidalAPI.getAudienceConversions(getActiveBrand(), refresh),
+        NidalAPI.getAudienceHistory(getActiveBrand(), 168).catch(() => [])
+      ]);
+      _data = current;
+      _history = Array.isArray(history) ? history : [];
     } catch (error) {
       _error = error.message || 'Impossible de charger les données Meta.';
     } finally {
       _loading = false;
       render();
     }
+  }
+
+  function _historySeries(selector) {
+    return [..._history]
+      .sort((a, b) => new Date(a.captured_at) - new Date(b.captured_at))
+      .map(row => {
+        const value = selector(row.payload || {});
+        return {
+          label: new Date(row.captured_at).toLocaleString('fr-FR', { day: '2-digit', month: '2-digit', hour: '2-digit' }),
+          value: _num(value)
+        };
+      })
+      .filter(row => Number.isFinite(row.value));
   }
 
   function _summaryCard(label, value, note) {
@@ -203,6 +222,36 @@ const AudienceView = (() => {
 
         <section style="margin-bottom:26px;">
           <div class="section-heading">
+            <div>
+              <span class="section-kicker">Évolution enregistrée</span>
+              <h2>Courbes horaires des performances</h2>
+            </div>
+            <span class="badge badge--planifie">${_history.length} snapshots</span>
+          </div>
+          <div class="dashboard-lower-grid">
+            <div class="analysis-panel">
+              <div class="section-heading"><div><span class="section-kicker">Ads</span><h2>Reach Ads</h2></div></div>
+              <div id="audience-chart-reach" class="chart-wrapper"></div>
+            </div>
+            <div class="analysis-panel">
+              <div class="section-heading"><div><span class="section-kicker">Ads</span><h2>Clics Ads</h2></div></div>
+              <div id="audience-chart-clicks" class="chart-wrapper"></div>
+            </div>
+          </div>
+          <div class="dashboard-lower-grid" style="margin-top:16px;">
+            <div class="analysis-panel">
+              <div class="section-heading"><div><span class="section-kicker">Instagram organique</span><h2>Reach des contenus analysés</h2></div></div>
+              <div id="audience-chart-ig" class="chart-wrapper"></div>
+            </div>
+            <div class="analysis-panel">
+              <div class="section-heading"><div><span class="section-kicker">Facebook organique</span><h2>Reach des contenus analysés</h2></div></div>
+              <div id="audience-chart-fb" class="chart-wrapper"></div>
+            </div>
+          </div>
+        </section>
+
+        <section style="margin-bottom:26px;">
+          <div class="section-heading">
             <div><span class="section-kicker">Instagram · historique</span><h2>Anciens posts et vidéos qui ont le mieux marché</h2></div>
             <span class="badge badge--planifie">${formatNumber(ig.analyzedMedia || 0)} médias analysés</span>
           </div>
@@ -238,6 +287,13 @@ const AudienceView = (() => {
         </div>
       ` : ''}
     `;
+
+    if (_data && _history.length && typeof NidalCharts !== 'undefined') {
+      NidalCharts.lineChart('audience-chart-reach', _historySeries(p => p.ads?.summary?.reach));
+      NidalCharts.lineChart('audience-chart-clicks', _historySeries(p => p.ads?.summary?.clicks));
+      NidalCharts.lineChart('audience-chart-ig', _historySeries(p => (p.instagram?.topContent || []).reduce((s, i) => s + _num(i.metrics?.reach), 0)));
+      NidalCharts.lineChart('audience-chart-fb', _historySeries(p => (p.facebook?.topContent || []).reduce((s, i) => s + _num(i.metrics?.reach), 0)));
+    }
 
     const refresh = document.getElementById('audience-refresh-btn');
     if (refresh) refresh.onclick = () => _load(true);
