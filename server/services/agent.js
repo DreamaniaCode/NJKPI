@@ -1,4 +1,5 @@
-const OPENAI_URL = 'https://api.openai.com/v1/responses';
+const OPENROUTER_URL = 'https://openrouter.ai/api/v1/chat/completions';
+const OPENAI_URL = 'https://api.openai.com/v1/chat/completions';
 
 const BRAND_CONTEXT = {
   nidal: 'Etablissement Nidal Prive. Ton professionnel, rassurant et pedagogique. Valeurs : discipline, confiance, progres, reussite.',
@@ -13,23 +14,73 @@ const TASKS = {
   insight_analysis: 'Analyse les chiffres fournis, distingue faits et hypotheses, identifie 3 enseignements et propose 3 actions testables.'
 };
 
-export function agentConfigured() { return Boolean(process.env.OPENAI_API_KEY); }
+export function agentConfigured() {
+  return Boolean(process.env.OPENROUTER_API_KEY || process.env.OPENAI_API_KEY);
+}
+
+export function getAiProvider() {
+  if (process.env.OPENROUTER_API_KEY) return 'openrouter';
+  if (process.env.OPENAI_API_KEY) return 'openai';
+  return 'none';
+}
 
 export async function generateAgentOutput({ brand, task, brief, context = '' }) {
-  const demo = process.env.DEMO_MODE === 'true' || !agentConfigured();
-  if (demo) return { output: demoOutput({ brand, task, brief }), model: 'demo-template', isDemo: true };
-  const model = process.env.OPENAI_MODEL || 'gpt-5.6-luna';
+  const isConfigured = agentConfigured();
+  const demo = process.env.DEMO_MODE === 'true' && !isConfigured;
+  if (demo || !isConfigured) {
+    return { output: demoOutput({ brand, task, brief }), model: 'demo-template', isDemo: true };
+  }
+
   const instructions = `Tu es Studio Contenu Nidal. ${BRAND_CONTEXT[brand] || BRAND_CONTEXT['nidal-junior']} ${TASKS[task] || TASKS.post} Toute sortie doit etre en francais, prete a valider et ne doit jamais inventer de faits. Termine par une courte checklist de conformite.`;
+  const userPrompt = `Brief : ${brief}\nContexte disponible : ${context || 'Aucun'}`;
+
+  if (process.env.OPENROUTER_API_KEY) {
+    const model = process.env.OPENROUTER_MODEL || 'meta-llama/llama-3.3-70b-instruct:free';
+    const response = await fetch(OPENROUTER_URL, {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${process.env.OPENROUTER_API_KEY}`,
+        'HTTP-Referer': process.env.APP_URL || 'https://gsnidal.ma',
+        'X-Title': 'Nidal Content Hub',
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({
+        model,
+        messages: [
+          { role: 'system', content: instructions },
+          { role: 'user', content: userPrompt }
+        ],
+        temperature: 0.7
+      })
+    });
+    const payload = await response.json();
+    if (!response.ok) throw new Error(payload.error?.message || `OpenRouter API ${response.status}`);
+    const output = payload.choices?.[0]?.message?.content;
+    if (!output) throw new Error('Reponse OpenRouter vide');
+    return { output, model, provider: 'openrouter', isDemo: false };
+  }
+
+  const model = process.env.OPENAI_MODEL || 'gpt-4o-mini';
   const response = await fetch(OPENAI_URL, {
     method: 'POST',
-    headers: { Authorization: `Bearer ${process.env.OPENAI_API_KEY}`, 'Content-Type': 'application/json' },
-    body: JSON.stringify({ model, instructions, input: `Brief : ${brief}\nContexte disponible : ${context || 'Aucun'}`, store: false })
+    headers: {
+      Authorization: `Bearer ${process.env.OPENAI_API_KEY}`,
+      'Content-Type': 'application/json'
+    },
+    body: JSON.stringify({
+      model,
+      messages: [
+        { role: 'system', content: instructions },
+        { role: 'user', content: userPrompt }
+      ],
+      temperature: 0.7
+    })
   });
   const payload = await response.json();
   if (!response.ok) throw new Error(payload.error?.message || `OpenAI API ${response.status}`);
-  const output = payload.output_text || payload.output?.flatMap(item => item.content || []).find(item => item.type === 'output_text')?.text;
+  const output = payload.choices?.[0]?.message?.content;
   if (!output) throw new Error('Reponse OpenAI vide');
-  return { output, model, isDemo: false };
+  return { output, model, provider: 'openai', isDemo: false };
 }
 
 function demoOutput({ brand, task, brief }) {

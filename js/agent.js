@@ -7,8 +7,11 @@ const AgentView = (() => {
     if (!view) return;
     const online = NidalAPI.isOnline();
     const health = NidalAPI.getHealth();
+    const aiReady = Boolean(health?.integrations?.ai || health?.integrations?.openai);
+    const aiProvider = health?.integrations?.aiProvider;
+    const aiLabel = aiReady ? (aiProvider === 'openrouter' ? 'OpenRouter connecté' : 'IA connectée') : 'Mode démo';
     view.innerHTML = `
-      <header class="view__header workspace-header"><div><span class="section-kicker">Studio contenu</span><h1 class="view__title">Agent IA</h1><p class="view__subtitle">Legendes, plans hebdomadaires et prompts photo ou video pour ${escapeHtml(getActiveBrandLabel())}</p></div><span class="connection-pill ${online ? 'connection-pill--ok' : 'connection-pill--off'}">${online ? (health?.integrations?.openai ? 'OpenAI connecte' : 'Mode demo') : 'Backend hors ligne'}</span></header>
+      <header class="view__header workspace-header"><div><span class="section-kicker">Studio contenu</span><h1 class="view__title">Agent IA</h1><p class="view__subtitle">Legendes, plans hebdomadaires et prompts photo ou video pour ${escapeHtml(getActiveBrandLabel())}</p></div><span class="connection-pill ${online ? (aiReady ? 'connection-pill--ok' : 'connection-pill--pending') : 'connection-pill--off'}">${online ? aiLabel : 'Backend hors ligne'}</span></header>
       <section class="agent-layout">
         <form class="agent-brief" id="agent-form">
           <div><span class="section-kicker">Nouveau brief</span><h2>Que devons-nous preparer ?</h2></div>

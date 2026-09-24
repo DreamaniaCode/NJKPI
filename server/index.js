@@ -5,7 +5,7 @@ import express from 'express';
 import { initDatabase, databaseHealth } from './db.js';
 import { listBrands, listContents, getContent, upsertContent, deleteContent, saveMetrics, saveAds, listAds, saveAgentRun } from './repository.js';
 import { metaConfigured, syncContentFromUrl, syncAds } from './services/meta.js';
-import { agentConfigured, generateAgentOutput } from './services/agent.js';
+import { agentConfigured, getAiProvider, generateAgentOutput } from './services/agent.js';
 
 const app = express();
 const port = Number(process.env.PORT || 3000);
@@ -34,14 +34,19 @@ function requireAccess(req, res, next) {
 }
 
 app.get('/api/health', async (_req, res) => {
+  const hasMeta = metaConfigured('nidal') || metaConfigured('nidal-junior');
   res.json({
     ok: true,
     database: await databaseHealth(),
     demoMode: process.env.DEMO_MODE === 'true',
     integrations: {
+      ai: agentConfigured(),
+      aiProvider: getAiProvider(),
       openai: agentConfigured(),
       metaNidal: metaConfigured('nidal'),
-      metaNidalJunior: metaConfigured('nidal-junior')
+      metaNidalJunior: metaConfigured('nidal-junior'),
+      metaReady: hasMeta,
+      metaStatus: hasMeta ? 'connected' : 'pending'
     }
   });
 });

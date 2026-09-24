@@ -289,3 +289,10 @@ textarea.form-control { resize: vertical; }
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after { animation-duration: .01ms !important; transition-duration: .01ms !important; }
 }
+
+.connection-pill { display: inline-flex; align-items: center; gap: 6px; padding: 4px 12px; border-radius: 999px; font-size: 11px; font-weight: 700; background: var(--panel); color: var(--muted); border: 1px solid var(--line); }
+.connection-pill--ok { background: #ecfdf5; color: #047857; border-color: #a7f3d0; }
+.connection-pill--pending { background: #fffbeb; color: #b45309; border-color: #fde68a; }
+.connection-pill--off { background: #fef2f2; color: #b91c1c; border-color: #fecaca; }
+.status-pending { color: #d97706; }
+

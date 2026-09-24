@@ -108,12 +108,20 @@ export async function syncAds(brand) {
 function demoContentMetrics(finalUrl, platform) {
   const seed = [...String(finalUrl || platform || 'nidal')].reduce((sum, char) => sum + char.charCodeAt(0), 0);
   const portee = 1200 + (seed % 2100);
-  return { source: /instagram/i.test(platform || finalUrl) ? 'instagram' : 'facebook', externalMediaId: `demo_${seed}`, permalink: finalUrl, isDemo: true, metrics: { portee, reactions: 80 + seed % 130, commentaires: 8 + seed % 25, partages: 5 + seed % 30, enregistrements: 12 + seed % 45, clics: 4 + seed % 25, vues: portee + 300 + seed % 900 } };
+  return {
+    source: /instagram/i.test(platform || finalUrl) ? 'instagram' : 'facebook',
+    externalMediaId: `demo_${seed}`,
+    permalink: finalUrl,
+    isDemo: true,
+    isPending: !process.env.META_ACCESS_TOKEN,
+    metrics: { portee, reactions: 80 + seed % 130, commentaires: 8 + seed % 25, partages: 5 + seed % 30, enregistrements: 12 + seed % 45, clics: 4 + seed % 25, vues: portee + 300 + seed % 900 }
+  };
 }
 
 function demoAds(brand) {
+  const isPending = !process.env.META_ACCESS_TOKEN;
   return [
-    { campaign_id: `demo-${brand}-1`, campaign_name: 'Inscriptions Nidal', impressions: '28400', reach: '19100', clicks: '612', spend: '2150.00', actions: [{ action_type: 'lead', value: '74' }], isDemo: true },
-    { campaign_id: `demo-${brand}-2`, campaign_name: 'Decouverte Nidal Junior', impressions: '17600', reach: '12800', clicks: '428', spend: '1375.00', actions: [{ action_type: 'onsite_conversion.messaging_conversation_started_7d', value: '53' }], isDemo: true }
+    { campaign_id: `demo-${brand}-1`, campaign_name: 'Inscriptions Nidal', impressions: '28400', reach: '19100', clicks: '612', spend: '2150.00', actions: [{ action_type: 'lead', value: '74' }], isDemo: true, isPending },
+    { campaign_id: `demo-${brand}-2`, campaign_name: 'Decouverte Nidal Junior', impressions: '17600', reach: '12800', clicks: '428', spend: '1375.00', actions: [{ action_type: 'onsite_conversion.messaging_conversation_started_7d', value: '53' }], isDemo: true, isPending }
   ];
 }
