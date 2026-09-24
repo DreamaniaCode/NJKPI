@@ -154,14 +154,35 @@ const AudienceView = (() => {
   }
 
   function _contentChartData(items = [], limit = 8) {
+    // Ce graphique est un CLASSEMENT par Reach, pas une chronologie.
+    // Utiliser des rangs sur l'axe évite de faire croire que les dates sont ordonnées.
     return items.slice(0, limit).map((item, index) => ({
       id: item.id || String(index),
-      label: item.timestamp
-        ? new Date(item.timestamp).toLocaleDateString('fr-FR', { day: '2-digit', month: '2-digit' })
-        : `#${index + 1}`,
+      label: `#${index + 1}`,
       value: _num(item.metrics?.reach),
       color: item.platform === 'facebook' ? '#1877f2' : '#d62976'
     }));
+  }
+
+  function _topContentLegend(items = [], platform = 'instagram', limit = 8) {
+    const top = items.slice(0, limit);
+    if (!top.length) return '<div class="audience-empty">Aucun contenu analysé.</div>';
+    return '<div class="top-content-rank-list">' + top.map((item, index) => {
+      const m = item.metrics || {};
+      const date = item.timestamp
+        ? new Date(item.timestamp).toLocaleDateString('fr-FR', { day: '2-digit', month: 'short', year: 'numeric' })
+        : 'Date indisponible';
+      const title = _shortText(item.caption || (platform === 'facebook' ? 'Publication Facebook' : 'Publication Instagram'), 70);
+      return `
+        <article class="top-content-rank-item">
+          <span class="top-content-rank-item__rank">#${index + 1}</span>
+          <div class="top-content-rank-item__body">
+            <strong>${escapeHtml(title)}</strong>
+            <small>${escapeHtml(date)} · ${formatNumber(_num(m.reach))} reach · ${formatNumber(_num(m.interactions))} interactions</small>
+          </div>
+          ${item.permalink ? `<a href="${escapeHtml(item.permalink)}" target="_blank" rel="noopener noreferrer">Voir ↗</a>` : ''}
+        </article>`;
+    }).join('') + '</div>';
   }
 
 
@@ -351,12 +372,24 @@ const AudienceView = (() => {
 
           <div class="dashboard-lower-grid" style="margin-top:16px;">
             <div class="analysis-panel audience-chart-panel">
-              <div class="section-heading"><div><span class="section-kicker">Instagram</span><h2>Top contenus par Reach</h2></div></div>
-              ${(ig.topContent || []).length ? '<div id="audience-chart-ig" class="chart-wrapper"></div>' : '<div class="audience-empty">Aucun contenu Instagram analysé.</div>'}
+              <div class="section-heading">
+                <div><span class="section-kicker">Instagram</span><h2>Top contenus par Reach</h2></div>
+                <small style="color:var(--muted);">Classement #1 → #8 · pas une chronologie</small>
+              </div>
+              ${(ig.topContent || []).some(item => _num(item.metrics?.reach) > 0)
+                ? '<div id="audience-chart-ig" class="chart-wrapper"></div>'
+                : '<div class="audience-empty">Aucun Reach Instagram exploitable pour le classement.</div>'}
+              ${_topContentLegend(ig.topContent || [], 'instagram', 8)}
             </div>
             <div class="analysis-panel audience-chart-panel">
-              <div class="section-heading"><div><span class="section-kicker">Facebook</span><h2>Top contenus par Reach</h2></div></div>
-              ${(fb.topContent || []).length ? '<div id="audience-chart-fb" class="chart-wrapper"></div>' : '<div class="audience-empty">Facebook attend encore l’accès aux publications/Insights.</div>'}
+              <div class="section-heading">
+                <div><span class="section-kicker">Facebook</span><h2>Top contenus par Reach</h2></div>
+                <small style="color:var(--muted);">Classement #1 → #8 · pas une chronologie</small>
+              </div>
+              ${(fb.topContent || []).some(item => _num(item.metrics?.reach) > 0)
+                ? '<div id="audience-chart-fb" class="chart-wrapper"></div>'
+                : '<div class="audience-empty">Les posts Facebook sont récupérés, mais Meta ne renvoie pas encore de Reach exploitable pour ce classement.</div>'}
+              ${_topContentLegend(fb.topContent || [], 'facebook', 8)}
             </div>
           </div>
         </section>
@@ -411,10 +444,10 @@ const AudienceView = (() => {
           value: _num(row.clicks)
         })));
       }
-      if ((ig.topContent || []).length) {
+      if ((ig.topContent || []).some(item => _num(item.metrics?.reach) > 0)) {
         NidalCharts.barChart('audience-chart-ig', _contentChartData(ig.topContent, 8), { layout: 'vertical' });
       }
-      if ((fb.topContent || []).length) {
+      if ((fb.topContent || []).some(item => _num(item.metrics?.reach) > 0)) {
         NidalCharts.barChart('audience-chart-fb', _contentChartData(fb.topContent, 8), { layout: 'vertical' });
       }
     }
