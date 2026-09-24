@@ -338,20 +338,23 @@ const NidalCharts = (() => {
       d: pathD, fill: 'none', stroke: '#0ea5e9', 'stroke-width': 3, 'stroke-linecap': 'round'
     }));
 
+    const labelStep = Math.max(1, Math.ceil(data.length / 8));
     points.forEach((p, i) => {
       const circle = _svgEl('circle', {
-        cx: p.x, cy: p.y, r: 4, fill: '#fff', stroke: '#0ea5e9', 'stroke-width': 2
+        cx: p.x, cy: p.y, r: data.length > 18 ? 3 : 4, fill: '#fff', stroke: '#0ea5e9', 'stroke-width': 2
       });
       const tip = _svgEl('title');
       tip.textContent = `${data[i].label}: ${data[i].value}`;
       circle.appendChild(tip);
       g.appendChild(circle);
 
-      const lbl = _svgEl('text', {
-        x: p.x, y: chartH + 20, 'text-anchor': 'middle', class: 'chart__axis-label'
-      });
-      lbl.textContent = data[i].label;
-      g.appendChild(lbl);
+      if (i % labelStep === 0 || i === data.length - 1) {
+        const lbl = _svgEl('text', {
+          x: p.x, y: chartH + 20, 'text-anchor': 'middle', class: 'chart__axis-label'
+        });
+        lbl.textContent = data[i].label;
+        g.appendChild(lbl);
+      }
     });
 
     svg.appendChild(g);
