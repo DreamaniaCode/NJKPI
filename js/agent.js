@@ -227,10 +227,12 @@ const AgentView = (() => {
     };
   }
 
-  async function render() {
+  function render() {
     const view = document.getElementById('view-agent');
     if (!view) return;
-    await initData();
+    if (!_initialized) {
+      initData().then(() => render());
+    }
 
     const online = NidalAPI.isOnline();
     const health = NidalAPI.getHealth();

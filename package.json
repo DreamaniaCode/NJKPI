@@ -8,7 +8,7 @@
     "start": "node server/index.js",
     "dev": "node --watch server/index.js",
     "check": "node --check server/index.js && node --check server/db.js && node --check server/repository.js && node --check server/services/meta.js && node --check server/services/agent.js",
-    "test": "npm run check && node test-formats-and-providers.js && node test-kpi-targets.js"
+    "test": "npm run check && node test-formats-and-providers.js && node test-kpi-targets.js && node test-client-render.js"
   },
   "engines": {
     "node": ">=20"

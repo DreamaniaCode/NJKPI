@@ -4,15 +4,25 @@ const App = (() => {
   const VIEWS = ['dashboard', 'planning', 'contents', 'agent', 'performance', 'insights', 'quality'];
 
   async function init() {
+    // 1. Initialisation locale et affichage immédiat (0ms) pour éviter tout écran blanc
     NidalStore.init();
-    await NidalAPI.init();
-    await NidalStore.syncRemote();
     _initTheme();
     _initBrandSwitch();
-    document.querySelectorAll('[data-view]').forEach(button => button.onclick = () => navigateTo(button.dataset.view));
+    document.querySelectorAll('[data-view]').forEach(button => {
+      button.onclick = () => navigateTo(button.dataset.view);
+    });
     window.onpopstate = _routeFromHash;
-    _routeFromHash();
     NidalStore.subscribe(_renderCurrentView);
+    _routeFromHash();
+
+    // 2. Synchronisation avec le serveur en arrière-plan (non-bloquante)
+    try {
+      await NidalAPI.init();
+      await NidalStore.syncRemote();
+      _renderCurrentView();
+    } catch (err) {
+      console.warn('Synchronisation initiale différée:', err);
+    }
   }
 
   function _routeFromHash() {
@@ -34,7 +44,8 @@ const App = (() => {
       panel.classList.toggle('active', active);
     });
     _renderCurrentView();
-    document.getElementById('main-content').focus({ preventScroll: true });
+    const mainEl = document.getElementById('main-content');
+    if (mainEl) mainEl.focus({ preventScroll: true });
     announceToScreenReader(`Affichage de la vue ${viewId}`);
   }
 
@@ -70,29 +81,36 @@ const App = (() => {
     const settings = NidalStore.getSettings();
     document.documentElement.dataset.theme = settings.theme || 'light';
     _updateTheme(settings.theme || 'light');
-    document.getElementById('theme-toggle').onclick = () => {
-      const next = document.documentElement.dataset.theme === 'dark' ? 'light' : 'dark';
-      document.documentElement.dataset.theme = next;
-      NidalStore.updateSettings({ theme: next });
-      _updateTheme(next);
-    };
+    const toggle = document.getElementById('theme-toggle');
+    if (toggle) {
+      toggle.onclick = () => {
+        const next = document.documentElement.dataset.theme === 'dark' ? 'light' : 'dark';
+        document.documentElement.dataset.theme = next;
+        NidalStore.updateSettings({ theme: next });
+        _updateTheme(next);
+      };
+    }
   }
 
   function _updateTheme(theme) {
-    document.getElementById('theme-icon').textContent = theme === 'dark' ? '☀' : '◐';
-    document.querySelector('.theme-toggle__label').textContent = theme === 'dark' ? 'Mode clair' : 'Mode sombre';
+    const icon = document.getElementById('theme-icon');
+    const lbl = document.querySelector('.theme-toggle__label');
+    if (icon) icon.textContent = theme === 'dark' ? '☀' : '◐';
+    if (lbl) lbl.textContent = theme === 'dark' ? 'Mode clair' : 'Mode sombre';
   }
 
   function _initBrandSwitch() {
     const select = document.getElementById('brand-switch');
+    if (!select) return;
     select.value = getActiveBrand();
     _updateBrandName();
     select.onchange = async () => {
       setActiveBrand(select.value);
       _updateBrandName();
-      await NidalStore.syncRemote();
       _renderCurrentView();
       showToast(`Marque active : ${getActiveBrandLabel()}`, 'success');
+      await NidalStore.syncRemote();
+      _renderCurrentView();
     };
   }
 

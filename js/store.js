@@ -168,6 +168,30 @@ const NidalStore = (() => {
     }
   }
 
+  function _pushItem(item) {
+    if (!NidalAPI.isOnline()) return;
+    NidalAPI.upsertContent({ ...item, brand: item.brand, data: item }).catch(error => console.warn('Sauvegarde distante differee:', error.message));
+  }
+
+  function getInteractions(content) {
+    const results = content?.resultats || _emptyResults();
+    const values = [results.reactions, results.commentaires, results.partages, results.enregistrements].map(_number);
+    return values.every(value => value === null) ? null : values.reduce((sum, value) => sum + (value || 0), 0);
+  }
+
+  function getEngagement(content) {
+    const portee = _number(content?.resultats?.portee);
+    const interactions = getInteractions(content);
+    return portee && interactions !== null ? interactions / portee : null;
+  }
+
+  function getControl(content) {
+    const checks = content?.checks || {};
+    const complete = ['logo', 'valeurs', 'footer', 'autorisation'].every(key => checks[key] === true);
+    if (content?.validation !== 'approuve' || !complete) return 'a-controler';
+    return content?.statut === 'publie' ? 'conforme' : 'pret';
+  }
+
   function getKpiTargets(brand = getActiveBrand()) {
     const slug = brand === 'nidal' ? 'nidal' : 'nidal-junior';
     const fallback = DEFAULT_BRAND_KPI_TARGETS[slug] || DEFAULT_BRAND_KPI_TARGETS['nidal-junior'];

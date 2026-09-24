@@ -353,10 +353,18 @@ app.delete('/api/editorial/generations/:id', async (req, res, next) => {
 
 app.use((req, res, next) => {
   if (/^\/(?:server\/|package\.json$|Dockerfile$|\.env)/.test(req.path)) return res.sendStatus(404);
+  if (req.path.endsWith('.html') || req.path.endsWith('.js') || req.path.endsWith('.css') || req.path === '/') {
+    res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate');
+    res.setHeader('Pragma', 'no-cache');
+    res.setHeader('Expires', '0');
+  }
   next();
 });
 app.use(express.static(root, { index: 'index.html', extensions: ['html'] }));
-app.use((_req, res) => res.sendFile(path.join(root, 'index.html')));
+app.use((_req, res) => {
+  res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate');
+  res.sendFile(path.join(root, 'index.html'));
+});
 
 app.use((error, _req, res, _next) => {
   console.error(error);
