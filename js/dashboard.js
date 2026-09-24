@@ -60,47 +60,87 @@ const DashboardView = (() => {
       </section>
 
       ${(liveInstagram || liveFacebook) ? `
-        <section style="margin-top:16px;padding:16px;border:1px solid var(--line);border-radius:12px;background:var(--panel);" aria-label="KPI Meta Live">
-          <div class="section-heading" style="margin-bottom:14px;">
+        <section class="meta-live-panel" aria-label="KPI Meta Live">
+          <div class="meta-live-panel__header">
             <div>
-              <span class="section-kicker">KPI Réseaux sociaux · Meta Live</span>
-              <h2 style="font-size:16px;">Instagram et Facebook séparés</h2>
+              <span class="section-kicker">KPI réseaux sociaux · Meta Live</span>
+              <h2>Instagram & Facebook</h2>
+              <p>Vue séparée des performances de chaque plateforme, sans additionner leurs audiences.</p>
             </div>
-            <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;">
-              <small style="color:var(--muted);">${liveMeta?.syncedAt ? `Dernière synchro : ${new Date(liveMeta.syncedAt).toLocaleTimeString('fr-FR', { hour:'2-digit', minute:'2-digit', second:'2-digit' })}` : 'Synchronisation Meta'}</small>
-              <button class="btn btn--secondary btn--sm" id="dashboard-meta-refresh-btn">↻ Actualiser FB + IG</button>
+            <div class="meta-live-panel__sync">
+              <span class="meta-live-status"><i></i> API Meta connectée</span>
+              <small>${liveMeta?.syncedAt ? `Dernière synchro · ${new Date(liveMeta.syncedAt).toLocaleTimeString('fr-FR', { hour:'2-digit', minute:'2-digit', second:'2-digit' })}` : 'Synchronisation Meta'}</small>
+              <button class="btn btn--secondary btn--sm" id="dashboard-meta-refresh-btn">↻ Actualiser</button>
             </div>
           </div>
 
-          <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(320px,1fr));gap:14px;">
-            <article style="border:1px solid var(--line);border-radius:10px;padding:14px;background:var(--surface);">
-              <div style="display:flex;justify-content:space-between;gap:12px;align-items:flex-start;margin-bottom:10px;">
-                <div>
-                  <span class="section-kicker">Instagram</span>
-                  <strong style="display:block;font-size:14px;">@${escapeHtml(liveInstagram?.username || 'non connecté')}</strong>
+          <div class="social-platform-grid">
+            <article class="social-platform-card social-platform-card--instagram">
+              <div class="social-platform-card__head">
+                <div class="social-platform-card__identity">
+                  <div class="social-platform-card__avatar-wrap">
+                    ${liveInstagram?.profilePictureUrl
+                      ? `<img class="social-platform-card__avatar" src="${escapeHtml(liveInstagram.profilePictureUrl)}" alt="">`
+                      : '<div class="social-platform-card__avatar social-platform-card__avatar--placeholder"></div>'}
+                    <span class="social-platform-card__brand social-platform-card__brand--instagram">
+                      <img src="./assets/social-instagram.svg" alt="Instagram">
+                    </span>
+                  </div>
+                  <div>
+                    <span class="social-platform-card__eyebrow">Instagram</span>
+                    <h3>@${escapeHtml(liveInstagram?.username || 'non-connecté')}</h3>
+                    <p>${escapeHtml(liveInstagram?.name || 'Compte professionnel')}</p>
+                  </div>
                 </div>
-                <span class="badge badge--planifie">IG</span>
+                ${liveInstagram?.profileUrl ? `<a class="social-platform-card__link" href="${escapeHtml(liveInstagram.profileUrl)}" target="_blank" rel="noopener noreferrer">Ouvrir ↗</a>` : ''}
               </div>
-              <div class="kpi-strip">
-                ${_kpi('Abonnés IG', liveInstagram ? formatNumber(liveInstagram.followers ?? 0) : '—', 'Instagram uniquement', '#1746d1')}
-                ${_kpi('Visites profil IG', liveInsights.profileViews == null ? '—' : formatNumber(liveInsights.profileViews), 'Instagram Insights', '#d91b5c')}
-                ${_kpi('Reach IG', liveInsights.reach == null ? '—' : formatNumber(liveInsights.reach), 'Instagram · estimé', '#31b9cc')}
-                ${_kpi('Médias IG', liveInstagram ? formatNumber(liveInstagram.mediaCount ?? 0) : '—', 'Instagram', '#ffc928')}
+
+              <div class="social-metric-grid">
+                ${_socialMetric('Abonnés', liveInstagram ? formatNumber(liveInstagram.followers ?? 0) : '—', 'Communauté IG')}
+                ${_socialMetric('Abonnements', liveInstagram?.follows == null ? '—' : formatNumber(liveInstagram.follows), 'Comptes suivis')}
+                ${_socialMetric('Visites profil', liveInsights.profileViews == null ? '—' : formatNumber(liveInsights.profileViews), 'Insights Instagram')}
+                ${_socialMetric('Reach', liveInsights.reach == null ? '—' : formatNumber(liveInsights.reach), 'Comptes atteints · estimé')}
+                ${_socialMetric('Comptes engagés', liveInsights.accountsEngaged == null ? '—' : formatNumber(liveInsights.accountsEngaged), 'Interactions uniques')}
+                ${_socialMetric('Médias', liveInstagram?.mediaCount == null ? '—' : formatNumber(liveInstagram.mediaCount), 'Posts, Reels et vidéos')}
+              </div>
+
+              <div class="social-platform-card__footer">
+                <span>${liveInstagram?.insightsAvailable ? 'Insights Instagram actifs' : 'Insights Instagram indisponibles'}</span>
+                <span>ID · ${escapeHtml(liveInstagram?.externalId || '—')}</span>
               </div>
             </article>
 
-            <article style="border:1px solid var(--line);border-radius:10px;padding:14px;background:var(--surface);">
-              <div style="display:flex;justify-content:space-between;gap:12px;align-items:flex-start;margin-bottom:10px;">
-                <div>
-                  <span class="section-kicker">Facebook</span>
-                  <strong style="display:block;font-size:14px;">${escapeHtml(liveFacebook?.name || 'Page non connectée')}</strong>
+            <article class="social-platform-card social-platform-card--facebook">
+              <div class="social-platform-card__head">
+                <div class="social-platform-card__identity">
+                  <div class="social-platform-card__avatar-wrap">
+                    ${liveFacebook?.profilePictureUrl
+                      ? `<img class="social-platform-card__avatar" src="${escapeHtml(liveFacebook.profilePictureUrl)}" alt="">`
+                      : '<div class="social-platform-card__avatar social-platform-card__avatar--placeholder"></div>'}
+                    <span class="social-platform-card__brand social-platform-card__brand--facebook">
+                      <img src="./assets/social-facebook.svg" alt="Facebook">
+                    </span>
+                  </div>
+                  <div>
+                    <span class="social-platform-card__eyebrow">Facebook</span>
+                    <h3>${escapeHtml(liveFacebook?.name || 'Page non connectée')}</h3>
+                    <p>${escapeHtml(liveFacebook?.category || 'Page Facebook')}</p>
+                  </div>
                 </div>
-                <span class="badge badge--brouillon">FB</span>
+                ${liveFacebook?.profileUrl ? `<a class="social-platform-card__link" href="${escapeHtml(liveFacebook.profileUrl)}" target="_blank" rel="noopener noreferrer">Ouvrir ↗</a>` : ''}
               </div>
-              <div class="kpi-strip">
-                ${_kpi('Abonnés FB', liveFacebook ? formatNumber(liveFacebook.followers ?? 0) : '—', 'Facebook uniquement', '#1746d1')}
-                ${_kpi('Page Facebook', liveFacebook?.username ? '@' + escapeHtml(liveFacebook.username) : (liveFacebook ? 'Connectée' : '—'), 'Meta API', '#31b9cc')}
-                ${_kpi('Insights FB', liveFacebook?.insightsAvailable ? 'Actifs' : '—', liveFacebook?.insightsAvailable ? 'Facebook Insights' : 'À connecter', '#ffc928')}
+
+              <div class="social-metric-grid">
+                ${_socialMetric('Abonnés', liveFacebook ? formatNumber(liveFacebook.followers ?? 0) : '—', 'Communauté Facebook')}
+                ${_socialMetric('Page', liveFacebook ? 'Connectée' : '—', 'Meta Graph API')}
+                ${_socialMetric('Nom utilisateur', liveFacebook?.username ? '@' + escapeHtml(liveFacebook.username) : '—', 'Identifiant public')}
+                ${_socialMetric('Insights', liveFacebook?.insightsAvailable ? 'Actifs' : 'Non activés', liveFacebook?.insightsAvailable ? 'Facebook Insights' : 'Lecture profil uniquement')}
+                ${_socialMetric('Site web', liveFacebook?.website ? 'Configuré' : '—', liveFacebook?.website || 'Aucun site renvoyé')}
+                ${_socialMetric('Page ID', liveFacebook?.externalId || '—', 'Identifiant Meta')}
+              </div>
+
+              <div class="social-platform-card__footer">
+                <span>${liveFacebook?.biography ? escapeHtml(liveFacebook.biography.slice(0, 100)) : 'Profil Facebook synchronisé'}</span>
               </div>
             </article>
           </div>
@@ -306,6 +346,10 @@ const DashboardView = (() => {
         </div>
       </article>
     `;
+  }
+
+  function _socialMetric(label, value, note) {
+    return `<div class="social-metric"><span>${escapeHtml(label)}</span><strong>${value}</strong><small>${escapeHtml(note || '')}</small></div>`;
   }
 
   function _kpi(label, value, note, color) {
