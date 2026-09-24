@@ -98,7 +98,7 @@ const App = (() => {
 
   function navigateTo(viewId, updateHash = true) {
     // Block viewer from accessing agent view
-    if (viewId === 'agent' && typeof NidalAuth !== 'undefined' && NidalAuth.isAuthEnabled() && !NidalAuth.canViewAgents()) {
+    if (['agent', 'publisher'].includes(viewId) && typeof NidalAuth !== 'undefined' && NidalAuth.isAuthEnabled() && !NidalAuth.canEdit()) {
       showToast('Accès réservé aux éditeurs et administrateurs', 'error');
       viewId = 'dashboard';
     }
