@@ -90,7 +90,7 @@ app.post('/webhooks/kpi-ai', async (req, res, next) => {
     const brief = buildKpiAutomationBrief({ event, brand });
 
     const generated = await generateEditorialOutput({
-      agentKey: brand === 'nidal' ? 'planning-nidal' : 'studio-junior',
+      agentKey: 'kpi-manager',
       brand,
       briefData: {
         topic: brief,
