@@ -3,17 +3,17 @@
  */
 
 const CONTENT_TYPES = [
-  { id: 'article', label: 'Article', color: '#1746d1' },
-  { id: 'interview', label: 'Interview', color: '#31b9cc' },
-  { id: 'dossier', label: 'Dossier', color: '#6938ef' },
-  { id: 'breve', label: 'Brève', color: '#ffc928' },
-  { id: 'chronique', label: 'Chronique', color: '#d91b5c' },
-  { id: 'infographie', label: 'Infographie', color: '#0f8871' },
-  { id: 'quiz', label: 'Quiz', color: '#e04f16' },
-  { id: 'post', label: 'Post image', color: '#1746d1' },
-  { id: 'carrousel', label: 'Carrousel', color: '#d91b5c' },
-  { id: 'video', label: 'Vidéo / Reel', color: '#ffc928' },
-  { id: 'story', label: 'Story', color: '#31b9cc' }
+  { id: 'article', label: 'Article', color: '#1746d1', icon: '📝' },
+  { id: 'interview', label: 'Interview', color: '#31b9cc', icon: '🎙️' },
+  { id: 'dossier', label: 'Dossier', color: '#6938ef', icon: '📂' },
+  { id: 'breve', label: 'Brève', color: '#ffc928', icon: '⚡' },
+  { id: 'chronique', label: 'Chronique', color: '#d91b5c', icon: '✍️' },
+  { id: 'infographie', label: 'Infographie', color: '#0f8871', icon: '📊' },
+  { id: 'quiz', label: 'Quiz', color: '#e04f16', icon: '❓' },
+  { id: 'post', label: 'Post image', color: '#1746d1', icon: '🖼️' },
+  { id: 'carrousel', label: 'Carrousel', color: '#d91b5c', icon: '📑' },
+  { id: 'video', label: 'Vidéo / Reel', color: '#ffc928', icon: '🎬' },
+  { id: 'story', label: 'Story', color: '#31b9cc', icon: '📱' }
 ];
 
 const STATUSES = [

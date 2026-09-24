@@ -30,7 +30,7 @@ const DashboardView = (() => {
           </div>
           <button class="btn btn--secondary btn--sm" id="dashboard-edit-targets-btn">🎯 Fixer les objectifs</button>
         </div>
-        <div class="kpi-goals-grid" style="grid-template-columns: repeat(4, minmax(0, 1fr));">
+        <div class="kpi-goals-grid kpi-goals-grid--dashboard">
           ${_targetMiniCard('👥', 'Followers', NidalStore.getKpiTargets().followers, '#1746d1')}
           ${_targetMiniCard('👁️', 'Vues Vidéos', NidalStore.getKpiTargets().views, '#ffc928')}
           ${_targetMiniCard('💬', 'Commentaires', NidalStore.getKpiTargets().comments, '#31b9cc')}
@@ -54,8 +54,25 @@ const DashboardView = (() => {
       </section>
 
       <section class="dashboard-lower-grid">
-        <div class="analysis-panel"><div class="section-heading"><div><span class="section-kicker">Formats</span><h2>Mix de contenus</h2></div></div><div id="chart-by-format" class="chart-wrapper"></div></div>
-        <div class="analysis-panel"><div class="section-heading"><div><span class="section-kicker">Controle</span><h2>Repartition des statuts</h2></div></div><div id="chart-by-status" class="chart-wrapper"></div></div>
+        <div class="analysis-panel">
+          <div class="section-heading">
+            <div>
+              <span class="section-kicker">Formats</span>
+              <h2>Mix de contenus</h2>
+            </div>
+            <span class="badge badge--planifie" style="font-weight:700;">${stats.total} publication${stats.total > 1 ? 's' : ''}</span>
+          </div>
+          <div id="chart-by-format" class="chart-wrapper chart-wrapper--mix"></div>
+        </div>
+        <div class="analysis-panel">
+          <div class="section-heading">
+            <div>
+              <span class="section-kicker">Controle</span>
+              <h2>Repartition des statuts</h2>
+            </div>
+          </div>
+          <div id="chart-by-status" class="chart-wrapper"></div>
+        </div>
       </section>
 
       <section class="week-overview">
@@ -73,7 +90,13 @@ const DashboardView = (() => {
         </div>
       </section>`;
 
-    NidalCharts.barChart('chart-by-format', CONTENT_TYPES.map(type => ({ label: type.label, value: stats.byFormat[type.id] || 0, color: type.color })));
+    NidalCharts.barChart('chart-by-format', CONTENT_TYPES.map(type => ({
+      id: type.id,
+      label: type.label,
+      value: stats.byFormat[type.id] || 0,
+      color: type.color,
+      icon: type.icon
+    })));
     NidalCharts.donutChart('chart-by-status', STATUSES.filter(status => (stats.byStatus[status.id] || 0) > 0).map(status => ({ label: status.label, value: stats.byStatus[status.id], color: status.color })));
 
     const btnEditTargets = document.getElementById('dashboard-edit-targets-btn');
