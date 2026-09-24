@@ -33,10 +33,10 @@ const AudienceView = (() => {
     _error = '';
     render();
     try {
-      const [current, history] = await Promise.all([
-        NidalAPI.getAudienceConversions(getActiveBrand(), refresh),
-        NidalAPI.getAudienceHistory(getActiveBrand(), 168).catch(() => [])
-      ]);
+      const current = await NidalAPI.getAudienceConversions(getActiveBrand(), refresh);
+      // Charger l'historique après la lecture Meta : un refresh forcé vient
+      // juste d'enregistrer un nouveau snapshot côté serveur.
+      const history = await NidalAPI.getAudienceHistory(getActiveBrand(), 168).catch(() => []);
       _data = current;
       _history = Array.isArray(history) ? history : [];
     } catch (error) {
