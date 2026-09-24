@@ -25,6 +25,27 @@ const NidalAPI = (() => {
     return payload;
   }
 
+  async function uploadMedia(file) {
+    if (!file) throw new Error('Sélectionnez un fichier.');
+    const config = getConfig();
+    const headers = {
+      'Content-Type': file.type || 'application/octet-stream',
+      'X-File-Name': encodeURIComponent(file.name || 'media')
+    };
+    if (config.accessToken) headers.Authorization = `Bearer ${config.accessToken}`;
+
+    const response = await fetch(`${config.baseUrl}/api/uploads`, {
+      method: 'POST',
+      headers,
+      body: file
+    });
+    const text = await response.text();
+    let payload;
+    try { payload = text ? JSON.parse(text) : {}; } catch { throw new Error('Le serveur upload ne renvoie pas du JSON'); }
+    if (!response.ok) throw new Error(payload.error || `Upload ${response.status}`);
+    return payload;
+  }
+
   async function init() {
     try { _health = await request('/api/health', {}, false); _online = Boolean(_health.ok); }
     catch { _online = false; _health = null; }
@@ -59,7 +80,7 @@ const NidalAPI = (() => {
   const deleteEditorialGeneration = id => request(`/api/editorial/generations/${encodeURIComponent(id)}?confirm=true`, { method: 'DELETE' });
 
   return {
-    init, isOnline, getHealth, getConfig, saveConfig, request,
+    init, isOnline, getHealth, getConfig, saveConfig, request, uploadMedia,
     listContents, upsertContent, deleteContent, syncContent,
     generate, listAds, syncAds, getKpiTargets, saveKpiTargets, getSocialProfiles, getSocialLive, getAudienceConversions, getAudienceHistory,
     listPublishJobs, createPublishJob, runPublishJob,
