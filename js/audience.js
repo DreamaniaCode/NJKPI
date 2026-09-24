@@ -1,0 +1,188 @@
+/** Audience, conversions et meilleurs contenus Meta. */
+const AudienceView = (() => {
+  let _data = null;
+  let _loading = false;
+  let _error = '';
+
+  function _num(value) {
+    const n = Number(value);
+    return Number.isFinite(n) ? n : 0;
+  }
+
+  function _sumActions(actions = {}) {
+    return Object.values(actions || {}).reduce((sum, value) => sum + _num(value), 0);
+  }
+
+  function _topActions(actions = {}) {
+    return Object.entries(actions || {})
+      .map(([name, value]) => ({ name, value: _num(value) }))
+      .filter(item => item.value > 0)
+      .sort((a, b) => b.value - a.value)
+      .slice(0, 8);
+  }
+
+  function _shortText(value, max = 86) {
+    const text = String(value || '').replace(/\s+/g, ' ').trim();
+    return text.length > max ? text.slice(0, max - 1) + '…' : text;
+  }
+
+  async function _load(refresh = false) {
+    if (_loading || !NidalAPI.isOnline()) return;
+    _loading = true;
+    _error = '';
+    render();
+    try {
+      _data = await NidalAPI.getAudienceConversions(getActiveBrand(), refresh);
+    } catch (error) {
+      _error = error.message || 'Impossible de charger les données Meta.';
+    } finally {
+      _loading = false;
+      render();
+    }
+  }
+
+  function _summaryCard(label, value, note) {
+    return '<article class="kpi-item" tabindex="0"><span>' + escapeHtml(label) + '</span><strong>' + value + '</strong><small>' + escapeHtml(note || '') + '</small></article>';
+  }
+
+  function _audienceTable(rows = []) {
+    if (!rows.length) return '<p style="color:var(--muted);font-size:12px;margin:0;">Aucune donnée disponible.</p>';
+    return '<div class="table-responsive"><table class="data-table"><thead><tr><th>Âge</th><th>Genre</th><th>Portée</th><th>Impressions</th><th>Clics</th><th>Dépenses</th></tr></thead><tbody>' +
+      rows.slice(0, 30).map(row => '<tr>' +
+        '<td>' + escapeHtml(row.age || '—') + '</td>' +
+        '<td>' + escapeHtml(row.gender || '—') + '</td>' +
+        '<td>' + formatNumber(_num(row.reach)) + '</td>' +
+        '<td>' + formatNumber(_num(row.impressions)) + '</td>' +
+        '<td>' + formatNumber(_num(row.clicks)) + '</td>' +
+        '<td>' + _num(row.spend).toFixed(2) + '</td>' +
+      '</tr>').join('') + '</tbody></table></div>';
+  }
+
+  function _regionTable(rows = []) {
+    if (!rows.length) return '<p style="color:var(--muted);font-size:12px;margin:0;">Aucune donnée disponible.</p>';
+    const grouped = {};
+    rows.forEach(row => {
+      const region = row.region || 'Non précisé';
+      if (!grouped[region]) grouped[region] = { reach: 0, impressions: 0, clicks: 0, spend: 0 };
+      grouped[region].reach += _num(row.reach);
+      grouped[region].impressions += _num(row.impressions);
+      grouped[region].clicks += _num(row.clicks);
+      grouped[region].spend += _num(row.spend);
+    });
+    const sorted = Object.entries(grouped).sort((a, b) => b[1].reach - a[1].reach).slice(0, 20);
+    return '<div class="table-responsive"><table class="data-table"><thead><tr><th>Région</th><th>Portée</th><th>Impressions</th><th>Clics</th><th>Dépenses</th></tr></thead><tbody>' +
+      sorted.map(([region, row]) => '<tr><td><strong>' + escapeHtml(region) + '</strong></td><td>' + formatNumber(row.reach) + '</td><td>' + formatNumber(row.impressions) + '</td><td>' + formatNumber(row.clicks) + '</td><td>' + row.spend.toFixed(2) + '</td></tr>').join('') +
+      '</tbody></table></div>';
+  }
+
+  function _contentTable(items = [], platform = 'instagram') {
+    if (!items.length) return '<p style="color:var(--muted);font-size:12px;margin:0;">Aucun contenu historique disponible pour cette plateforme.</p>';
+    return '<div class="table-responsive"><table class="data-table"><thead><tr><th>Date</th><th>Contenu</th><th>Type</th><th>Reach</th><th>Vues</th><th>Interactions</th><th>Partages</th><th>Enreg.</th><th></th></tr></thead><tbody>' +
+      items.slice(0, 25).map(item => {
+        const m = item.metrics || {};
+        const date = item.timestamp ? new Date(item.timestamp).toLocaleDateString('fr-FR') : '—';
+        const saveValue = platform === 'instagram' ? formatNumber(_num(m.saves)) : '—';
+        return '<tr>' +
+          '<td>' + escapeHtml(date) + '</td>' +
+          '<td style="min-width:240px;"><strong>' + escapeHtml(_shortText(item.caption || 'Publication sans texte')) + '</strong></td>' +
+          '<td>' + escapeHtml(item.mediaType || '—') + '</td>' +
+          '<td><b>' + formatNumber(_num(m.reach)) + '</b></td>' +
+          '<td>' + formatNumber(_num(m.views)) + '</td>' +
+          '<td>' + formatNumber(_num(m.interactions)) + '</td>' +
+          '<td>' + formatNumber(_num(m.shares)) + '</td>' +
+          '<td>' + saveValue + '</td>' +
+          '<td>' + (item.permalink ? '<a class="text-button" href="' + escapeHtml(item.permalink) + '" target="_blank" rel="noopener noreferrer">Voir</a>' : '') + '</td>' +
+        '</tr>';
+      }).join('') + '</tbody></table></div>';
+  }
+
+  function render() {
+    const view = document.getElementById('view-audience');
+    if (!view) return;
+
+    const brandLabel = getActiveBrandLabel();
+    const ads = _data?.ads || {};
+    const adSummary = ads.summary || {};
+    const actionsTotal = _sumActions(adSummary.actions || {});
+    const actionRows = _topActions(adSummary.actions || {});
+    const ig = _data?.instagram || {};
+    const fb = _data?.facebook || {};
+
+    view.innerHTML = `
+      <header class="view__header workspace-header">
+        <div>
+          <span class="section-kicker">Audience & Conversions</span>
+          <h1 class="view__title">Audience, Ads & contenus gagnants</h1>
+          <p class="view__subtitle">Lecture séparée de l'audience publicitaire, des conversions et des anciens contenus performants · ${escapeHtml(brandLabel)}</p>
+        </div>
+        <div class="header-actions">
+          <button class="btn btn--secondary btn--sm" id="audience-refresh-btn" ${_loading ? 'disabled' : ''}>${_loading ? 'Synchronisation…' : '↻ Actualiser Meta'}</button>
+        </div>
+      </header>
+
+      ${_error ? '<div style="padding:12px 16px;border:1px solid #fecaca;background:#fef2f2;border-radius:8px;color:#991b1b;margin-bottom:16px;">' + escapeHtml(_error) + '</div>' : ''}
+
+      ${!_data && !_loading ? '<div class="empty-state" style="padding:36px;text-align:center;"><strong>Chargement des données Audience & Conversions</strong><p style="color:var(--muted);">Cette page analyse Meta Ads et les anciens contenus Instagram/Facebook.</p></div>' : ''}
+
+      ${_data ? `
+        <section style="margin-bottom:24px;">
+          <div class="section-heading">
+            <div><span class="section-kicker">Meta Ads · 90 derniers jours</span><h2>Acquisition & conversions publicitaires</h2></div>
+            <small style="color:var(--muted);">${ads.configured ? 'Compte Ads configuré' : 'Compte Ads non configuré'}</small>
+          </div>
+          <div class="kpi-strip" style="margin-bottom:14px;">
+            ${_summaryCard('Dépenses Ads', _num(adSummary.spend).toFixed(2), 'Meta Ads')}
+            ${_summaryCard('Reach Ads', formatNumber(_num(adSummary.reach)), 'Audience payante')}
+            ${_summaryCard('Impressions Ads', formatNumber(_num(adSummary.impressions)), 'Affichages')}
+            ${_summaryCard('Clics Ads', formatNumber(_num(adSummary.clicks)), 'Trafic généré')}
+            ${_summaryCard('Actions / conversions', formatNumber(actionsTotal), 'Actions Meta enregistrées')}
+          </div>
+          ${ads.errors?.length ? '<div style="padding:10px 12px;background:var(--surface);border:1px solid var(--line);border-radius:8px;font-size:11px;color:var(--muted);margin-bottom:14px;"><strong>À configurer :</strong> ' + ads.errors.map(escapeHtml).join(' · ') + '</div>' : ''}
+          ${actionRows.length ? '<div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:16px;">' + actionRows.map(item => '<span class="badge badge--planifie">' + escapeHtml(item.name) + ': ' + formatNumber(item.value) + '</span>').join('') + '</div>' : ''}
+        </section>
+
+        <section class="dashboard-lower-grid" style="margin-bottom:24px;">
+          <div class="analysis-panel">
+            <div class="section-heading"><div><span class="section-kicker">Audience Ads</span><h2>Âge & genre</h2></div></div>
+            ${_audienceTable(ads.ageGender || [])}
+          </div>
+          <div class="analysis-panel">
+            <div class="section-heading"><div><span class="section-kicker">Géographie Ads</span><h2>Régions les plus touchées</h2></div></div>
+            ${_regionTable(ads.regions || [])}
+          </div>
+        </section>
+
+        <section style="margin-bottom:26px;">
+          <div class="section-heading">
+            <div><span class="section-kicker">Instagram · historique</span><h2>Anciens posts et vidéos qui ont le mieux marché</h2></div>
+            <span class="badge badge--planifie">${formatNumber(ig.analyzedMedia || 0)} médias analysés</span>
+          </div>
+          ${ig.error ? '<p style="color:var(--muted);font-size:11px;">' + escapeHtml(ig.error) + '</p>' : ''}
+          ${_contentTable(ig.topContent || [], 'instagram')}
+        </section>
+
+        <section style="margin-bottom:26px;">
+          <div class="section-heading">
+            <div><span class="section-kicker">Facebook · historique</span><h2>Anciens posts et vidéos qui ont le mieux marché</h2></div>
+            <span class="badge badge--brouillon">${formatNumber(fb.analyzedMedia || 0)} publications analysées</span>
+          </div>
+          ${fb.error ? '<p style="color:var(--muted);font-size:11px;">' + escapeHtml(fb.error) + '</p>' : ''}
+          ${_contentTable(fb.topContent || [], 'facebook')}
+        </section>
+
+        <div style="padding:12px 14px;border:1px solid var(--line);border-radius:8px;background:var(--surface);font-size:11px;color:var(--muted);">
+          Les métriques restent séparées par plateforme. Les conversions Ads correspondent aux actions renvoyées par Meta. Pour mesurer précisément les formulaires du site, prises de rendez-vous ou inscriptions, il faudra relier le Pixel Meta et/ou la Conversions API avec les événements retenus.
+        </div>
+      ` : ''}
+    `;
+
+    const refresh = document.getElementById('audience-refresh-btn');
+    if (refresh) refresh.onclick = () => _load(true);
+
+    if (!_data && !_loading && NidalAPI.isOnline()) {
+      setTimeout(() => _load(false), 0);
+    }
+  }
+
+  return { render };
+})();
