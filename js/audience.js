@@ -64,21 +64,61 @@ const AudienceView = (() => {
     return '<article class="kpi-item" tabindex="0"><span>' + escapeHtml(label) + '</span><strong>' + value + '</strong><small>' + escapeHtml(note || '') + '</small></article>';
   }
 
-  function _audienceTable(rows = []) {
-    if (!rows.length) return '<p style="color:var(--muted);font-size:12px;margin:0;">Aucune donnée disponible.</p>';
-    return '<div class="table-responsive"><table class="data-table"><thead><tr><th>Âge</th><th>Genre</th><th>Portée</th><th>Impressions</th><th>Clics</th><th>Dépenses</th></tr></thead><tbody>' +
-      rows.slice(0, 30).map(row => '<tr>' +
-        '<td>' + escapeHtml(row.age || '—') + '</td>' +
-        '<td>' + escapeHtml(row.gender || '—') + '</td>' +
-        '<td>' + formatNumber(_num(row.reach)) + '</td>' +
-        '<td>' + formatNumber(_num(row.impressions)) + '</td>' +
-        '<td>' + formatNumber(_num(row.clicks)) + '</td>' +
-        '<td>' + _num(row.spend).toFixed(2) + '</td>' +
-      '</tr>').join('') + '</tbody></table></div>';
+  function _audienceVisual(rows = []) {
+    if (!rows.length) return '<div class="audience-empty">Aucune donnée démographique disponible.</div>';
+
+    const ages = {};
+    const genders = { female: 0, male: 0, unknown: 0 };
+
+    rows.forEach(row => {
+      const age = row.age || 'Non précisé';
+      const gender = ['female', 'male'].includes(row.gender) ? row.gender : 'unknown';
+      if (!ages[age]) ages[age] = { total: 0, clicks: 0, female: 0, male: 0, unknown: 0 };
+      const reach = _num(row.reach);
+      ages[age].total += reach;
+      ages[age].clicks += _num(row.clicks);
+      ages[age][gender] += reach;
+      genders[gender] += reach;
+    });
+
+    const ageRows = Object.entries(ages).sort((a, b) => b[1].total - a[1].total);
+    const totalReach = Object.values(genders).reduce((sum, value) => sum + value, 0) || 1;
+    const genderLabel = { female: 'Femmes', male: 'Hommes', unknown: 'Non précisé' };
+    const genderClass = { female: 'female', male: 'male', unknown: 'unknown' };
+
+    return `
+      <div class="audience-gender-summary">
+        ${Object.entries(genders).map(([key, value]) => `
+          <div class="audience-gender-pill audience-gender-pill--${genderClass[key]}">
+            <span>${genderLabel[key]}</span>
+            <strong>${Math.round((value / totalReach) * 100)}%</strong>
+            <small>${formatNumber(value)} atteints</small>
+          </div>
+        `).join('')}
+      </div>
+      <div class="audience-age-bars">
+        ${ageRows.map(([age, row]) => {
+          const base = row.total || 1;
+          return `
+            <div class="audience-age-row">
+              <div class="audience-age-row__label">
+                <strong>${escapeHtml(age)}</strong>
+                <small>${formatNumber(row.total)} reach · ${formatNumber(row.clicks)} clics</small>
+              </div>
+              <div class="audience-stack" title="${escapeHtml(age)} · reach ${formatNumber(row.total)}">
+                <i class="audience-stack__female" style="width:${(row.female / base) * 100}%"></i>
+                <i class="audience-stack__male" style="width:${(row.male / base) * 100}%"></i>
+                <i class="audience-stack__unknown" style="width:${(row.unknown / base) * 100}%"></i>
+              </div>
+            </div>
+          `;
+        }).join('')}
+      </div>
+    `;
   }
 
-  function _regionTable(rows = []) {
-    if (!rows.length) return '<p style="color:var(--muted);font-size:12px;margin:0;">Aucune donnée disponible.</p>';
+  function _regionsVisual(rows = []) {
+    if (!rows.length) return '<div class="audience-empty">Aucune donnée géographique disponible.</div>';
     const grouped = {};
     rows.forEach(row => {
       const region = row.region || 'Non précisé';
@@ -88,11 +128,42 @@ const AudienceView = (() => {
       grouped[region].clicks += _num(row.clicks);
       grouped[region].spend += _num(row.spend);
     });
-    const sorted = Object.entries(grouped).sort((a, b) => b[1].reach - a[1].reach).slice(0, 20);
-    return '<div class="table-responsive"><table class="data-table"><thead><tr><th>Région</th><th>Portée</th><th>Impressions</th><th>Clics</th><th>Dépenses</th></tr></thead><tbody>' +
-      sorted.map(([region, row]) => '<tr><td><strong>' + escapeHtml(region) + '</strong></td><td>' + formatNumber(row.reach) + '</td><td>' + formatNumber(row.impressions) + '</td><td>' + formatNumber(row.clicks) + '</td><td>' + row.spend.toFixed(2) + '</td></tr>').join('') +
-      '</tbody></table></div>';
+    const sorted = Object.entries(grouped).sort((a, b) => b[1].reach - a[1].reach).slice(0, 10);
+    const maxReach = Math.max(...sorted.map(([, row]) => row.reach), 1);
+
+    return `
+      <div class="audience-region-list">
+        ${sorted.map(([region, row], index) => `
+          <div class="audience-region-card">
+            <div class="audience-region-card__rank">${index + 1}</div>
+            <div class="audience-region-card__body">
+              <div class="audience-region-card__head">
+                <strong>${escapeHtml(region)}</strong>
+                <b>${formatNumber(row.reach)}</b>
+              </div>
+              <div class="audience-region-bar"><i style="width:${Math.max(2, (row.reach / maxReach) * 100)}%"></i></div>
+              <div class="audience-region-card__meta">
+                <span>${formatNumber(row.impressions)} impressions</span>
+                <span>${formatNumber(row.clicks)} clics</span>
+              </div>
+            </div>
+          </div>
+        `).join('')}
+      </div>
+    `;
   }
+
+  function _contentChartData(items = [], limit = 8) {
+    return items.slice(0, limit).map((item, index) => ({
+      id: item.id || String(index),
+      label: item.timestamp
+        ? new Date(item.timestamp).toLocaleDateString('fr-FR', { day: '2-digit', month: '2-digit' })
+        : `#${index + 1}`,
+      value: _num(item.metrics?.reach),
+      color: item.platform === 'facebook' ? '#1877f2' : '#d62976'
+    }));
+  }
+
 
   function _campaignTable(rows = []) {
     if (!rows.length) return '<p style="color:var(--muted);font-size:12px;margin:0;">Aucune campagne disponible.</p>';
@@ -212,40 +283,42 @@ const AudienceView = (() => {
         <section class="dashboard-lower-grid" style="margin-bottom:24px;">
           <div class="analysis-panel">
             <div class="section-heading"><div><span class="section-kicker">Audience Ads</span><h2>Âge & genre</h2></div></div>
-            ${_audienceTable(ads.ageGender || [])}
+            ${_audienceVisual(ads.ageGender || [])}
           </div>
           <div class="analysis-panel">
             <div class="section-heading"><div><span class="section-kicker">Géographie Ads</span><h2>Régions les plus touchées</h2></div></div>
-            ${_regionTable(ads.regions || [])}
+            ${_regionsVisual(ads.regions || [])}
           </div>
         </section>
 
-        <section style="margin-bottom:26px;">
+        <section class="audience-visual-section" style="margin-bottom:26px;">
           <div class="section-heading">
             <div>
-              <span class="section-kicker">Évolution enregistrée</span>
-              <h2>Courbes horaires des performances</h2>
+              <span class="section-kicker">Tendances visuelles</span>
+              <h2>Comprendre les performances d’un coup d’œil</h2>
             </div>
-            <span class="badge badge--planifie">${_history.length} snapshots</span>
+            <span class="badge badge--planifie">Meta 30 jours · historique local ${_history.length} point${_history.length > 1 ? 's' : ''}</span>
           </div>
+
           <div class="dashboard-lower-grid">
-            <div class="analysis-panel">
-              <div class="section-heading"><div><span class="section-kicker">Ads</span><h2>Reach Ads</h2></div></div>
-              <div id="audience-chart-reach" class="chart-wrapper"></div>
+            <div class="analysis-panel audience-chart-panel">
+              <div class="section-heading"><div><span class="section-kicker">Meta Ads · 30 jours</span><h2>Reach quotidien</h2></div></div>
+              ${(ads.daily || []).length ? '<div id="audience-chart-reach" class="chart-wrapper"></div>' : '<div class="audience-empty">Meta n’a pas renvoyé de série quotidienne.</div>'}
             </div>
-            <div class="analysis-panel">
-              <div class="section-heading"><div><span class="section-kicker">Ads</span><h2>Clics Ads</h2></div></div>
-              <div id="audience-chart-clicks" class="chart-wrapper"></div>
+            <div class="analysis-panel audience-chart-panel">
+              <div class="section-heading"><div><span class="section-kicker">Meta Ads · 30 jours</span><h2>Clics quotidiens</h2></div></div>
+              ${(ads.daily || []).length ? '<div id="audience-chart-clicks" class="chart-wrapper"></div>' : '<div class="audience-empty">Meta n’a pas renvoyé de série quotidienne.</div>'}
             </div>
           </div>
+
           <div class="dashboard-lower-grid" style="margin-top:16px;">
-            <div class="analysis-panel">
-              <div class="section-heading"><div><span class="section-kicker">Instagram organique</span><h2>Reach des contenus analysés</h2></div></div>
-              <div id="audience-chart-ig" class="chart-wrapper"></div>
+            <div class="analysis-panel audience-chart-panel">
+              <div class="section-heading"><div><span class="section-kicker">Instagram</span><h2>Top contenus par Reach</h2></div></div>
+              ${(ig.topContent || []).length ? '<div id="audience-chart-ig" class="chart-wrapper"></div>' : '<div class="audience-empty">Aucun contenu Instagram analysé.</div>'}
             </div>
-            <div class="analysis-panel">
-              <div class="section-heading"><div><span class="section-kicker">Facebook organique</span><h2>Reach des contenus analysés</h2></div></div>
-              <div id="audience-chart-fb" class="chart-wrapper"></div>
+            <div class="analysis-panel audience-chart-panel">
+              <div class="section-heading"><div><span class="section-kicker">Facebook</span><h2>Top contenus par Reach</h2></div></div>
+              ${(fb.topContent || []).length ? '<div id="audience-chart-fb" class="chart-wrapper"></div>' : '<div class="audience-empty">Facebook attend encore l’accès aux publications/Insights.</div>'}
             </div>
           </div>
         </section>
@@ -288,11 +361,24 @@ const AudienceView = (() => {
       ` : ''}
     `;
 
-    if (_data && _history.length && typeof NidalCharts !== 'undefined') {
-      NidalCharts.lineChart('audience-chart-reach', _historySeries(p => p.ads?.summary?.reach));
-      NidalCharts.lineChart('audience-chart-clicks', _historySeries(p => p.ads?.summary?.clicks));
-      NidalCharts.lineChart('audience-chart-ig', _historySeries(p => (p.instagram?.topContent || []).reduce((s, i) => s + _num(i.metrics?.reach), 0)));
-      NidalCharts.lineChart('audience-chart-fb', _historySeries(p => (p.facebook?.topContent || []).reduce((s, i) => s + _num(i.metrics?.reach), 0)));
+    if (_data && typeof NidalCharts !== 'undefined') {
+      const daily = ads.daily || [];
+      if (daily.length) {
+        NidalCharts.lineChart('audience-chart-reach', daily.map(row => ({
+          label: row.date_start ? new Date(row.date_start + 'T00:00:00').toLocaleDateString('fr-FR', { day: '2-digit', month: '2-digit' }) : '—',
+          value: _num(row.reach)
+        })));
+        NidalCharts.lineChart('audience-chart-clicks', daily.map(row => ({
+          label: row.date_start ? new Date(row.date_start + 'T00:00:00').toLocaleDateString('fr-FR', { day: '2-digit', month: '2-digit' }) : '—',
+          value: _num(row.clicks)
+        })));
+      }
+      if ((ig.topContent || []).length) {
+        NidalCharts.barChart('audience-chart-ig', _contentChartData(ig.topContent, 8), { layout: 'vertical' });
+      }
+      if ((fb.topContent || []).length) {
+        NidalCharts.barChart('audience-chart-fb', _contentChartData(fb.topContent, 8), { layout: 'vertical' });
+      }
     }
 
     const refresh = document.getElementById('audience-refresh-btn');
