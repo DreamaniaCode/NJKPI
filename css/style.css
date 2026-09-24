@@ -1171,3 +1171,136 @@ textarea.form-control { resize: vertical; }
     min-height: 280px;
   }
 }
+
+
+/* ── Audience / campagnes visuelles ─────────────────────────────── */
+.campaign-performance-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.campaign-performance-card {
+  padding: 14px;
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  background: linear-gradient(180deg, var(--panel), var(--surface));
+}
+
+.campaign-performance-card__head {
+  display: flex;
+  justify-content: space-between;
+  gap: 14px;
+  align-items: flex-start;
+}
+
+.campaign-performance-card__head > div {
+  min-width: 0;
+}
+
+.campaign-performance-card__head span {
+  display: block;
+  color: var(--muted);
+  font-size: 9px;
+  font-weight: 800;
+  text-transform: uppercase;
+  letter-spacing: .06em;
+}
+
+.campaign-performance-card__head strong {
+  display: block;
+  margin-top: 3px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--ink);
+  font-size: 12px;
+}
+
+.campaign-performance-card__head b {
+  color: var(--blue);
+  font-size: 16px;
+  white-space: nowrap;
+}
+
+.campaign-performance-card__bar {
+  height: 7px;
+  margin: 11px 0 12px;
+  overflow: hidden;
+  border-radius: 999px;
+  background: #e8edf4;
+}
+
+.campaign-performance-card__bar i {
+  display: block;
+  height: 100%;
+  border-radius: inherit;
+  background: linear-gradient(90deg, #1746d1, #31b9cc);
+}
+
+.campaign-performance-card__metrics {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.campaign-performance-card__metrics div {
+  min-width: 0;
+}
+
+.campaign-performance-card__metrics span {
+  display: block;
+  color: var(--muted);
+  font-size: 8.5px;
+}
+
+.campaign-performance-card__metrics strong {
+  display: block;
+  margin-top: 2px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--ink);
+  font-size: 12px;
+}
+
+.audience-details {
+  margin-top: 14px;
+  border-top: 1px solid var(--line);
+  padding-top: 12px;
+}
+
+.audience-details summary {
+  cursor: pointer;
+  color: var(--blue);
+  font-size: 10px;
+  font-weight: 800;
+  user-select: none;
+}
+
+.audience-details[open] summary {
+  margin-bottom: 12px;
+}
+
+.audience-empty {
+  min-height: 120px;
+  display: grid;
+  place-items: center;
+  padding: 18px;
+  border: 1px dashed var(--line);
+  border-radius: 12px;
+  color: var(--muted);
+  background: var(--surface);
+  font-size: 11px;
+  text-align: center;
+}
+
+@media (max-width: 900px) {
+  .campaign-performance-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .campaign-performance-card__metrics {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
