@@ -12,6 +12,7 @@ const DashboardView = (() => {
     const liveInstagram = liveMeta?.instagram || null;
     const liveFacebook = liveMeta?.facebook || null;
     const liveInsights = liveInstagram?.insights || {};
+    const liveFacebookInsights = liveFacebook?.insights || {};
 
     view.innerHTML = `
       <header class="view__header workspace-header">
@@ -134,7 +135,10 @@ const DashboardView = (() => {
                 ${_socialMetric('Abonnés', liveFacebook ? formatNumber(liveFacebook.followers ?? 0) : '—', 'Communauté Facebook')}
                 ${_socialMetric('Page', liveFacebook ? 'Connectée' : '—', 'Meta Graph API')}
                 ${_socialMetric('Nom utilisateur', liveFacebook?.username ? '@' + escapeHtml(liveFacebook.username) : '—', 'Identifiant public')}
-                ${_socialMetric('Insights', liveFacebook?.insightsAvailable ? 'Actifs' : 'Non activés', liveFacebook?.insightsAvailable ? 'Facebook Insights' : 'Lecture profil uniquement')}
+                ${_socialMetric('Insights', liveFacebook?.insightsAvailable ? 'Actifs' : 'À vérifier', liveFacebook?.insightsAvailable ? 'Insights contenus Facebook' : (liveFacebookInsights.error || 'Aucun contenu analysé'))}
+                ${_socialMetric('Reach récent', liveFacebookInsights.reach == null ? '—' : formatNumber(liveFacebookInsights.reach), `${liveFacebookInsights.analyzedPosts || 0} posts analysés`)}
+                ${_socialMetric('Vues récentes', liveFacebookInsights.views == null ? '—' : formatNumber(liveFacebookInsights.views), 'Vues cumulées des posts analysés')}
+                ${_socialMetric('Interactions', liveFacebookInsights.interactions == null ? '—' : formatNumber(liveFacebookInsights.interactions), 'Réactions + commentaires + partages')}
                 ${_socialMetric('Site web', liveFacebook?.website ? 'Configuré' : '—', liveFacebook?.website || 'Aucun site renvoyé')}
                 ${_socialMetric('Page ID', liveFacebook?.externalId || '—', 'Identifiant Meta')}
               </div>
