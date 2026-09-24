@@ -7,6 +7,25 @@ const memory = {
   agentRuns: []
 };
 
+const ZERO_KPI_TARGETS = {
+  'nidal-junior': {
+    followers: { current: 0, target: 5000, eta: '2026-12-31', note: 'Communauté Instagram & Facebook Nidal Junior' },
+    views: { current: 0, target: 50000, eta: '2026-11-30', note: 'Cumul des vues Reels, Stories et vidéos Nounou' },
+    comments: { current: 0, target: 1000, eta: '2026-11-30', note: 'Réponses aux quiz, histoires et publications' },
+    conversions: { current: 0, target: 120, eta: '2026-10-31', note: 'Demandes de visite, appels et inscriptions maternelle' },
+    reach: { current: 0, target: 35000, eta: '2026-11-30', note: 'Familles touchées sur la période' },
+    interactions: { current: 0, target: 4000, eta: '2026-11-30', note: 'Likes, commentaires, partages et enregistrements' }
+  },
+  'nidal': {
+    followers: { current: 0, target: 12000, eta: '2026-12-31', note: 'Communauté officielle Groupe Scolaire Nidal' },
+    views: { current: 0, target: 100000, eta: '2026-12-15', note: 'Vues cumulées des capsules pédagogiques et Reels' },
+    comments: { current: 0, target: 2000, eta: '2026-12-15', note: 'Échanges avec les parents et élèves' },
+    conversions: { current: 0, target: 250, eta: '2026-11-15', note: 'Prises de RDV, formulaires gsnidal.ma et inscriptions' },
+    reach: { current: 0, target: 75000, eta: '2026-12-15', note: 'Portée globale sur les réseaux sociaux' },
+    interactions: { current: 0, target: 8000, eta: '2026-12-15', note: 'Total réactions, commentaires, partages et favoris' }
+  }
+};
+
 /* ── Réinitialisation complète ──────────────────────────────────────── */
 export async function resetAllData() {
   if (hasDatabase) {
@@ -19,7 +38,9 @@ export async function resetAllData() {
       await query('DELETE FROM agent_runs');
       await query('DELETE FROM contents');
       await query('DELETE FROM kpi_targets');
-      console.log('✓ Toutes les données ont été supprimées (PostgreSQL)');
+      await query('INSERT INTO kpi_targets (brand_slug, targets, updated_at) VALUES ($1, $2::jsonb, NOW())', ['nidal-junior', JSON.stringify(ZERO_KPI_TARGETS['nidal-junior'])]);
+      await query('INSERT INTO kpi_targets (brand_slug, targets, updated_at) VALUES ($1, $2::jsonb, NOW())', ['nidal', JSON.stringify(ZERO_KPI_TARGETS['nidal'])]);
+      console.log('✓ Toutes les données ont été supprimées et KPI remis à zéro (PostgreSQL)');
     } catch (error) {
       console.error('Erreur réinitialisation PostgreSQL:', error.message);
     }
@@ -29,6 +50,11 @@ export async function resetAllData() {
   memory.metrics.length = 0;
   memory.ads.clear();
   memory.agentRuns.length = 0;
+  if (memory.generations) memory.generations.clear();
+  if (memory.transfers) memory.transfers.length = 0;
+  if (!memory.kpiTargets) memory.kpiTargets = new Map();
+  memory.kpiTargets.set('nidal-junior', { brand_slug: 'nidal-junior', targets: ZERO_KPI_TARGETS['nidal-junior'], updated_at: new Date().toISOString() });
+  memory.kpiTargets.set('nidal', { brand_slug: 'nidal', targets: ZERO_KPI_TARGETS['nidal'], updated_at: new Date().toISOString() });
 }
 
 export async function listBrands() {

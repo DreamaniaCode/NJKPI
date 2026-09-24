@@ -112,7 +112,7 @@ const NidalStore = (() => {
       console.error('Erreur de lecture localStorage:', error);
       _data = _defaultData();
     }
-    if (_data.contents.length === 0) _data.contents = _seedContents().map(_normalize);
+    if (_data.contents.length === 0 && localStorage.getItem('nidal-no-seed') !== 'true') _data.contents = _seedContents().map(_normalize);
     _save();
     return _data;
   }
@@ -140,7 +140,48 @@ const NidalStore = (() => {
     _data.version = CURRENT_VERSION;
     _save();
   }
-  function reset() { _data = _defaultData(); _data.contents = _seedContents().map(_normalize); _save(); }
+
+  function clearMockData() {
+    localStorage.setItem('nidal-no-seed', 'true');
+    _data.contents = [];
+    if (!_data.kpiTargets) _data.kpiTargets = {};
+    for (const slug of ['nidal-junior', 'nidal']) {
+      const targets = JSON.parse(JSON.stringify(DEFAULT_BRAND_KPI_TARGETS[slug] || {}));
+      for (const k of Object.keys(targets)) {
+        if (targets[k] && typeof targets[k] === 'object') {
+          targets[k].current = 0;
+        }
+      }
+      _data.kpiTargets[slug] = targets;
+    }
+    _save();
+    if (NidalAPI.isOnline()) {
+      NidalAPI.request('/api/data/reset', { method: 'DELETE' }).catch(err => console.warn('Reset serveur différé:', err.message));
+    }
+    return true;
+  }
+
+  function reset() {
+    return clearMockData();
+  }
+
+  function loadDemoData() {
+    localStorage.removeItem('nidal-no-seed');
+    _data = _defaultData();
+    _data.contents = _seedContents().map(_normalize);
+    _save();
+    return true;
+  }
+
+  function hasMockData() {
+    if (localStorage.getItem('nidal-no-seed') === 'true') return false;
+    return (_data?.contents || []).some(item =>
+      item.titre?.includes('Nounou') ||
+      item.titre?.includes('livre des histoires') ||
+      item.titre?.includes('Progresser avec méthode') ||
+      item.titre?.includes('cartable')
+    );
+  }
 
   async function syncRemote() {
     if (!NidalAPI.isOnline()) return false;
@@ -150,15 +191,21 @@ const NidalStore = (() => {
         NidalAPI.listContents(brand).catch(() => []),
         NidalAPI.getKpiTargets(brand).catch(() => null)
       ]);
+      const isCleared = localStorage.getItem('nidal-no-seed') === 'true';
       if (remoteContents && remoteContents.length) {
-        const mapped = remoteContents.map(record => _normalize({ ...(record.data || {}), id: record.id, brand: record.brand_slug, finalUrl: record.final_url, externalMediaId: record.external_media_id, syncStatus: record.sync_status, lastSyncedAt: record.last_synced_at }));
-        _data.contents = [..._data.contents.filter(item => item.brand !== brand), ...mapped];
-      } else {
+        if (isCleared && remoteContents.some(r => r.data?.titre?.includes('Nounou') || r.data?.titre?.includes('livre des histoires'))) {
+          // Serveur encore sur démo alors que client est réinitialisé
+          NidalAPI.request('/api/data/reset', { method: 'DELETE' }).catch(() => {});
+        } else if (!isCleared || !remoteContents.some(r => r.data?.titre?.includes('Nounou'))) {
+          const mapped = remoteContents.map(record => _normalize({ ...(record.data || {}), id: record.id, brand: record.brand_slug, finalUrl: record.final_url, externalMediaId: record.external_media_id, syncStatus: record.sync_status, lastSyncedAt: record.last_synced_at }));
+          _data.contents = [..._data.contents.filter(item => item.brand !== brand), ...mapped];
+        }
+      } else if (!isCleared && getAll(brand).length > 0) {
         await Promise.all(getAll(brand).map(item => NidalAPI.upsertContent({ ...item, brand, data: item })));
       }
       if (remoteTargets?.targets) {
         if (!_data.kpiTargets) _data.kpiTargets = {};
-        _data.kpiTargets[brand] = { ...(DEFAULT_BRAND_KPI_TARGETS[brand] || {}), ...(remoteTargets.targets || {}) };
+        _data.kpiTargets[brand] = { ...(_data.kpiTargets[brand] || {}), ...(remoteTargets.targets || {}) };
       }
       _save();
       return true;
@@ -405,7 +452,8 @@ const NidalStore = (() => {
 
   return {
     init, getAll, getById, create, update, remove,
-    getSettings, updateSettings, exportData, importData, reset, syncRemote,
+    getSettings, updateSettings, exportData, importData,
+    reset, clearMockData, loadDemoData, hasMockData, syncRemote,
     getInteractions, getEngagement, getControl, getStats, subscribe,
     getKpiTargets, updateKpiTargets, getEtaInfo
   };

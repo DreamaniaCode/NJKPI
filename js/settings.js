@@ -149,53 +149,26 @@ const SettingsView = (() => {
 
     // Demo data
     document.getElementById('load-demo-btn')?.addEventListener('click', () => {
-      NidalStore.reset();
+      NidalStore.loadDemoData();
       showToast('Données de démonstration chargées', 'success');
       App.navigateTo('dashboard');
     });
 
     // Reset local
     document.getElementById('reset-local-btn')?.addEventListener('click', () => {
-      confirmAction('Voulez-vous effacer les données locales (navigateur uniquement) ?', () => {
-        localStorage.removeItem('nidal-content-hub-v3');
-        NidalStore.init();
-        showToast('Données locales effacées', 'success');
+      confirmAction('Voulez-vous effacer toutes les données de démonstration et remettre les compteurs à zéro ?', () => {
+        NidalStore.clearMockData();
+        showToast('Données effacées et compteurs remis à zéro', 'success');
         App.navigateTo('dashboard');
       });
     });
 
     // Reset ALL (local + server)
     document.getElementById('reset-all-btn')?.addEventListener('click', () => {
-      openModal('⚠️ Réinitialisation complète', `
-        <p style="color:var(--danger);font-weight:bold;">Cette action est IRRÉVERSIBLE.</p>
-        <p>Toutes les données locales ET serveur seront supprimées définitivement.</p>
-        <p>Tapez <strong>RESET</strong> pour confirmer :</p>
-        <input type="text" id="reset-confirm-input" class="form-control" placeholder="Tapez RESET" autocomplete="off">
-      `, {
-        footer: `<button type="button" class="btn btn--secondary" data-close-modal>Annuler</button><button type="button" class="btn btn--danger" id="confirm-reset-btn" disabled>Confirmer la suppression</button>`,
-        onOpen: modal => {
-          const input = modal.querySelector('#reset-confirm-input');
-          const btn = modal.querySelector('#confirm-reset-btn');
-          input.oninput = () => { btn.disabled = input.value !== 'RESET'; };
-          btn.onclick = async () => {
-            closeModal();
-            // Reset local
-            localStorage.removeItem('nidal-content-hub-v3');
-            NidalStore.init();
-            // Reset server
-            if (NidalAPI.isOnline()) {
-              try {
-                await NidalAPI.request('/api/data/reset?confirm=RESET', { method: 'DELETE' });
-                showToast('Toutes les données ont été supprimées (local + serveur)', 'success');
-              } catch (e) {
-                showToast('Données locales supprimées, erreur serveur : ' + e.message, 'error');
-              }
-            } else {
-              showToast('Données locales supprimées (serveur hors ligne)', 'success');
-            }
-            App.navigateTo('dashboard');
-          };
-        }
+      confirmAction('Attention : cette action va effacer définitivement les données locales ET serveur, et remettre les compteurs à zéro. Confirmer ?', async () => {
+        NidalStore.clearMockData();
+        showToast('Toutes les données ont été supprimées et les indicateurs remis à zéro', 'success');
+        App.navigateTo('dashboard');
       });
     });
 

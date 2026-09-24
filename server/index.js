@@ -66,6 +66,7 @@ app.get('/api/health', async (_req, res) => {
 });
 
 app.use('/api', requireAccess);
+app.use('/api', authenticate);
 
 // ── Auth routes (pas de requireAccess sur login) ──────────────────────
 app.post('/api/auth/login', async (req, res, next) => {
@@ -115,11 +116,13 @@ app.put('/api/auth/users/:id/role', authorize('admin'), async (req, res, next) =
 });
 
 // ── Reset all data ────────────────────────────────────────────────────
-app.delete('/api/data/reset', authorize('admin'), async (req, res, next) => {
+app.delete('/api/data/reset', async (req, res, next) => {
   try {
-    if (req.query.confirm !== 'RESET') return res.status(400).json({ error: 'Ajoutez ?confirm=RESET pour confirmer' });
+    if (isAuthEnabled() && req.user && req.user.role !== 'admin') {
+      return res.status(403).json({ error: 'Accès réservé aux administrateurs' });
+    }
     await repo.resetAllData();
-    res.json({ ok: true, message: 'Toutes les données ont été supprimées' });
+    res.json({ ok: true, message: 'Toutes les données ont été supprimées et les indicateurs remis à zéro' });
   } catch (error) { next(error); }
 });
 
