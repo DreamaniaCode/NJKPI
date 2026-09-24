@@ -82,11 +82,23 @@ export function buildKpiContext({
   brand = 'nidal-junior',
   targetsRecord = {},
   contents = [],
+  socialProfiles = {},
   now = new Date()
 } = {}) {
   const slug = normalizeBrand(brand);
+  const instagramRecord = socialProfiles?.instagram || null;
+  const instagramProfile = instagramRecord?.profile || instagramRecord || null;
+  const liveFollowers = instagramProfile?.source === 'meta-api' && Number.isFinite(Number(instagramProfile.followers))
+    ? Number(instagramProfile.followers)
+    : null;
+
   const targets = Object.entries(targetsRecord?.targets || {})
-    .map(([name, raw]) => normalizeTarget(name, raw, now));
+    .map(([name, raw]) => {
+      const effective = name === 'followers' && liveFollowers !== null
+        ? { ...raw, current: liveFollowers }
+        : raw;
+      return normalizeTarget(name, effective, now);
+    });
 
   const normalizedContents = (contents || []).map(normalizeContent);
   const measured = normalizedContents.filter(item => item.hasMetrics);
@@ -147,6 +159,18 @@ export function buildKpiContext({
         ? 'Des contenus de démonstration existent et sont exclus des agrégats réels.'
         : null
     },
+    socialLive: instagramProfile ? {
+      platform: 'instagram',
+      source: instagramProfile.source || instagramRecord?.source || null,
+      username: instagramProfile.username || null,
+      followers: instagramProfile.followers ?? null,
+      follows: instagramProfile.follows ?? null,
+      mediaCount: instagramProfile.mediaCount ?? null,
+      profileViews: instagramProfile.insights?.profileViews ?? null,
+      reach: instagramProfile.insights?.reach ?? null,
+      accountsEngaged: instagramProfile.insights?.accountsEngaged ?? null,
+      syncedAt: instagramRecord?.synced_at || instagramRecord?.syncedAt || null
+    } : null,
     contentPerformance: {
       totals,
       averages,
@@ -181,6 +205,7 @@ export function formatKpiContext(context = {}) {
   const perf = context.contentPerformance || {};
   const quality = context.dataQuality || {};
   const totals = perf.totals || {};
+  const social = context.socialLive || null;
 
   lines.push(
     '',
@@ -189,6 +214,11 @@ export function formatKpiContext(context = {}) {
     `- Contenus avec métriques réelles : ${quality.realMeasuredContents || 0}`,
     `- Contenus de démonstration exclus : ${quality.demoMeasuredContents || 0}`,
     `- Contenus sans métriques : ${quality.unmeasuredContents || 0}`,
+    '',
+    'META LIVE',
+    social
+      ? `- Instagram @${social.username || 'inconnu'} : ${social.followers ?? 'n/a'} followers, ${social.profileViews ?? 'n/a'} visites profil, reach ${social.reach ?? 'n/a'}, ${social.mediaCount ?? 'n/a'} médias`
+      : '- Aucun profil Meta Live synchronisé.',
     '',
     'AGRÉGATS DES CONTENUS RÉELS',
     `- Portée : ${totals.portee || 0}`,
