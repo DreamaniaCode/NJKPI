@@ -63,9 +63,15 @@ const PublisherView = (() => {
           </div>
           <div style="display:grid;gap:12px;">
             <div>
-              <label class="form-label" for="publisher-media-url">URL média publique</label>
-              <input id="publisher-media-url" class="form-control" type="url" placeholder="https://… image ou vidéo">
-              <small style="color:var(--muted);">Requis pour Instagram. L’URL doit être accessible publiquement par Meta.</small>
+              <label class="form-label">Photo / vidéo</label>
+              <div class="media-upload-box">
+                <input id="publisher-media-file" type="file" accept="image/jpeg,image/png,image/webp,image/gif,video/mp4,video/quicktime,video/webm" hidden>
+                <button class="btn btn--secondary" type="button" id="publisher-media-upload-btn">📷 Choisir une photo / vidéo</button>
+                <span id="publisher-media-upload-status" class="media-upload-box__status">Aucun fichier choisi</span>
+                <div id="publisher-media-preview" class="media-upload-preview"></div>
+                <input id="publisher-media-url" class="form-control media-upload-box__url" type="url" placeholder="URL générée automatiquement">
+              </div>
+              <small style="color:var(--muted);">NJKPI téléverse le fichier puis fournit l’URL publique attendue par Meta.</small>
             </div>
             <div>
               <label class="form-label" for="publisher-link-url">Lien à partager</label>
@@ -89,7 +95,8 @@ const PublisherView = (() => {
               <label><input type="checkbox" id="publisher-facebook" checked> Facebook</label>
             </div>
             <div style="display:flex;gap:8px;flex-wrap:wrap;">
-              <button class="btn btn--primary" id="publisher-save-btn">Publier / programmer</button>
+              <button class="btn btn--primary" id="publisher-publish-now-btn">🚀 Publier maintenant</button>
+              <button class="btn btn--secondary" id="publisher-schedule-btn">🗓 Programmer</button>
               <button class="btn btn--secondary" id="publisher-refresh-btn">↻ Actualiser la file</button>
             </div>
           </div>
@@ -136,34 +143,87 @@ const PublisherView = (() => {
       </section>
     `;
 
-    document.getElementById('publisher-save-btn')?.addEventListener('click', async () => {
+    const mediaFileInput = document.getElementById('publisher-media-file');
+    const mediaUploadBtn = document.getElementById('publisher-media-upload-btn');
+    const mediaUrlInput = document.getElementById('publisher-media-url');
+    const mediaStatus = document.getElementById('publisher-media-upload-status');
+    const mediaPreview = document.getElementById('publisher-media-preview');
+
+    if (mediaUploadBtn && mediaFileInput) {
+      mediaUploadBtn.onclick = () => mediaFileInput.click();
+      mediaFileInput.onchange = async () => {
+        const file = mediaFileInput.files?.[0];
+        if (!file) return;
+        mediaUploadBtn.disabled = true;
+        mediaUploadBtn.textContent = 'Téléversement…';
+        if (mediaStatus) mediaStatus.textContent = `${file.name} · envoi en cours`;
+        try {
+          const uploaded = await NidalAPI.uploadMedia(file);
+          mediaUrlInput.value = uploaded.url || '';
+          if (mediaStatus) mediaStatus.textContent = `${file.name} · prêt`;
+          if (mediaPreview) {
+            mediaPreview.innerHTML = file.type.startsWith('video/')
+              ? `<video src="${escapeHtml(uploaded.url)}" controls preload="metadata"></video>`
+              : `<img src="${escapeHtml(uploaded.url)}" alt="Aperçu du média">`;
+          }
+          document.getElementById('publisher-media-type').value = file.type.startsWith('video/') ? 'reel' : 'image';
+          showToast('Média envoyé et prêt pour publication.', 'success');
+        } catch (error) {
+          if (mediaStatus) mediaStatus.textContent = 'Échec du téléversement';
+          showToast('Upload impossible : ' + error.message, 'error');
+        } finally {
+          mediaUploadBtn.disabled = false;
+          mediaUploadBtn.textContent = '📷 Choisir une photo / vidéo';
+        }
+      };
+    }
+
+    const submitPublication = async mode => {
       const platforms = [];
       if (document.getElementById('publisher-instagram')?.checked) platforms.push('instagram');
       if (document.getElementById('publisher-facebook')?.checked) platforms.push('facebook');
+      if (!platforms.length) return showToast('Sélectionnez Instagram et/ou Facebook.', 'error');
 
       const scheduledRaw = document.getElementById('publisher-scheduled-at')?.value || '';
+      if (mode === 'schedule' && !scheduledRaw) return showToast('Choisissez la date et l’heure de programmation.', 'error');
+
+      const mediaUrl = mediaUrlInput?.value || '';
+      if (platforms.includes('instagram') && !mediaUrl) {
+        return showToast('Choisissez une photo ou vidéo pour Instagram.', 'error');
+      }
+
       const body = {
         brand: getActiveBrand(),
         message: document.getElementById('publisher-message')?.value || '',
-        mediaUrl: document.getElementById('publisher-media-url')?.value || '',
+        mediaUrl,
         linkUrl: document.getElementById('publisher-link-url')?.value || '',
         mediaType: document.getElementById('publisher-media-type')?.value || 'text',
         platforms,
-        scheduledAt: scheduledRaw ? new Date(scheduledRaw).toISOString() : new Date().toISOString(),
-        automationMode: scheduledRaw ? 'scheduled' : 'manual'
+        scheduledAt: mode === 'schedule' ? new Date(scheduledRaw).toISOString() : new Date().toISOString(),
+        automationMode: mode === 'schedule' ? 'scheduled' : 'manual'
       };
+
+      const buttons = [
+        document.getElementById('publisher-publish-now-btn'),
+        document.getElementById('publisher-schedule-btn')
+      ].filter(Boolean);
+      buttons.forEach(btn => btn.disabled = true);
 
       try {
         const job = await NidalAPI.createPublishJob(body);
-        if (!scheduledRaw) await NidalAPI.runPublishJob(job.id);
-        showToast(scheduledRaw ? 'Publication programmée.' : 'Publication envoyée à Meta.', 'success');
+        if (mode === 'now') await NidalAPI.runPublishJob(job.id);
+        showToast(mode === 'schedule' ? 'Publication programmée.' : 'Publication envoyée à Meta.', 'success');
         _jobs = [];
         await _load();
         render();
       } catch (error) {
+        buttons.forEach(btn => btn.disabled = false);
         showToast(error.message || 'Échec de la publication', 'error');
       }
-    });
+    };
+
+    document.getElementById('publisher-publish-now-btn')?.addEventListener('click', () => submitPublication('now'));
+    document.getElementById('publisher-schedule-btn')?.addEventListener('click', () => submitPublication('schedule'));
 
     document.getElementById('publisher-refresh-btn')?.addEventListener('click', async () => {
       await _load();
