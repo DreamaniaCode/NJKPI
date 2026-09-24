@@ -9,7 +9,7 @@
   <link rel="icon" type="image/png" href="./assets/mascot.png">
   <link rel="stylesheet" href="./css/style.css?v=20260924-9">
   <script src="./js/utils.js?v=20260924-6" defer></script>
-  <script src="./js/api.js?v=20260924-6" defer></script>
+  <script src="./js/api.js?v=20260924-11" defer></script>
   <script src="./js/store.js?v=20260924-6" defer></script>
   <script src="./js/charts.js?v=20260924-6" defer></script>
   <script src="./js/export.js?v=20260924-6" defer></script>
@@ -19,12 +19,13 @@
   <script src="./js/agent.js?v=20260924-6" defer></script>
   <script src="./js/performance.js?v=20260924-6" defer></script>
   <script src="./js/insights.js?v=20260924-6" defer></script>
-  <script src="./js/audience.js?v=20260924-10" defer></script>
+  <script src="./js/audience.js?v=20260924-11" defer></script>
+  <script src="./js/publisher.js?v=20260924-11" defer></script>
   <script src="./js/quality.js?v=20260924-7" defer></script>
   <script src="./js/settings.js?v=20260924-7" defer></script>
   <script src="./js/auth.js?v=20260924-7" defer></script>
   <script src="./js/import.js?v=20260924-7" defer></script>
-  <script src="./js/app.js?v=20260924-7" defer></script>
+  <script src="./js/app.js?v=20260924-11" defer></script>
 </head>
 <body>
   <a href="#main-content" class="skip-link">Aller au contenu principal</a>
@@ -45,7 +46,8 @@
         <button class="nav-item" data-view="performance"><span>Performance</span><b>05</b></button>
         <button class="nav-item" data-view="insights"><span>Insights Meta</span><b>06</b></button>
         <button class="nav-item" data-view="audience"><span>Audience & conversions</span><b>07</b></button>
-        <button class="nav-item" data-view="quality"><span>Controle</span><b>08</b></button>
+        <button class="nav-item" data-view="publisher"><span>Publier & programmer</span><b>08</b></button>
+        <button class="nav-item" data-view="quality"><span>Controle</span><b>09</b></button>
         <button class="nav-item" data-view="settings"><span>Paramètres</span><b>⚙</b></button>
       </nav>
       <div class="sidebar__user-badge" id="sidebar-user-badge"></div>
@@ -60,6 +62,7 @@
       <div class="view-panel" id="view-performance" hidden></div>
       <div class="view-panel" id="view-insights" hidden></div>
       <div class="view-panel" id="view-audience" hidden></div>
+      <div class="view-panel" id="view-publisher" hidden></div>
       <div class="view-panel" id="view-quality" hidden></div>
       <div class="view-panel" id="view-settings" hidden></div>
     </main>
@@ -72,6 +75,7 @@
       <button class="mobile-nav__item" data-view="performance"><span>KPI</span></button>
       <button class="mobile-nav__item" data-view="insights"><span>Insights</span></button>
       <button class="mobile-nav__item" data-view="audience"><span>Audience</span></button>
+      <button class="mobile-nav__item" data-view="publisher"><span>Publier</span></button>
       <button class="mobile-nav__item" data-view="quality"><span>Controle</span></button>
     </nav>
   </div>
