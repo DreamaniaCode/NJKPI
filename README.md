@@ -138,3 +138,17 @@ curl -X POST https://votre-domaine/webhooks/kpi-ai \
   -H "X-Nidal-Webhook-Secret: VOTRE_SECRET" \
   -d '{"event":"kpi.daily.updated","brand":"nidal-junior"}'
 ```
+
+
+## Meta Live KPI
+
+Le dashboard peut maintenant lire les indicateurs Instagram professionnels directement depuis Meta Graph API.
+
+- `GET /api/social/live?brand=nidal` synchronise le profil Meta côté serveur et utilise un cache court.
+- Le navigateur rafraîchit la vue Meta Live toutes les 60 secondes quand l'application est ouverte.
+- `?refresh=1` force une nouvelle lecture Meta (bouton « Actualiser » du dashboard).
+- Les followers Instagram provenant de `followers_count` alimentent automatiquement la valeur courante du KPI Followers sans modifier la cible définie par l'utilisateur.
+- Les insights de compte lus actuellement sont `profile_views`, `reach` et `accounts_engaged`, avec `period=day` et `metric_type=total_value`.
+- Le token Meta reste exclusivement côté serveur dans Coolify.
+
+Ce fonctionnement est du **quasi temps réel** : NJKPI peut interroger Meta chaque minute, mais la fraîcheur effective dépend du délai de mise à jour des Insights chez Meta. Les webhooks serviront plus tard aux événements pris en charge par Meta, pas à transformer toutes les métriques Insights en flux instantané.
