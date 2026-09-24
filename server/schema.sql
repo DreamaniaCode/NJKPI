@@ -107,3 +107,10 @@ CREATE TABLE IF NOT EXISTS agent_transfers (
   status TEXT NOT NULL DEFAULT 'transfere',
   created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
+
+CREATE TABLE IF NOT EXISTS kpi_targets (
+  brand_slug TEXT PRIMARY KEY REFERENCES brands(slug),
+  targets JSONB NOT NULL DEFAULT '{}'::jsonb,
+  updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+

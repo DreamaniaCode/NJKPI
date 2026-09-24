@@ -505,7 +505,6 @@ const AgentView = (() => {
       <option value="annonce_officielle" ${selected === 'annonce_officielle' ? 'selected' : ''}>Annonce administrative validée</option>
     `;
   }
-  }
 
   function _renderTabContent(agent) {
     const gen = agent.currentGeneration;

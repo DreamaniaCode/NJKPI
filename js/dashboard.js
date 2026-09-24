@@ -21,6 +21,23 @@ const DashboardView = (() => {
         ${_kpi('A controler', stats.controls, 'Validation ou charte', '#172033')}
       </section>
 
+      <!-- Section des Objectifs KPI Stratégiques & Échéances (ETA) -->
+      <section class="kpi-goals-section" style="margin-top:24px;margin-bottom:0;" aria-label="Objectifs KPI prioritaires">
+        <div class="section-heading" style="margin-bottom:12px;">
+          <div>
+            <span class="section-kicker">Cap & Objectifs Stratégiques</span>
+            <h2 style="font-size:16px;">Objectifs KPI & Échéances (ETA) · ${escapeHtml(getActiveBrandLabel())}</h2>
+          </div>
+          <button class="btn btn--secondary btn--sm" id="dashboard-edit-targets-btn">🎯 Fixer les objectifs</button>
+        </div>
+        <div class="kpi-goals-grid" style="grid-template-columns: repeat(4, minmax(0, 1fr));">
+          ${_targetMiniCard('👥', 'Followers', NidalStore.getKpiTargets().followers, '#1746d1')}
+          ${_targetMiniCard('👁️', 'Vues Vidéos', NidalStore.getKpiTargets().views, '#ffc928')}
+          ${_targetMiniCard('💬', 'Commentaires', NidalStore.getKpiTargets().comments, '#31b9cc')}
+          ${_targetMiniCard('🎯', 'Conversions', NidalStore.getKpiTargets().conversions, '#d91b5c')}
+        </div>
+      </section>
+
       <section class="dashboard-main-grid">
         <div class="dashboard-analysis">
           <div class="section-heading"><div><span class="section-kicker">Production</span><h2>Avancement de la semaine</h2></div><button class="text-button" onclick="App.navigateTo('contents')">Voir tous les contenus</button></div>
@@ -58,6 +75,52 @@ const DashboardView = (() => {
 
     NidalCharts.barChart('chart-by-format', CONTENT_TYPES.map(type => ({ label: type.label, value: stats.byFormat[type.id] || 0, color: type.color })));
     NidalCharts.donutChart('chart-by-status', STATUSES.filter(status => (stats.byStatus[status.id] || 0) > 0).map(status => ({ label: status.label, value: stats.byStatus[status.id], color: status.color })));
+
+    const btnEditTargets = document.getElementById('dashboard-edit-targets-btn');
+    if (btnEditTargets) {
+      btnEditTargets.onclick = () => {
+        if (typeof PerformanceView !== 'undefined' && PerformanceView.openKpiTargetsModal) {
+          PerformanceView.openKpiTargetsModal();
+        } else {
+          App.navigateTo('performance');
+        }
+      };
+    }
+  }
+
+  function _targetMiniCard(icon, title, metric, color) {
+    if (!metric) return '';
+    const cur = metric.current ?? 0;
+    const tgt = metric.target ?? 1;
+    const pct = metric.pct ?? (tgt > 0 ? Math.round((cur / tgt) * 100) : 0);
+    const cappedPct = Math.min(100, Math.max(0, pct));
+    const etaInfo = metric.etaInfo || { label: 'Échéance à définir', badgeClass: 'eta-badge--muted' };
+
+    return `
+      <article class="kpi-goal-card" style="--goal-color:${color};padding:14px 16px;">
+        <div class="kpi-goal-card__head" style="margin-bottom:8px;">
+          <div class="kpi-goal-card__title" style="font-size:12px;">
+            <span class="icon" style="font-size:16px;">${icon}</span>
+            <span>${escapeHtml(title)}</span>
+          </div>
+          <span class="badge ${pct >= 100 ? 'badge--publie' : (pct >= 50 ? 'badge--en-production' : 'badge--brouillon')}">${pct}%</span>
+        </div>
+        <div class="kpi-goal-card__body" style="margin-bottom:6px;">
+          <div class="kpi-goal-card__values">
+            <strong style="font-size:19px;">${formatNumber(cur)}</strong>
+            <span class="target" style="font-size:11px;">/ ${formatNumber(tgt)}</span>
+          </div>
+        </div>
+        <div class="progress-track" style="height:6px;margin-bottom:8px;" title="${pct}% atteint">
+          <i style="width:${cappedPct}%;background:${color};"></i>
+        </div>
+        <div class="kpi-goal-card__footer" style="font-size:9.5px;">
+          <span class="eta-badge ${etaInfo.badgeClass}" style="font-size:9px;padding:2px 6px;">
+            ⏱️ ${escapeHtml(etaInfo.label)}
+          </span>
+        </div>
+      </article>
+    `;
   }
 
   function _kpi(label, value, note, color) {

@@ -238,3 +238,73 @@ export async function saveEditorialTransfer(transfer) {
     return record;
   }
 }
+
+if (!memory.kpiTargets) memory.kpiTargets = new Map();
+
+const DEFAULT_BRAND_KPI_TARGETS = {
+  'nidal-junior': {
+    followers: { current: 2450, target: 5000, eta: '2026-12-31', note: 'Communauté Instagram & Facebook Nidal Junior' },
+    views: { current: 18500, target: 50000, eta: '2026-11-30', note: 'Cumul des vues Reels, Stories et vidéos Nounou' },
+    comments: { current: 320, target: 1000, eta: '2026-11-30', note: 'Réponses aux quiz, histoires et publications' },
+    conversions: { current: 42, target: 120, eta: '2026-10-31', note: 'Demandes de visite, appels et inscriptions maternelle' },
+    reach: { current: 12400, target: 35000, eta: '2026-11-30', note: 'Familles touchées sur la période' },
+    interactions: { current: 1450, target: 4000, eta: '2026-11-30', note: 'Likes, commentaires, partages et enregistrements' }
+  },
+  'nidal': {
+    followers: { current: 6800, target: 12000, eta: '2026-12-31', note: 'Communauté officielle Groupe Scolaire Nidal' },
+    views: { current: 45000, target: 100000, eta: '2026-12-15', note: 'Vues cumulées des capsules pédagogiques et Reels' },
+    comments: { current: 640, target: 2000, eta: '2026-12-15', note: 'Échanges avec les parents et élèves' },
+    conversions: { current: 85, target: 250, eta: '2026-11-15', note: 'Prises de RDV, formulaires gsnidal.ma et inscriptions' },
+    reach: { current: 28000, target: 75000, eta: '2026-12-15', note: 'Portée globale sur les réseaux sociaux' },
+    interactions: { current: 3200, target: 8000, eta: '2026-12-15', note: 'Total réactions, commentaires, partages et favoris' }
+  }
+};
+
+export async function getKpiTargets(brand = 'nidal-junior') {
+  const slug = brand === 'nidal' ? 'nidal' : 'nidal-junior';
+  const fallback = DEFAULT_BRAND_KPI_TARGETS[slug];
+  if (!hasDatabase) {
+    return memory.kpiTargets.get(slug) || { brand_slug: slug, targets: fallback, updated_at: new Date().toISOString() };
+  }
+  try {
+    const result = await query('SELECT brand_slug, targets, updated_at FROM kpi_targets WHERE brand_slug = $1', [slug]);
+    if (result.rows[0]) {
+      return {
+        brand_slug: slug,
+        targets: { ...fallback, ...(result.rows[0].targets || {}) },
+        updated_at: result.rows[0].updated_at
+      };
+    }
+    return { brand_slug: slug, targets: fallback, updated_at: new Date().toISOString() };
+  } catch (error) {
+    console.warn('Fallback memoire getKpiTargets:', error.message);
+    return memory.kpiTargets.get(slug) || { brand_slug: slug, targets: fallback, updated_at: new Date().toISOString() };
+  }
+}
+
+export async function saveKpiTargets(brand = 'nidal-junior', targets = {}) {
+  const slug = brand === 'nidal' ? 'nidal' : 'nidal-junior';
+  const fallback = DEFAULT_BRAND_KPI_TARGETS[slug];
+  const merged = { ...fallback, ...(targets || {}) };
+  const record = {
+    brand_slug: slug,
+    targets: merged,
+    updated_at: new Date().toISOString()
+  };
+  memory.kpiTargets.set(slug, record);
+  if (!hasDatabase) return record;
+  try {
+    const result = await query(
+      `INSERT INTO kpi_targets (brand_slug, targets, updated_at)
+       VALUES ($1, $2::jsonb, NOW())
+       ON CONFLICT (brand_slug) DO UPDATE SET targets = EXCLUDED.targets, updated_at = NOW()
+       RETURNING brand_slug, targets, updated_at`,
+      [slug, JSON.stringify(merged)]
+    );
+    return result.rows[0];
+  } catch (error) {
+    console.warn('Fallback memoire saveKpiTargets:', error.message);
+    return record;
+  }
+}
+

@@ -79,9 +79,32 @@ const ContentsView = (() => {
         <div class="form-group"><label for="form-message">Message principal</label><textarea id="form-message" class="form-control" rows="3">${_value(content.message)}</textarea></div>
         <div class="form-row"><div class="form-group"><label for="form-cta">Appel a l’action</label><input id="form-cta" class="form-control" value="${_value(content.cta)}"></div><div class="form-group"><label for="form-deliverable">Livrable</label><input id="form-deliverable" class="form-control" value="${_value(content.livrable)}"></div></div>
       </div>
-      <div class="form-section"><h3>Objectifs et resultats</h3>
-        <div class="form-row form-row--three">${_numberField('target-reach','Portee cible',objectifs.portee)}${_numberField('target-interactions','Interactions cibles',objectifs.interactions)}${_numberField('target-clicks','Clics cibles',objectifs.clics)}</div>
-        <div class="form-row form-row--four">${_numberField('result-reach','Portee reelle',resultats.portee)}${_numberField('result-reactions','Reactions',resultats.reactions)}${_numberField('result-comments','Commentaires',resultats.commentaires)}${_numberField('result-shares','Partages',resultats.partages)}${_numberField('result-saves','Enregistrements',resultats.enregistrements)}${_numberField('result-clicks','Clics CTA',resultats.clics)}${_numberField('result-views','Vues video',resultats.vues)}</div>
+      <div class="form-section"><h3>Objectifs cibles & Échéance (ETA)</h3>
+        <div class="form-row form-row--four">
+          ${_numberField('target-reach','Portée cible',objectifs.portee)}
+          ${_numberField('target-views','Vues cibles',objectifs.vues)}
+          ${_numberField('target-comments','Commentaires cibles',objectifs.commentaires)}
+          ${_numberField('target-conversions','Conversions cibles',objectifs.conversions)}
+        </div>
+        <div class="form-row form-row--three">
+          ${_numberField('target-interactions','Interactions cibles',objectifs.interactions)}
+          ${_numberField('target-clicks','Clics CTA cibles',objectifs.clics)}
+          <div class="form-group"><label for="target-eta">Échéance cible (ETA)</label><input type="date" id="target-eta" class="form-control" value="${toISODate(objectifs.eta || content.datePublication)}"></div>
+        </div>
+      </div>
+      <div class="form-section"><h3>Résultats réels constatés</h3>
+        <div class="form-row form-row--four">
+          ${_numberField('result-reach','Portée réelle',resultats.portee)}
+          ${_numberField('result-views','Vues vidéo',resultats.vues)}
+          ${_numberField('result-comments','Commentaires',resultats.commentaires)}
+          ${_numberField('result-conversions','Conversions / Inscriptions',resultats.conversions)}
+        </div>
+        <div class="form-row form-row--four">
+          ${_numberField('result-reactions','Réactions',resultats.reactions)}
+          ${_numberField('result-shares','Partages',resultats.partages)}
+          ${_numberField('result-saves','Enregistrements',resultats.enregistrements)}
+          ${_numberField('result-clicks','Clics CTA',resultats.clics)}
+        </div>
       </div>
       <div class="form-section"><h3>Controle avant publication</h3><div class="check-grid">${_check('check-logo','Logo officiel',checks.logo)}${_check('check-values','Valeurs de la marque',checks.valeurs)}${_check('check-footer','Pied de page',checks.footer)}${_check('check-consent','Autorisations verifiees ou non requises',checks.autorisation)}</div><div class="form-group"><label for="form-notes">Notes</label><textarea id="form-notes" class="form-control" rows="2">${_value(content.notes)}</textarea></div></div>
     </form>`;
@@ -89,7 +112,7 @@ const ContentsView = (() => {
 
   function _numberField(id, label, value) { return `<div class="form-group"><label for="${id}">${label}</label><input type="number" min="0" id="${id}" class="form-control" value="${_value(value)}" placeholder="—"></div>`; }
   function _check(id, label, checked) { return `<label class="check-item"><input type="checkbox" id="${id}" ${checked ? 'checked' : ''}><span>${label}</span></label>`; }
-  function _number(modal, id) { const value = modal.querySelector(`#${id}`).value; return value === '' ? null : Number(value); }
+  function _number(modal, id) { const el = modal.querySelector(`#${id}`); if (!el) return null; const value = el.value; return value === '' ? null : Number(value); }
 
   function _readForm(modal) {
     return {
@@ -97,14 +120,31 @@ const ContentsView = (() => {
       plateforme: modal.querySelector('#form-platform').value, format: modal.querySelector('#form-format').value, statut: modal.querySelector('#form-status').value, validation: modal.querySelector('#form-validation').value,
       niveau: modal.querySelector('#form-level').value, classes: modal.querySelector('#form-classes').value.trim(), album: modal.querySelector('#form-album').value.trim(), pilier: modal.querySelector('#form-pillar').value.trim(), objectif: modal.querySelector('#form-objective').value.trim(),
       message: modal.querySelector('#form-message').value.trim(), cta: modal.querySelector('#form-cta').value.trim(), livrable: modal.querySelector('#form-deliverable').value.trim(), notes: modal.querySelector('#form-notes').value.trim(),
-      objectifs: { portee: _number(modal,'target-reach'), interactions: _number(modal,'target-interactions'), clics: _number(modal,'target-clicks') },
-      resultats: { portee: _number(modal,'result-reach'), reactions: _number(modal,'result-reactions'), commentaires: _number(modal,'result-comments'), partages: _number(modal,'result-shares'), enregistrements: _number(modal,'result-saves'), clics: _number(modal,'result-clicks'), vues: _number(modal,'result-views') },
+      objectifs: {
+        portee: _number(modal,'target-reach'),
+        vues: _number(modal,'target-views'),
+        commentaires: _number(modal,'target-comments'),
+        interactions: _number(modal,'target-interactions'),
+        clics: _number(modal,'target-clicks'),
+        conversions: _number(modal,'target-conversions'),
+        eta: modal.querySelector('#target-eta')?.value || ''
+      },
+      resultats: {
+        portee: _number(modal,'result-reach'),
+        vues: _number(modal,'result-views'),
+        commentaires: _number(modal,'result-comments'),
+        reactions: _number(modal,'result-reactions'),
+        partages: _number(modal,'result-shares'),
+        enregistrements: _number(modal,'result-saves'),
+        clics: _number(modal,'result-clicks'),
+        conversions: _number(modal,'result-conversions')
+      },
       checks: { logo: modal.querySelector('#check-logo').checked, valeurs: modal.querySelector('#check-values').checked, footer: modal.querySelector('#check-footer').checked, autorisation: modal.querySelector('#check-consent').checked }
     };
   }
 
   function openCreateForm(defaultDate = '') {
-    const initial = { datePublication: defaultDate, heure: '18:30', format: 'post', statut: 'planifie', niveau: 'tous', validation: 'a-valider', plateforme: 'Instagram + Facebook', checks: { logo: true, valeurs: true, footer: true, autorisation: true }, objectifs: { portee: 1000, interactions: 50, clics: 5 }, resultats: {} };
+    const initial = { datePublication: defaultDate, heure: '18:30', format: 'post', statut: 'planifie', niveau: 'tous', validation: 'a-valider', plateforme: 'Instagram + Facebook', checks: { logo: true, valeurs: true, footer: true, autorisation: true }, objectifs: { portee: 1000, vues: 1500, commentaires: 15, interactions: 50, clics: 10, conversions: 5, eta: defaultDate }, resultats: {} };
     openModal('Nouveau contenu', _formHtml(initial), { footer: `<button type="button" class="btn btn--secondary" data-close-modal>Annuler</button><button type="button" class="btn btn--primary" id="save-content-btn">Enregistrer</button>`, onOpen: modal => modal.querySelector('#save-content-btn').onclick = () => { const values = _readForm(modal); if (!values.titre) return showToast('Le titre est obligatoire', 'error'); NidalStore.create(values); closeModal(); showToast('Contenu cree', 'success'); } });
   }
 

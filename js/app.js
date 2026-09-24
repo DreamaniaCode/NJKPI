@@ -39,8 +39,31 @@ const App = (() => {
   }
 
   function _renderCurrentView() {
-    const renderers = { dashboard: DashboardView, planning: PlanningView, contents: ContentsView, agent: AgentView, performance: PerformanceView, insights: InsightsView, quality: QualityView };
-    renderers[_currentView]?.render();
+    const renderers = {
+      dashboard: typeof DashboardView !== 'undefined' ? DashboardView : null,
+      planning: typeof PlanningView !== 'undefined' ? PlanningView : null,
+      contents: typeof ContentsView !== 'undefined' ? ContentsView : null,
+      agent: typeof AgentView !== 'undefined' ? AgentView : null,
+      performance: typeof PerformanceView !== 'undefined' ? PerformanceView : null,
+      insights: typeof InsightsView !== 'undefined' ? InsightsView : null,
+      quality: typeof QualityView !== 'undefined' ? QualityView : null
+    };
+    try {
+      renderers[_currentView]?.render();
+    } catch (err) {
+      console.error(`Erreur lors du rendu de la vue ${_currentView}:`, err);
+      const panel = document.getElementById(`view-${_currentView}`);
+      if (panel) {
+        panel.innerHTML = `<div class="empty-state" style="padding:40px;text-align:center;">
+          <div style="color:var(--red);font-size:32px;margin-bottom:12px;">⚠️</div>
+          <div>
+            <strong>Erreur d’affichage de la vue « ${_currentView} »</strong>
+            <p style="margin-top:6px;color:var(--muted);">${escapeHtml(err.message)}</p>
+            <button class="btn btn--secondary btn--sm" onclick="location.reload()" style="margin-top:10px;">Recharger l’application</button>
+          </div>
+        </div>`;
+      }
+    }
   }
 
   function _initTheme() {

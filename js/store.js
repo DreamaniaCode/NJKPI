@@ -8,8 +8,33 @@ const NidalStore = (() => {
   let _subscribers = [];
   let _data = null;
 
+  const DEFAULT_BRAND_KPI_TARGETS = {
+    'nidal-junior': {
+      followers: { current: 2450, target: 5000, eta: '2026-12-31', label: 'Followers (Abonnés)', unit: 'abonnés', note: 'Communauté Instagram & Facebook Nidal Junior' },
+      views: { current: 18500, target: 50000, eta: '2026-11-30', label: 'Vues (Reels & Vidéos)', unit: 'vues', note: 'Cumul des vues Reels, Stories et vidéos Nounou' },
+      comments: { current: 320, target: 1000, eta: '2026-11-30', label: 'Commentaires & Échanges', unit: 'commentaires', note: 'Réponses aux quiz, histoires et publications' },
+      conversions: { current: 42, target: 120, eta: '2026-10-31', label: 'Conversions & Inscriptions', unit: 'inscriptions', note: 'Demandes de visite, appels et inscriptions maternelle' },
+      reach: { current: 12400, target: 35000, eta: '2026-11-30', label: 'Portée globale (Reach)', unit: 'comptes', note: 'Familles touchées sur la période' },
+      interactions: { current: 1450, target: 4000, eta: '2026-11-30', label: 'Interactions totales', unit: 'interactions', note: 'Likes, commentaires, partages et enregistrements' }
+    },
+    'nidal': {
+      followers: { current: 6800, target: 12000, eta: '2026-12-31', label: 'Followers (Abonnés)', unit: 'abonnés', note: 'Communauté officielle Groupe Scolaire Nidal' },
+      views: { current: 45000, target: 100000, eta: '2026-12-15', label: 'Vues (Reels & Vidéos)', unit: 'vues', note: 'Vues cumulées capsules pédagogiques et Reels' },
+      comments: { current: 640, target: 2000, eta: '2026-12-15', label: 'Commentaires & Échanges', unit: 'commentaires', note: 'Interactions parents et élèves' },
+      conversions: { current: 85, target: 250, eta: '2026-11-15', label: 'Conversions & Inscriptions', unit: 'inscriptions', note: 'Prises de RDV, formulaires gsnidal.ma et inscriptions' },
+      reach: { current: 28000, target: 75000, eta: '2026-12-15', label: 'Portée globale (Reach)', unit: 'comptes', note: 'Audience globale touchée' },
+      interactions: { current: 3200, target: 8000, eta: '2026-12-15', note: 'Total réactions, commentaires, partages et favoris' }
+    }
+  };
+
   function _defaultData() {
-    return { version: CURRENT_VERSION, contents: [], settings: { theme: 'light' }, lastModified: new Date().toISOString() };
+    return {
+      version: CURRENT_VERSION,
+      contents: [],
+      kpiTargets: JSON.parse(JSON.stringify(DEFAULT_BRAND_KPI_TARGETS)),
+      settings: { theme: 'light' },
+      lastModified: new Date().toISOString()
+    };
   }
 
   function _number(value) {
@@ -17,7 +42,7 @@ const NidalStore = (() => {
   }
 
   function _emptyResults() {
-    return { portee: null, reactions: null, commentaires: null, partages: null, enregistrements: null, clics: null, vues: null };
+    return { portee: null, reactions: null, commentaires: null, partages: null, enregistrements: null, clics: null, vues: null, conversions: null };
   }
 
   function _normalize(content = {}) {
@@ -57,8 +82,12 @@ const NidalStore = (() => {
       },
       objectifs: {
         portee: _number(content.objectifs?.portee) ?? 1000,
+        vues: _number(content.objectifs?.vues) ?? 1500,
         interactions: _number(content.objectifs?.interactions) ?? 50,
-        clics: _number(content.objectifs?.clics) ?? 5
+        commentaires: _number(content.objectifs?.commentaires) ?? 15,
+        clics: _number(content.objectifs?.clics) ?? 10,
+        conversions: _number(content.objectifs?.conversions) ?? 5,
+        eta: content.objectifs?.eta || content.datePublication || ''
       },
       resultats: { ..._emptyResults(), ...(content.resultats || {}) },
       notes: content.notes || ''
@@ -117,14 +146,21 @@ const NidalStore = (() => {
     if (!NidalAPI.isOnline()) return false;
     const brand = getActiveBrand();
     try {
-      const remote = await NidalAPI.listContents(brand);
-      if (remote.length) {
-        const mapped = remote.map(record => _normalize({ ...(record.data || {}), id: record.id, brand: record.brand_slug, finalUrl: record.final_url, externalMediaId: record.external_media_id, syncStatus: record.sync_status, lastSyncedAt: record.last_synced_at }));
+      const [remoteContents, remoteTargets] = await Promise.all([
+        NidalAPI.listContents(brand).catch(() => []),
+        NidalAPI.getKpiTargets(brand).catch(() => null)
+      ]);
+      if (remoteContents && remoteContents.length) {
+        const mapped = remoteContents.map(record => _normalize({ ...(record.data || {}), id: record.id, brand: record.brand_slug, finalUrl: record.final_url, externalMediaId: record.external_media_id, syncStatus: record.sync_status, lastSyncedAt: record.last_synced_at }));
         _data.contents = [..._data.contents.filter(item => item.brand !== brand), ...mapped];
-        _save();
       } else {
         await Promise.all(getAll(brand).map(item => NidalAPI.upsertContent({ ...item, brand, data: item })));
       }
+      if (remoteTargets?.targets) {
+        if (!_data.kpiTargets) _data.kpiTargets = {};
+        _data.kpiTargets[brand] = { ...(DEFAULT_BRAND_KPI_TARGETS[brand] || {}), ...(remoteTargets.targets || {}) };
+      }
+      _save();
       return true;
     } catch (error) {
       console.warn('Synchronisation backend indisponible:', error.message);
@@ -132,28 +168,148 @@ const NidalStore = (() => {
     }
   }
 
-  function _pushItem(item) {
-    if (!NidalAPI.isOnline()) return;
-    NidalAPI.upsertContent({ ...item, brand: item.brand, data: item }).catch(error => console.warn('Sauvegarde distante differee:', error.message));
+  function getKpiTargets(brand = getActiveBrand()) {
+    const slug = brand === 'nidal' ? 'nidal' : 'nidal-junior';
+    const fallback = DEFAULT_BRAND_KPI_TARGETS[slug] || DEFAULT_BRAND_KPI_TARGETS['nidal-junior'];
+    const stored = _data?.kpiTargets?.[slug] || fallback;
+    const merged = { ...fallback, ...stored };
+
+    // Calculate actual aggregates from contents
+    const contents = getAll(slug);
+    const sumViews = contents.reduce((sum, c) => sum + (_number(c.resultats?.vues) || 0), 0);
+    const sumComments = contents.reduce((sum, c) => sum + (_number(c.resultats?.commentaires) || 0), 0);
+    const sumConversions = contents.reduce((sum, c) => sum + (_number(c.resultats?.conversions) || 0), 0);
+    const sumReach = contents.reduce((sum, c) => sum + (_number(c.resultats?.portee) || 0), 0);
+    const sumInteractions = contents.reduce((sum, c) => sum + (getInteractions(c) || 0), 0);
+
+    const enrich = (key, metric) => {
+      const cur = _number(metric.current) ?? 0;
+      const tgt = _number(metric.target) ?? 1;
+      const ratio = tgt > 0 ? cur / tgt : 0;
+      const eta = metric.eta || '';
+      const etaInfo = getEtaInfo(eta, ratio);
+      return {
+        ...metric,
+        key,
+        current: cur,
+        target: tgt,
+        ratio,
+        pct: Math.round(ratio * 100),
+        remaining: Math.max(0, tgt - cur),
+        etaInfo
+      };
+    };
+
+    return {
+      brand: slug,
+      followers: enrich('followers', merged.followers || fallback.followers),
+      views: enrich('views', merged.views || fallback.views),
+      comments: enrich('comments', merged.comments || fallback.comments),
+      conversions: enrich('conversions', merged.conversions || fallback.conversions),
+      reach: enrich('reach', merged.reach || fallback.reach),
+      interactions: enrich('interactions', merged.interactions || fallback.interactions),
+      contentTotals: {
+        views: sumViews,
+        comments: sumComments,
+        conversions: sumConversions,
+        reach: sumReach,
+        interactions: sumInteractions
+      }
+    };
   }
 
-  function getInteractions(content) {
-    const results = content.resultats || _emptyResults();
-    const values = [results.reactions, results.commentaires, results.partages, results.enregistrements].map(_number);
-    return values.every(value => value === null) ? null : values.reduce((sum, value) => sum + (value || 0), 0);
+  function updateKpiTargets(newTargets, brand = getActiveBrand()) {
+    const slug = brand === 'nidal' ? 'nidal' : 'nidal-junior';
+    if (!_data.kpiTargets) _data.kpiTargets = {};
+    _data.kpiTargets[slug] = {
+      ...(DEFAULT_BRAND_KPI_TARGETS[slug] || {}),
+      ...(_data.kpiTargets[slug] || {}),
+      ...newTargets
+    };
+    _save();
+    if (NidalAPI.isOnline()) {
+      NidalAPI.saveKpiTargets(slug, _data.kpiTargets[slug]).catch(err => console.warn('Sauvegarde distante KPI différée:', err.message));
+    }
+    return getKpiTargets(slug);
   }
 
-  function getEngagement(content) {
-    const portee = _number(content.resultats?.portee);
-    const interactions = getInteractions(content);
-    return portee && interactions !== null ? interactions / portee : null;
-  }
+  function getEtaInfo(etaDate, progressRatio = 0) {
+    if (!etaDate) {
+      return {
+        formattedDate: 'Date à définir',
+        daysLeft: null,
+        status: 'none',
+        label: 'Échéance à définir',
+        badgeClass: 'eta-badge--muted',
+        isAchieved: progressRatio >= 1,
+        isOverdue: false
+      };
+    }
 
-  function getControl(content) {
-    const checks = content.checks || {};
-    const complete = ['logo', 'valeurs', 'footer', 'autorisation'].every(key => checks[key] === true);
-    if (content.validation !== 'approuve' || !complete) return 'a-controler';
-    return content.statut === 'publie' ? 'conforme' : 'pret';
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    const target = new Date(`${etaDate}T00:00:00`);
+    const diffTime = target.getTime() - today.getTime();
+    const daysLeft = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+    const formattedDate = formatDate(etaDate, 'compact');
+
+    if (progressRatio >= 1) {
+      return {
+        formattedDate,
+        daysLeft,
+        status: 'done',
+        label: '✓ Objectif atteint !',
+        badgeClass: 'eta-badge--done',
+        isAchieved: true,
+        isOverdue: false
+      };
+    }
+
+    if (daysLeft < 0) {
+      return {
+        formattedDate,
+        daysLeft,
+        status: 'overdue',
+        label: `Dépassé de ${Math.abs(daysLeft)} j · ${formattedDate}`,
+        badgeClass: 'eta-badge--overdue',
+        isAchieved: false,
+        isOverdue: true
+      };
+    }
+
+    if (daysLeft === 0) {
+      return {
+        formattedDate,
+        daysLeft,
+        status: 'today',
+        label: `Échéance aujourd’hui !`,
+        badgeClass: 'eta-badge--urgent',
+        isAchieved: false,
+        isOverdue: false
+      };
+    }
+
+    if (daysLeft <= 14) {
+      return {
+        formattedDate,
+        daysLeft,
+        status: 'urgent',
+        label: `J-${daysLeft} (${daysLeft} j) · ${formattedDate}`,
+        badgeClass: 'eta-badge--urgent',
+        isAchieved: false,
+        isOverdue: false
+      };
+    }
+
+    return {
+      formattedDate,
+      daysLeft,
+      status: 'ok',
+      label: `J-${daysLeft} (${daysLeft} j) · ${formattedDate}`,
+      badgeClass: 'eta-badge--ok',
+      isAchieved: false,
+      isOverdue: false
+    };
   }
 
   function getStats() {
@@ -173,6 +329,13 @@ const NidalStore = (() => {
     const totalInteractions = reachItems.length ? reachItems.reduce((sum, content) => sum + (getInteractions(content) || 0), 0) : null;
     const totalClicks = contents.some(content => _number(content.resultats?.clics) !== null)
       ? contents.reduce((sum, content) => sum + (_number(content.resultats?.clics) || 0), 0) : null;
+    const totalViews = contents.some(content => _number(content.resultats?.vues) !== null)
+      ? contents.reduce((sum, content) => sum + (_number(content.resultats?.vues) || 0), 0) : null;
+    const totalComments = contents.some(content => _number(content.resultats?.commentaires) !== null)
+      ? contents.reduce((sum, content) => sum + (_number(content.resultats?.commentaires) || 0), 0) : null;
+    const totalConversions = contents.some(content => _number(content.resultats?.conversions) !== null)
+      ? contents.reduce((sum, content) => sum + (_number(content.resultats?.conversions) || 0), 0) : null;
+
     return {
       total: contents.length,
       published,
@@ -181,6 +344,9 @@ const NidalStore = (() => {
       completion: contents.length ? published / contents.length : 0,
       controls: contents.filter(content => getControl(content) === 'a-controler').length,
       totalReach,
+      totalViews,
+      totalComments,
+      totalConversions,
       totalInteractions,
       engagement: totalReach ? totalInteractions / totalReach : null,
       totalClicks,
@@ -213,5 +379,10 @@ const NidalStore = (() => {
     ];
   }
 
-  return { init, getAll, getById, create, update, remove, getSettings, updateSettings, exportData, importData, reset, syncRemote, getInteractions, getEngagement, getControl, getStats, subscribe };
+  return {
+    init, getAll, getById, create, update, remove,
+    getSettings, updateSettings, exportData, importData, reset, syncRemote,
+    getInteractions, getEngagement, getControl, getStats, subscribe,
+    getKpiTargets, updateKpiTargets, getEtaInfo
+  };
 })();

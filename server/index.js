@@ -7,7 +7,8 @@ import {
   listBrands, listContents, getContent, upsertContent, deleteContent,
   saveMetrics, saveAds, listAds, saveAgentRun,
   saveEditorialGeneration, listEditorialGenerations, getEditorialGeneration,
-  deleteEditorialGeneration, saveEditorialTransfer
+  deleteEditorialGeneration, saveEditorialTransfer,
+  getKpiTargets, saveKpiTargets
 } from './repository.js';
 import { metaConfigured, syncContentFromUrl, syncAds } from './services/meta.js';
 import {
@@ -87,6 +88,21 @@ app.post('/api/contents/:id/sync', async (req, res, next) => {
 
 app.get('/api/ads', async (req, res, next) => { try { res.json(await listAds(req.query.brand || 'nidal-junior')); } catch (error) { next(error); } });
 app.post('/api/ads/sync', async (req, res, next) => { try { const brand = req.body.brand || 'nidal-junior'; const campaigns = await syncAds(brand); res.json(await saveAds(brand, campaigns)); } catch (error) { next(error); } });
+
+app.get('/api/kpi/targets', async (req, res, next) => {
+  try {
+    const brand = req.query.brand || 'nidal-junior';
+    res.json(await getKpiTargets(brand));
+  } catch (error) { next(error); }
+});
+
+app.post('/api/kpi/targets', async (req, res, next) => {
+  try {
+    const brand = req.body.brand || 'nidal-junior';
+    const targets = req.body.targets || {};
+    res.json(await saveKpiTargets(brand, targets));
+  } catch (error) { next(error); }
+});
 
 app.post('/api/agent/generate', async (req, res, next) => {
   try {
