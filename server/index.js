@@ -8,9 +8,10 @@ import {
   saveMetrics, saveAds, listAds, saveAgentRun,
   saveEditorialGeneration, listEditorialGenerations, getEditorialGeneration,
   deleteEditorialGeneration, saveEditorialTransfer,
-  getKpiTargets, saveKpiTargets
+  getKpiTargets, saveKpiTargets,
+  saveSocialProfiles, getSocialProfiles, getSocialProfileHistory
 } from './repository.js';
-import { metaConfigured, syncContentFromUrl, syncAds } from './services/meta.js';
+import { metaConfigured, syncContentFromUrl, syncAds, syncSocialProfiles } from './services/meta.js';
 import {
   agentConfigured, getAiProvider, generateAgentOutput, shouldAutoSave,
   parseStructuredContent, getEditorialAgents, generateEditorialOutput,
@@ -323,6 +324,34 @@ app.post('/api/contents/:id/sync', async (req, res, next) => {
 
 app.get('/api/ads', async (req, res, next) => { try { res.json(await listAds(req.query.brand || 'nidal-junior')); } catch (error) { next(error); } });
 app.post('/api/ads/sync', async (req, res, next) => { try { const brand = req.body.brand || 'nidal-junior'; const campaigns = await syncAds(brand); res.json(await saveAds(brand, campaigns)); } catch (error) { next(error); } });
+
+app.get('/api/social/profiles', async (req, res, next) => {
+  try {
+    const brand = req.query.brand === 'nidal' ? 'nidal' : 'nidal-junior';
+    res.json(await getSocialProfiles(brand));
+  } catch (error) { next(error); }
+});
+
+app.get('/api/social/profiles/history', async (req, res, next) => {
+  try {
+    const brand = req.query.brand === 'nidal' ? 'nidal' : 'nidal-junior';
+    const platform = ['instagram', 'facebook'].includes(req.query.platform) ? req.query.platform : null;
+    res.json(await getSocialProfileHistory(brand, platform, req.query.limit));
+  } catch (error) { next(error); }
+});
+
+app.post('/api/social/profiles/sync', async (req, res, next) => {
+  try {
+    const brand = req.body.brand === 'nidal' ? 'nidal' : 'nidal-junior';
+    const synced = await syncSocialProfiles({
+      brand,
+      instagramUrl: req.body.instagramUrl || '',
+      facebookUrl: req.body.facebookUrl || ''
+    });
+    const saved = await saveSocialProfiles(brand, synced);
+    res.json({ ok: true, ...synced, saved });
+  } catch (error) { next(error); }
+});
 
 app.get('/api/kpi/targets', async (req, res, next) => {
   try {
