@@ -101,9 +101,27 @@ app.use((error, _req, res, _next) => {
   res.status(500).json({ error: error.message || 'Erreur serveur' });
 });
 
-initDatabase()
-  .then(connected => app.listen(port, '0.0.0.0', () => console.log(`Nidal Content Hub ecoute sur :${port} | PostgreSQL: ${connected ? 'connecte' : 'mode memoire'}`)))
-  .catch(error => {
-    console.error('Initialisation PostgreSQL impossible:', error);
-    process.exit(1);
+process.on('uncaughtException', err => {
+  console.error('Exception non capturee:', err);
+});
+
+process.on('unhandledRejection', reason => {
+  console.error('Rejet de promesse non gere:', reason);
+});
+
+const server = app.listen(port, '0.0.0.0', () => {
+  console.log(`Nidal Content Hub demarre sur http://0.0.0.0:${port}`);
+  initDatabase().catch(error => {
+    console.error('Avertissement initialisation base:', error.message);
   });
+});
+
+function shutdown(signal) {
+  console.log(`${signal} recu, fermeture progressive du serveur...`);
+  server.close(async () => {
+    process.exit(0);
+  });
+}
+
+process.on('SIGTERM', () => shutdown('SIGTERM'));
+process.on('SIGINT', () => shutdown('SIGINT'));
