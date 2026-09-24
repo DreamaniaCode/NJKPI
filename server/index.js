@@ -11,8 +11,9 @@ import {
   getKpiTargets, saveKpiTargets,
   saveSocialProfiles, getSocialProfiles, getSocialProfileHistory
 } from './repository.js';
-import { metaConfigured, syncContentFromUrl, syncAds, syncSocialProfiles } from './services/meta.js';
+import { metaConfigured, syncContentFromUrl, syncAds, syncSocialProfiles, syncAudienceConversions } from './services/meta.js';
 import { getMetaLiveCache, setMetaLiveCache, isMetaLiveCacheFresh } from './services/meta-live.js';
+import { getAudienceCache, setAudienceCache, isAudienceCacheFresh } from './services/audience-cache.js';
 import {
   agentConfigured, getAiProvider, generateAgentOutput, shouldAutoSave,
   parseStructuredContent, getEditorialAgents, generateEditorialOutput,
@@ -326,6 +327,22 @@ app.post('/api/contents/:id/sync', async (req, res, next) => {
 
 app.get('/api/ads', async (req, res, next) => { try { res.json(await listAds(req.query.brand || 'nidal-junior')); } catch (error) { next(error); } });
 app.post('/api/ads/sync', async (req, res, next) => { try { const brand = req.body.brand || 'nidal-junior'; const campaigns = await syncAds(brand); res.json(await saveAds(brand, campaigns)); } catch (error) { next(error); } });
+
+app.get('/api/audience-conversions', async (req, res, next) => {
+  try {
+    const brand = req.query.brand === 'nidal' ? 'nidal' : 'nidal-junior';
+    const ttlSeconds = Number(process.env.META_AUDIENCE_CACHE_SECONDS || 900);
+    const force = String(req.query.refresh || '') === '1';
+
+    if (!force && isAudienceCacheFresh(brand, ttlSeconds)) {
+      return res.json({ ok: true, cached: true, ...getAudienceCache(brand) });
+    }
+
+    const payload = await syncAudienceConversions(brand);
+    const cached = setAudienceCache(brand, payload);
+    res.json({ ok: true, cached: false, ...cached });
+  } catch (error) { next(error); }
+});
 
 app.get('/api/social/live', async (req, res, next) => {
   try {

@@ -142,13 +142,27 @@ curl -X POST https://votre-domaine/webhooks/kpi-ai \
 
 ## Meta Live KPI
 
-Le dashboard peut maintenant lire les indicateurs Instagram professionnels directement depuis Meta Graph API.
+Le dashboard peut maintenant lire les indicateurs Meta directement depuis Graph API en gardant Facebook et Instagram clairement séparés.
 
 - `GET /api/social/live?brand=nidal` synchronise le profil Meta côté serveur et utilise un cache court.
 - Le navigateur rafraîchit la vue Meta Live toutes les 60 secondes quand l'application est ouverte.
 - `?refresh=1` force une nouvelle lecture Meta (bouton « Actualiser » du dashboard).
-- Les followers Instagram provenant de `followers_count` alimentent automatiquement la valeur courante du KPI Followers sans modifier la cible définie par l'utilisateur.
+- Les abonnés Instagram provenant de `followers_count` alimentent le KPI **Followers Instagram** sans être additionnés aux abonnés Facebook.
+- Le dashboard affiche un bloc Instagram et un bloc Facebook distincts afin d'éviter tout mélange entre les plateformes.
 - Les insights de compte lus actuellement sont `profile_views`, `reach` et `accounts_engaged`, avec `period=day` et `metric_type=total_value`.
 - Le token Meta reste exclusivement côté serveur dans Coolify.
 
 Ce fonctionnement est du **quasi temps réel** : NJKPI peut interroger Meta chaque minute, mais la fraîcheur effective dépend du délai de mise à jour des Insights chez Meta. Les webhooks serviront plus tard aux événements pris en charge par Meta, pas à transformer toutes les métriques Insights en flux instantané.
+
+
+## Audience & conversions
+
+Une vue dédiée **Audience & conversions** sépare les données organiques et publicitaires :
+
+- Meta Ads sur les 90 derniers jours : dépenses, reach, impressions, clics et actions/conversions ;
+- audience publicitaire par âge/genre et par région lorsque le compte Ads et les permissions nécessaires sont disponibles ;
+- anciens contenus Instagram classés par performance réelle (reach, vues, interactions, partages, enregistrements) ;
+- anciens contenus Facebook classés séparément ;
+- cache de 15 minutes par défaut pour éviter de multiplier les appels Meta, avec actualisation manuelle possible.
+
+Pour activer la partie Ads, renseigner `META_AD_ACCOUNT_ID_NIDAL` / `META_AD_ACCOUNT_ID_NIDAL_JUNIOR` et utiliser un token Meta autorisé à lire les Insights publicitaires. Pour des conversions site précises (formulaire, RDV, inscription), relier ensuite le Pixel Meta et/ou la Conversions API avec des événements clairement définis.

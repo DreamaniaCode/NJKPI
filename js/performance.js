@@ -35,7 +35,7 @@ const PerformanceView = (() => {
         </div>
 
         <div class="kpi-goals-grid">
-          ${_renderGoalCard('👥', 'Followers (Abonnés)', targets.followers, '#1746d1', 'abonnés')}
+          ${_renderGoalCard('📸', 'Followers Instagram', targets.followers, '#1746d1', 'abonnés')}
           ${_renderGoalCard('👁️', 'Vues Vidéos & Reels', targets.views, '#ffc928', 'vues')}
           ${_renderGoalCard('💬', 'Commentaires & Échanges', targets.comments, '#31b9cc', 'commentaires')}
           ${_renderGoalCard('🎯', 'Conversions / Inscriptions', targets.conversions, '#d91b5c', 'inscriptions')}
@@ -226,7 +226,7 @@ const PerformanceView = (() => {
     const totals = targets.contentTotals;
 
     const fields = [
-      { key: 'followers', icon: '👥', label: 'Followers / Abonnés', unit: 'abonnés', color: '#1746d1', hint: 'Nombre total d’abonnés aux pages' },
+      { key: 'followers', icon: '📸', label: 'Followers Instagram', unit: 'abonnés IG', color: '#1746d1', hint: 'Abonnés Instagram uniquement — ne pas additionner Facebook' },
       { key: 'views', icon: '👁️', label: 'Vues Vidéos & Reels', unit: 'vues', color: '#ffc928', hint: 'Cumul des lectures de vidéos et stories' },
       { key: 'comments', icon: '💬', label: 'Commentaires & Échanges', unit: 'commentaires', color: '#31b9cc', hint: 'Réponses, retours et messages générés' },
       { key: 'conversions', icon: '🎯', label: 'Conversions / Inscriptions', unit: 'inscriptions', color: '#d91b5c', hint: 'Prises de contact, visites, inscriptions' },

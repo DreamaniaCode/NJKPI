@@ -87,7 +87,9 @@ export function buildKpiContext({
 } = {}) {
   const slug = normalizeBrand(brand);
   const instagramRecord = socialProfiles?.instagram || null;
+  const facebookRecord = socialProfiles?.facebook || null;
   const instagramProfile = instagramRecord?.profile || instagramRecord || null;
+  const facebookProfile = facebookRecord?.profile || facebookRecord || null;
   const liveFollowers = instagramProfile?.source === 'meta-api' && Number.isFinite(Number(instagramProfile.followers))
     ? Number(instagramProfile.followers)
     : null;
@@ -159,18 +161,26 @@ export function buildKpiContext({
         ? 'Des contenus de démonstration existent et sont exclus des agrégats réels.'
         : null
     },
-    socialLive: instagramProfile ? {
-      platform: 'instagram',
-      source: instagramProfile.source || instagramRecord?.source || null,
-      username: instagramProfile.username || null,
-      followers: instagramProfile.followers ?? null,
-      follows: instagramProfile.follows ?? null,
-      mediaCount: instagramProfile.mediaCount ?? null,
-      profileViews: instagramProfile.insights?.profileViews ?? null,
-      reach: instagramProfile.insights?.reach ?? null,
-      accountsEngaged: instagramProfile.insights?.accountsEngaged ?? null,
-      syncedAt: instagramRecord?.synced_at || instagramRecord?.syncedAt || null
-    } : null,
+    socialLive: {
+      instagram: instagramProfile ? {
+        source: instagramProfile.source || instagramRecord?.source || null,
+        username: instagramProfile.username || null,
+        followers: instagramProfile.followers ?? null,
+        follows: instagramProfile.follows ?? null,
+        mediaCount: instagramProfile.mediaCount ?? null,
+        profileViews: instagramProfile.insights?.profileViews ?? null,
+        reach: instagramProfile.insights?.reach ?? null,
+        accountsEngaged: instagramProfile.insights?.accountsEngaged ?? null,
+        syncedAt: instagramRecord?.synced_at || instagramRecord?.syncedAt || null
+      } : null,
+      facebook: facebookProfile ? {
+        source: facebookProfile.source || facebookRecord?.source || null,
+        username: facebookProfile.username || null,
+        name: facebookProfile.name || null,
+        followers: facebookProfile.followers ?? null,
+        syncedAt: facebookRecord?.synced_at || facebookRecord?.syncedAt || null
+      } : null
+    },
     contentPerformance: {
       totals,
       averages,
@@ -205,7 +215,9 @@ export function formatKpiContext(context = {}) {
   const perf = context.contentPerformance || {};
   const quality = context.dataQuality || {};
   const totals = perf.totals || {};
-  const social = context.socialLive || null;
+  const social = context.socialLive || {};
+  const socialInstagram = social.instagram || null;
+  const socialFacebook = social.facebook || null;
 
   lines.push(
     '',
@@ -215,10 +227,13 @@ export function formatKpiContext(context = {}) {
     `- Contenus de démonstration exclus : ${quality.demoMeasuredContents || 0}`,
     `- Contenus sans métriques : ${quality.unmeasuredContents || 0}`,
     '',
-    'META LIVE',
-    social
-      ? `- Instagram @${social.username || 'inconnu'} : ${social.followers ?? 'n/a'} followers, ${social.profileViews ?? 'n/a'} visites profil, reach ${social.reach ?? 'n/a'}, ${social.mediaCount ?? 'n/a'} médias`
-      : '- Aucun profil Meta Live synchronisé.',
+    'META LIVE — PLATEFORMES SÉPARÉES',
+    socialInstagram
+      ? `- Instagram @${socialInstagram.username || 'inconnu'} : ${socialInstagram.followers ?? 'n/a'} abonnés, ${socialInstagram.profileViews ?? 'n/a'} visites profil, reach ${socialInstagram.reach ?? 'n/a'}, ${socialInstagram.mediaCount ?? 'n/a'} médias`
+      : '- Instagram : non synchronisé.',
+    socialFacebook
+      ? `- Facebook ${socialFacebook.name || socialFacebook.username || 'Page'} : ${socialFacebook.followers ?? 'n/a'} abonnés`
+      : '- Facebook : non synchronisé.',
     '',
     'AGRÉGATS DES CONTENUS RÉELS',
     `- Portée : ${totals.portee || 0}`,

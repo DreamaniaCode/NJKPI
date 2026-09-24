@@ -10,6 +10,7 @@ const DashboardView = (() => {
     const focus = contents.find(item => item.statut === 'en-production') || contents.find(item => item.statut !== 'publie') || contents[0];
     const liveMeta = typeof NidalStore.getSocialLive === 'function' ? NidalStore.getSocialLive() : null;
     const liveInstagram = liveMeta?.instagram || null;
+    const liveFacebook = liveMeta?.facebook || null;
     const liveInsights = liveInstagram?.insights || {};
 
     view.innerHTML = `
@@ -58,23 +59,50 @@ const DashboardView = (() => {
         ${_kpi('A controler', stats.controls, 'Validation ou charte', '#172033')}
       </section>
 
-      ${liveInstagram ? `
-        <section style="margin-top:16px;padding:16px;border:1px solid var(--line);border-radius:12px;background:var(--panel);" aria-label="Meta Live">
-          <div class="section-heading" style="margin-bottom:12px;">
+      ${(liveInstagram || liveFacebook) ? `
+        <section style="margin-top:16px;padding:16px;border:1px solid var(--line);border-radius:12px;background:var(--panel);" aria-label="KPI Meta Live">
+          <div class="section-heading" style="margin-bottom:14px;">
             <div>
-              <span class="section-kicker">Meta Live · @${escapeHtml(liveInstagram.username || 'instagram')}</span>
-              <h2 style="font-size:16px;">Données Instagram synchronisées</h2>
+              <span class="section-kicker">KPI Réseaux sociaux · Meta Live</span>
+              <h2 style="font-size:16px;">Instagram et Facebook séparés</h2>
             </div>
             <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;">
               <small style="color:var(--muted);">${liveMeta?.syncedAt ? `Dernière synchro : ${new Date(liveMeta.syncedAt).toLocaleTimeString('fr-FR', { hour:'2-digit', minute:'2-digit', second:'2-digit' })}` : 'Synchronisation Meta'}</small>
-              <button class="btn btn--secondary btn--sm" id="dashboard-meta-refresh-btn">↻ Actualiser</button>
+              <button class="btn btn--secondary btn--sm" id="dashboard-meta-refresh-btn">↻ Actualiser FB + IG</button>
             </div>
           </div>
-          <div class="kpi-strip">
-            ${_kpi('Followers Instagram', formatNumber(liveInstagram.followers ?? 0), 'Meta API', '#1746d1')}
-            ${_kpi('Visites profil', liveInsights.profileViews == null ? '—' : formatNumber(liveInsights.profileViews), 'Meta Insights', '#d91b5c')}
-            ${_kpi('Reach', liveInsights.reach == null ? '—' : formatNumber(liveInsights.reach), 'Meta Insights · estimé', '#31b9cc')}
-            ${_kpi('Médias', formatNumber(liveInstagram.mediaCount ?? 0), 'Publications Instagram', '#ffc928')}
+
+          <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(320px,1fr));gap:14px;">
+            <article style="border:1px solid var(--line);border-radius:10px;padding:14px;background:var(--surface);">
+              <div style="display:flex;justify-content:space-between;gap:12px;align-items:flex-start;margin-bottom:10px;">
+                <div>
+                  <span class="section-kicker">Instagram</span>
+                  <strong style="display:block;font-size:14px;">@${escapeHtml(liveInstagram?.username || 'non connecté')}</strong>
+                </div>
+                <span class="badge badge--planifie">IG</span>
+              </div>
+              <div class="kpi-strip">
+                ${_kpi('Abonnés IG', liveInstagram ? formatNumber(liveInstagram.followers ?? 0) : '—', 'Instagram uniquement', '#1746d1')}
+                ${_kpi('Visites profil IG', liveInsights.profileViews == null ? '—' : formatNumber(liveInsights.profileViews), 'Instagram Insights', '#d91b5c')}
+                ${_kpi('Reach IG', liveInsights.reach == null ? '—' : formatNumber(liveInsights.reach), 'Instagram · estimé', '#31b9cc')}
+                ${_kpi('Médias IG', liveInstagram ? formatNumber(liveInstagram.mediaCount ?? 0) : '—', 'Instagram', '#ffc928')}
+              </div>
+            </article>
+
+            <article style="border:1px solid var(--line);border-radius:10px;padding:14px;background:var(--surface);">
+              <div style="display:flex;justify-content:space-between;gap:12px;align-items:flex-start;margin-bottom:10px;">
+                <div>
+                  <span class="section-kicker">Facebook</span>
+                  <strong style="display:block;font-size:14px;">${escapeHtml(liveFacebook?.name || 'Page non connectée')}</strong>
+                </div>
+                <span class="badge badge--brouillon">FB</span>
+              </div>
+              <div class="kpi-strip">
+                ${_kpi('Abonnés FB', liveFacebook ? formatNumber(liveFacebook.followers ?? 0) : '—', 'Facebook uniquement', '#1746d1')}
+                ${_kpi('Page Facebook', liveFacebook?.username ? '@' + escapeHtml(liveFacebook.username) : (liveFacebook ? 'Connectée' : '—'), 'Meta API', '#31b9cc')}
+                ${_kpi('Insights FB', liveFacebook?.insightsAvailable ? 'Actifs' : '—', liveFacebook?.insightsAvailable ? 'Facebook Insights' : 'À connecter', '#ffc928')}
+              </div>
+            </article>
           </div>
         </section>
       ` : ''}
@@ -89,7 +117,7 @@ const DashboardView = (() => {
           <button class="btn btn--secondary btn--sm" id="dashboard-edit-targets-btn">🎯 Fixer les objectifs</button>
         </div>
         <div class="kpi-goals-grid kpi-goals-grid--dashboard">
-          ${_targetMiniCard('👥', 'Followers', NidalStore.getKpiTargets().followers, '#1746d1')}
+          ${_targetMiniCard('📸', 'Followers Instagram', NidalStore.getKpiTargets().followers, '#1746d1')}
           ${_targetMiniCard('👁️', 'Vues Vidéos', NidalStore.getKpiTargets().views, '#ffc928')}
           ${_targetMiniCard('💬', 'Commentaires', NidalStore.getKpiTargets().comments, '#31b9cc')}
           ${_targetMiniCard('🎯', 'Conversions', NidalStore.getKpiTargets().conversions, '#d91b5c')}
