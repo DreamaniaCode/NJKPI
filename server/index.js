@@ -51,11 +51,12 @@ function requireAccess(req, res, next) {
 }
 
 async function getAiKpiContext(brand) {
-  const [targetsRecord, contents] = await Promise.all([
+  const [targetsRecord, contents, socialProfiles] = await Promise.all([
     getKpiTargets(brand),
-    listContents(brand)
+    listContents(brand),
+    getSocialProfiles(brand)
   ]);
-  return buildKpiContext({ brand, targetsRecord, contents });
+  return buildKpiContext({ brand, targetsRecord, contents, socialProfiles });
 }
 
 app.get('/api/health', async (_req, res) => {
