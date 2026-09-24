@@ -45,6 +45,10 @@ const NidalAPI = (() => {
   const getSocialProfiles = brand => request(`/api/social/profiles?brand=${encodeURIComponent(brand)}`);
   const getSocialLive = (brand, refresh = false) => request(`/api/social/live?brand=${encodeURIComponent(brand)}${refresh ? '&refresh=1' : ''}`);
   const getAudienceConversions = (brand, refresh = false) => request(`/api/audience-conversions?brand=${encodeURIComponent(brand)}${refresh ? '&refresh=1' : ''}`);
+  const getAudienceHistory = (brand, limit = 168) => request(`/api/audience-history?brand=${encodeURIComponent(brand)}&limit=${encodeURIComponent(limit)}`);
+  const listPublishJobs = brand => request(`/api/publish/jobs?brand=${encodeURIComponent(brand)}`);
+  const createPublishJob = body => request('/api/publish/jobs', { method: 'POST', body: JSON.stringify(body) });
+  const runPublishJob = id => request(`/api/publish/jobs/${encodeURIComponent(id)}/run`, { method: 'POST' });
 
   const listEditorialAgents = () => request('/api/editorial/agents');
   const listEditorialProviders = () => request('/api/editorial/providers');
@@ -57,7 +61,8 @@ const NidalAPI = (() => {
   return {
     init, isOnline, getHealth, getConfig, saveConfig, request,
     listContents, upsertContent, deleteContent, syncContent,
-    generate, listAds, syncAds, getKpiTargets, saveKpiTargets, getSocialProfiles, getSocialLive, getAudienceConversions,
+    generate, listAds, syncAds, getKpiTargets, saveKpiTargets, getSocialProfiles, getSocialLive, getAudienceConversions, getAudienceHistory,
+    listPublishJobs, createPublishJob, runPublishJob,
     listEditorialAgents, listEditorialProviders, listEditorialGenerations, generateEditorial,
     saveToPlanning, transferEditorial, deleteEditorialGeneration
   };
