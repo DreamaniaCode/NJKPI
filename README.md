@@ -183,3 +183,25 @@ NJKPI dispose d'une vue **Publier & programmer** :
 La collecte Audience/Ads est aussi persistée dans PostgreSQL chaque heure. La page **Audience & conversions** utilise cet historique pour afficher des courbes horaires et conserver les résultats après redémarrage.
 
 Pour la publication Instagram, le token Meta doit disposer de l'autorisation de publication de contenu Instagram. Pour Facebook, la Page doit être administrable avec `pages_manage_posts` et un Page Access Token valide.
+
+
+## Upload des photos et vidéos
+
+NJKPI permet maintenant de sélectionner directement une photo ou une vidéo depuis **Nouveau contenu** et **Publier & programmer**. Le navigateur envoie le fichier au backend, qui crée une URL publique sous `/uploads/...` afin que Meta puisse récupérer le média.
+
+Variables recommandées sur Coolify :
+
+```env
+PUBLIC_BASE_URL=https://nidal.myskillscloud.com
+MEDIA_UPLOAD_DIR=/data/nidal-uploads
+MEDIA_UPLOAD_LIMIT=50mb
+```
+
+Pour conserver les fichiers après un redéploiement, créer un **volume persistant Coolify** monté sur `/data/nidal-uploads`. Sans volume persistant, les médias stockés dans le conteneur peuvent disparaître au prochain déploiement.
+
+La page **Contenus** propose désormais trois actions visibles lors de la création :
+- **Enregistrer** ;
+- **Programmer** ;
+- **Publier maintenant**.
+
+Elle propose aussi **Planifier 7 jours**, avec une ligne par jour de la semaine, upload de média par publication et programmation en masse.
