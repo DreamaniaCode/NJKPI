@@ -12,6 +12,7 @@ import {
   saveSocialProfiles, getSocialProfiles, getSocialProfileHistory
 } from './repository.js';
 import { metaConfigured, syncContentFromUrl, syncAds, syncSocialProfiles } from './services/meta.js';
+import { getMetaLiveCache, setMetaLiveCache, isMetaLiveCacheFresh } from './services/meta-live.js';
 import {
   agentConfigured, getAiProvider, generateAgentOutput, shouldAutoSave,
   parseStructuredContent, getEditorialAgents, generateEditorialOutput,
@@ -324,6 +325,30 @@ app.post('/api/contents/:id/sync', async (req, res, next) => {
 
 app.get('/api/ads', async (req, res, next) => { try { res.json(await listAds(req.query.brand || 'nidal-junior')); } catch (error) { next(error); } });
 app.post('/api/ads/sync', async (req, res, next) => { try { const brand = req.body.brand || 'nidal-junior'; const campaigns = await syncAds(brand); res.json(await saveAds(brand, campaigns)); } catch (error) { next(error); } });
+
+app.get('/api/social/live', async (req, res, next) => {
+  try {
+    const brand = req.query.brand === 'nidal' ? 'nidal' : 'nidal-junior';
+    const ttlSeconds = Number(process.env.META_LIVE_CACHE_SECONDS || 60);
+    const force = String(req.query.refresh || '') === '1';
+
+    if (!force && isMetaLiveCacheFresh(brand, ttlSeconds)) {
+      return res.json({ ok: true, cached: true, ...getMetaLiveCache(brand) });
+    }
+
+    const synced = await syncSocialProfiles({ brand });
+    const saved = await saveSocialProfiles(brand, synced);
+    const live = setMetaLiveCache(brand, {
+      brand,
+      syncedAt: synced.syncedAt,
+      instagram: synced.instagram,
+      facebook: synced.facebook,
+      errors: synced.errors || [],
+      saved
+    });
+    res.json({ ok: true, cached: false, ...live });
+  } catch (error) { next(error); }
+});
 
 app.get('/api/social/profiles', async (req, res, next) => {
   try {
