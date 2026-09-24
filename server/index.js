@@ -13,7 +13,8 @@ import { metaConfigured, syncContentFromUrl, syncAds } from './services/meta.js'
 import {
   agentConfigured, getAiProvider, generateAgentOutput, shouldAutoSave,
   parseStructuredContent, getEditorialAgents, generateEditorialOutput,
-  parseStructuredEditorial, parseStoryboard, parseQualityCheck
+  parseStructuredEditorial, parseStoryboard, parseQualityCheck,
+  SUPPORTED_AI_PROVIDERS
 } from './services/agent.js';
 
 const app = express();
@@ -133,6 +134,14 @@ app.get('/api/editorial/agents', (_req, res) => {
   res.json(getEditorialAgents());
 });
 
+app.get('/api/editorial/providers', (_req, res) => {
+  res.json({
+    currentServerProvider: getAiProvider(),
+    hasServerKey: agentConfigured(),
+    providers: SUPPORTED_AI_PROVIDERS
+  });
+});
+
 app.get('/api/editorial/generations', async (req, res, next) => {
   try {
     const list = await listEditorialGenerations(req.query.agent, req.query.brand);
@@ -150,6 +159,8 @@ app.post('/api/editorial/generate', async (req, res, next) => {
       objective,
       platform,
       format,
+      duration,
+      slideCount,
       targetDate,
       requiredInfo,
       cta,
@@ -159,7 +170,8 @@ app.post('/api/editorial/generate', async (req, res, next) => {
       language = 'Français',
       notes,
       revisionOf,
-      context = ''
+      context = '',
+      aiConfig = {}
     } = req.body;
 
     const briefText = topic || req.body.brief;
@@ -185,6 +197,8 @@ app.post('/api/editorial/generate', async (req, res, next) => {
       objective,
       platform,
       format,
+      duration: duration || (/reel|vidéo|video/i.test(format || '') ? '30 secondes' : undefined),
+      slideCount: slideCount || (/carrousel/i.test(format || '') ? '5 slides' : undefined),
       targetDate,
       requiredInfo,
       cta,
@@ -200,7 +214,8 @@ app.post('/api/editorial/generate', async (req, res, next) => {
       agentKey,
       brand,
       briefData,
-      context: enrichedContext
+      context: enrichedContext,
+      aiConfig
     });
 
     const generationId = crypto.randomUUID();
@@ -215,6 +230,7 @@ app.post('/api/editorial/generate', async (req, res, next) => {
       qualityCheck: generated.qualityCheck,
       status: 'brouillon',
       model: generated.model,
+      provider: generated.provider,
       isDemo: generated.isDemo,
       createdAt: new Date().toISOString()
     };

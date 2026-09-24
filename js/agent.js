@@ -2,6 +2,124 @@
 const AgentView = (() => {
   let _activeAgentKey = 'studio-junior';
 
+  const AI_CONFIG_KEY = 'nidal_ai_settings';
+
+  const DEFAULT_PROVIDERS = [
+    {
+      id: 'openrouter',
+      name: 'OpenRouter',
+      description: 'Multi-modèles (Llama 3.3, Gemini 2.0, DeepSeek R1, Claude, GPT...)',
+      defaultModel: 'meta-llama/llama-3.3-70b-instruct',
+      models: [
+        { id: 'meta-llama/llama-3.3-70b-instruct', name: 'Llama 3.3 70B Instruct (Recommandé)', recommended: true },
+        { id: 'google/gemini-2.0-flash-exp:free', name: 'Gemini 2.0 Flash (Gratuit)', free: true },
+        { id: 'deepseek/deepseek-r1:free', name: 'DeepSeek R1 Raisonnement (Gratuit)', free: true },
+        { id: 'deepseek/deepseek-chat', name: 'DeepSeek Chat V3 (Économique & rapide)' },
+        { id: 'qwen/qwen-2.5-72b-instruct:free', name: 'Qwen 2.5 72B Instruct (Gratuit)', free: true },
+        { id: 'anthropic/claude-3.5-sonnet', name: 'Claude 3.5 Sonnet (Qualité supérieure)' },
+        { id: 'openai/gpt-4o-mini', name: 'OpenAI GPT-4o Mini' },
+        { id: 'mistralai/mistral-large-2411', name: 'Mistral Large 2411 (Français parfait)' }
+      ],
+      allowCustomModel: true
+    },
+    {
+      id: 'openai',
+      name: 'OpenAI',
+      description: 'API officielle OpenAI (GPT-4o, GPT-4o-mini, o3-mini)',
+      defaultModel: 'gpt-4o-mini',
+      models: [
+        { id: 'gpt-4o-mini', name: 'GPT-4o Mini (Rapide et économique)', recommended: true },
+        { id: 'gpt-4o', name: 'GPT-4o (Modèle phare multimodal)' },
+        { id: 'o3-mini', name: 'o3-mini (Raisonnement avancé)' }
+      ],
+      allowCustomModel: true
+    },
+    {
+      id: 'gemini',
+      name: 'Google Gemini',
+      description: 'API officielle Google Gemini (Gemini 2.0 Flash, 1.5 Pro)',
+      defaultModel: 'gemini-2.0-flash',
+      models: [
+        { id: 'gemini-2.0-flash', name: 'Gemini 2.0 Flash (Très rapide & récent)', recommended: true },
+        { id: 'gemini-1.5-flash', name: 'Gemini 1.5 Flash (Équilibré)' },
+        { id: 'gemini-1.5-pro', name: 'Gemini 1.5 Pro (Haute réflexion)' }
+      ],
+      allowCustomModel: true
+    },
+    {
+      id: 'anthropic',
+      name: 'Anthropic Claude',
+      description: 'API officielle Anthropic Claude',
+      defaultModel: 'claude-3-5-sonnet-20241022',
+      models: [
+        { id: 'claude-3-5-sonnet-20241022', name: 'Claude 3.5 Sonnet (Le plus créatif & soigné)', recommended: true },
+        { id: 'claude-3-5-haiku-20241022', name: 'Claude 3.5 Haiku (Ultra-rapide)' }
+      ],
+      allowCustomModel: true
+    },
+    {
+      id: 'groq',
+      name: 'Groq',
+      description: 'Inférence ultra-rapide (LPU)',
+      defaultModel: 'llama-3.3-70b-versatile',
+      models: [
+        { id: 'llama-3.3-70b-versatile', name: 'Llama 3.3 70B Versatile', recommended: true },
+        { id: 'llama-3.1-8b-instant', name: 'Llama 3.1 8B Instant (Instantané)' },
+        { id: 'mixtral-8x7b-32768', name: 'Mixtral 8x7B 32k' }
+      ],
+      allowCustomModel: true
+    },
+    {
+      id: 'deepseek',
+      name: 'DeepSeek',
+      description: 'API officielle DeepSeek',
+      defaultModel: 'deepseek-chat',
+      models: [
+        { id: 'deepseek-chat', name: 'DeepSeek Chat (V3)', recommended: true },
+        { id: 'deepseek-reasoner', name: 'DeepSeek Reasoner (R1)' }
+      ],
+      allowCustomModel: true
+    },
+    {
+      id: 'demo',
+      name: 'Mode Démonstration',
+      description: 'Générateur interne basé sur des archétypes stricts par format (aucune clé requise)',
+      defaultModel: 'demo-template',
+      models: [
+        { id: 'demo-template', name: 'Modèles internes Nidal par format', recommended: true }
+      ],
+      allowCustomModel: false
+    }
+  ];
+
+  let _aiProviders = DEFAULT_PROVIDERS;
+  let _serverAiMeta = { currentServerProvider: 'none', hasServerKey: false };
+
+  function getAiConfig() {
+    try {
+      const raw = localStorage.getItem(AI_CONFIG_KEY);
+      if (raw) {
+        const parsed = JSON.parse(raw);
+        return {
+          provider: parsed.provider || 'openrouter',
+          model: parsed.model || 'meta-llama/llama-3.3-70b-instruct',
+          customModel: parsed.customModel || '',
+          apiKey: parsed.apiKey || ''
+        };
+      }
+    } catch {}
+    return {
+      provider: 'openrouter',
+      model: 'meta-llama/llama-3.3-70b-instruct',
+      customModel: '',
+      apiKey: ''
+    };
+  }
+
+  function saveAiConfig(cfg) {
+    localStorage.setItem(AI_CONFIG_KEY, JSON.stringify(cfg));
+  }
+
   const _state = {
     'studio-junior': {
       brief: {
@@ -10,6 +128,8 @@ const AgentView = (() => {
         objective: 'Stimuler la curiosité et l’amour des livres',
         platform: 'Instagram Reel + Facebook Story',
         format: 'reel',
+        duration: '30 secondes',
+        slideCount: '5 slides',
         targetDate: '',
         requiredInfo: '',
         cta: 'Racontez-nous en commentaire le livre préféré de votre enfant !',
@@ -32,6 +152,8 @@ const AgentView = (() => {
         objective: 'Équilibrer les piliers : pédagogie, vie scolaire, conseils et Nidal Junior',
         platform: 'Multi-plateformes (Instagram, Facebook, LinkedIn)',
         format: 'calendrier_mois',
+        duration: '30 secondes',
+        slideCount: '5 slides',
         targetDate: '',
         requiredInfo: '',
         cta: 'Découvrez notre projet éducatif sur gsnidal.ma',
@@ -58,9 +180,10 @@ const AgentView = (() => {
       _activeAgentKey = brand === 'nidal' ? 'planning-nidal' : 'studio-junior';
 
       if (NidalAPI.isOnline()) {
-        const [genJunior, genPlanning] = await Promise.all([
+        const [genJunior, genPlanning, provData] = await Promise.all([
           NidalAPI.listEditorialGenerations('studio-junior').catch(() => []),
-          NidalAPI.listEditorialGenerations('planning-nidal').catch(() => [])
+          NidalAPI.listEditorialGenerations('planning-nidal').catch(() => []),
+          NidalAPI.listEditorialProviders().catch(() => null)
         ]);
         if (Array.isArray(genJunior) && genJunior.length) {
           _state['studio-junior'].history = genJunior;
@@ -69,6 +192,13 @@ const AgentView = (() => {
         if (Array.isArray(genPlanning) && genPlanning.length) {
           _state['planning-nidal'].history = genPlanning;
           _state['planning-nidal'].currentGeneration = _formatLoadedGen(genPlanning[0]);
+        }
+        if (provData?.providers?.length) {
+          _aiProviders = provData.providers;
+          _serverAiMeta = {
+            currentServerProvider: provData.currentServerProvider,
+            hasServerKey: Boolean(provData.hasServerKey)
+          };
         }
       }
       _initialized = true;
@@ -91,6 +221,7 @@ const AgentView = (() => {
       status: gen.status || 'brouillon',
       contentId: gen.content_id || null,
       model: gen.model || '',
+      provider: gen.provider || '',
       isDemo: Boolean(gen.is_demo),
       createdAt: gen.created_at || new Date().toISOString()
     };
@@ -103,9 +234,18 @@ const AgentView = (() => {
 
     const online = NidalAPI.isOnline();
     const health = NidalAPI.getHealth();
-    const aiReady = Boolean(health?.integrations?.ai || health?.integrations?.openai);
-    const aiProvider = health?.integrations?.aiProvider;
-    const aiLabel = aiReady ? (aiProvider === 'openrouter' ? 'OpenRouter connecté' : 'IA connectée') : 'Mode démo';
+    const aiConfig = getAiConfig();
+    const providerObj = _aiProviders.find(p => p.id === aiConfig.provider) || _aiProviders[0];
+    const effectiveModel = (aiConfig.model === 'custom' && aiConfig.customModel) ? aiConfig.customModel : aiConfig.model;
+    const isCustomKey = Boolean(aiConfig.apiKey?.trim());
+    const hasServer = _serverAiMeta.hasServerKey;
+    const isDemo = aiConfig.provider === 'demo' || (!isCustomKey && !hasServer);
+
+    const keyStatusText = isCustomKey
+      ? '<span class="badge badge--green">Clé locale active</span>'
+      : (hasServer
+        ? '<span class="badge badge--blue">Clé serveur active</span>'
+        : '<span class="badge badge--yellow">Mode démo</span>');
 
     const currentAgent = _state[_activeAgentKey];
     const gen = currentAgent.currentGeneration;
@@ -118,10 +258,30 @@ const AgentView = (() => {
           <h1 class="view__title">Agents éditoriaux</h1>
           <p class="view__subtitle">Studio Nidal Junior (Nounou) & Planning stratégique GS Nidal</p>
         </div>
-        <span class="connection-pill ${online ? (aiReady ? 'connection-pill--ok' : 'connection-pill--pending') : 'connection-pill--off'}">
-          ${online ? aiLabel : 'Backend hors ligne'}
-        </span>
+        <div style="display:flex;align-items:center;gap:8px;">
+          <button class="btn btn--secondary btn--sm" id="btn-open-ai-settings" title="Configurer l'IA et changer de modèle">
+            ⚙️ Moteur IA & Modèles
+          </button>
+          <span class="connection-pill ${online ? (!isDemo ? 'connection-pill--ok' : 'connection-pill--pending') : 'connection-pill--off'}">
+            ${online ? (!isDemo ? `${providerObj.name} connecté` : 'Mode démo actif') : 'Backend hors ligne'}
+          </span>
+        </div>
       </header>
+
+      <!-- Barre d'état du moteur IA -->
+      <section class="ai-engine-bar">
+        <div class="ai-engine-bar__info">
+          <span>🤖 Fournisseur IA : <strong>${escapeHtml(providerObj.name)}</strong></span>
+          <span>·</span>
+          <span>Modèle sélectionné : <code class="ai-engine-bar__badge">${escapeHtml(effectiveModel || 'Modèle standard')}</code></span>
+          ${keyStatusText}
+        </div>
+        <div>
+          <button type="button" class="btn btn--secondary btn--sm" id="btn-open-ai-settings-inline">
+            Changer de modèle / clé
+          </button>
+        </div>
+      </section>
 
       <!-- Sélecteur d'agent -->
       <section class="agents-selector" role="tablist" aria-label="Sélecteur d'agent">
@@ -129,7 +289,7 @@ const AgentView = (() => {
           <img src="./assets/mascot.png" alt="Nounou" class="agent-card__avatar">
           <div class="agent-card__info">
             <strong>Studio Nidal Junior</strong>
-            <small>Création jeunesse · Mascotte Nounou · Storyboards & Réseaux sociaux</small>
+            <small>Création jeunesse · Mascotte Nounou · Storyboards, Posts & Quiz</small>
           </div>
         </div>
 
@@ -164,7 +324,7 @@ const AgentView = (() => {
 
           <div class="form-row">
             <div class="form-group">
-              <label for="brief-format">Format / Type de publication</label>
+              <label for="brief-format">Format / Type de publication *</label>
               <select id="brief-format" class="form-control">
                 ${_formatOptionsHtml(_activeAgentKey, currentAgent.brief.format)}
               </select>
@@ -176,6 +336,31 @@ const AgentView = (() => {
                   .map(p => `<option value="${p}" ${currentAgent.brief.platform === p ? 'selected' : ''}>${p}</option>`).join('')}
               </select>
             </div>
+          </div>
+
+          <!-- Options dynamiques selon format : Durée pour Reel, Slides pour Carrousel, Note pour Post -->
+          <div id="format-duration-group" class="form-group" style="${/reel|vidéo|video/i.test(currentAgent.brief.format) ? '' : 'display:none;'}">
+            <label for="brief-duration">Durée totale décidée du Reel / Vidéo *</label>
+            <select id="brief-duration" class="form-control">
+              <option value="15 secondes" ${currentAgent.brief.duration === '15 secondes' ? 'selected' : ''}>15 secondes (Flash / Rythme soutenu)</option>
+              <option value="30 secondes" ${(!currentAgent.brief.duration || currentAgent.brief.duration === '30 secondes') ? 'selected' : ''}>30 secondes (Format standard recommandé)</option>
+              <option value="45 secondes" ${currentAgent.brief.duration === '45 secondes' ? 'selected' : ''}>45 secondes (Démonstration pédagogique)</option>
+              <option value="60 secondes" ${currentAgent.brief.duration === '60 secondes' ? 'selected' : ''}>60 secondes (Récit complet / Histoire)</option>
+            </select>
+          </div>
+
+          <div id="format-slides-group" class="form-group" style="${/carrousel/i.test(currentAgent.brief.format) ? '' : 'display:none;'}">
+            <label for="brief-slides">Nombre de slides du Carrousel *</label>
+            <select id="brief-slides" class="form-control">
+              <option value="4 slides" ${currentAgent.brief.slideCount === '4 slides' ? 'selected' : ''}>4 slides (Couverture + 2 étapes + Synthèse)</option>
+              <option value="5 slides" ${(!currentAgent.brief.slideCount || currentAgent.brief.slideCount === '5 slides') ? 'selected' : ''}>5 slides (Format recommandé équilibré)</option>
+              <option value="6 slides" ${currentAgent.brief.slideCount === '6 slides' ? 'selected' : ''}>6 slides (Approfondissement complet)</option>
+              <option value="8 slides" ${currentAgent.brief.slideCount === '8 slides' ? 'selected' : ''}>8 slides (Guide détaillé / Tutoriel)</option>
+            </select>
+          </div>
+
+          <div id="format-tip-box" class="format-tip" style="${/post/i.test(currentAgent.brief.format) ? '' : 'display:none;'}">
+            📌 <strong>Format Post :</strong> Accroche percutante, visuel clair, corps de texte aéré de 2-3 courts paragraphes, CTA clair et <strong>STRICTEMENT 5 HASHTAGS</strong> (aucun storyboard superflu).
           </div>
 
           <div class="form-row">
@@ -248,6 +433,7 @@ const AgentView = (() => {
             <div>
               <span class="section-kicker">${isJunior ? 'Production Studio Junior' : 'Proposition Stratégique'}</span>
               <h2>${gen?.structuredData?.titre || 'Proposition éditoriale'}</h2>
+              ${gen?.model ? `<small style="display:block;margin-top:3px;color:var(--muted);font-size:11px;">Moteur IA utilisé : <b>${escapeHtml(gen.provider || 'IA')}</b> (${escapeHtml(gen.model)})</small>` : ''}
             </div>
             <div>
               <button class="btn btn--secondary btn--sm" id="btn-copy-all" ${gen ? '' : 'disabled'}>Copier tout</button>
@@ -267,7 +453,7 @@ const AgentView = (() => {
             <button class="agent-tab-btn ${currentAgent.activeTab === 'storyboard' ? 'active' : ''}" data-tab="storyboard">
               🎬 Storyboard ${gen?.storyboard ? `(${gen.storyboard.length})` : ''}
             </button>
-            <button class="agent-tab-btn ${currentAgent.activeTab === 'social' ? 'active' : ''}" data-tab="social">📱 Légende & Tags</button>
+            <button class="agent-tab-btn ${currentAgent.activeTab === 'social' ? 'active' : ''}" data-tab="social">📱 Légende & 5 Hashtags</button>
             <button class="agent-tab-btn ${currentAgent.activeTab === 'quality' ? 'active' : ''}" data-tab="quality">🛡️ Contrôle qualité</button>
           </div>
 
@@ -275,7 +461,7 @@ const AgentView = (() => {
           ${currentAgent.showRevision ? `
             <div class="revision-panel">
               <strong style="display:block;margin-bottom:6px;font-size:11px;color:var(--blue);">Demander un ajustement à l'agent :</strong>
-              <textarea id="revision-prompt" class="form-control" rows="2" placeholder="Ex: Raccourcis l'accroche, accentue le rôle de Nounou en scène 2, et prévois un format Reel..."></textarea>
+              <textarea id="revision-prompt" class="form-control" rows="2" placeholder="Ex: Raccourcis l'accroche, change le rythme du Reel, accentue le rôle de Nounou..."></textarea>
               <div style="display:flex;justify-content:flex-end;gap:8px;margin-top:8px;">
                 <button class="btn btn--secondary btn--sm" id="btn-cancel-revision">Annuler</button>
                 <button class="btn btn--primary btn--sm" id="btn-submit-revision">Relancer la révision</button>
@@ -299,25 +485,26 @@ const AgentView = (() => {
   function _formatOptionsHtml(agentKey, selected) {
     if (agentKey === 'studio-junior') {
       return `
-        <option value="reel" ${selected === 'reel' ? 'selected' : ''}>Reel vidéo avec Nounou (Storyboard)</option>
-        <option value="story" ${selected === 'story' ? 'selected' : ''}>Story interactive / Devinette</option>
+        <option value="post" ${selected === 'post' ? 'selected' : ''}>Post réseaux sociaux (Accroche + Corps aéré + 5 hashtags)</option>
+        <option value="reel" ${selected === 'reel' ? 'selected' : ''}>Reel vidéo avec Nounou (Script minuté & temps décidé)</option>
+        <option value="carrousel" ${selected === 'carrousel' ? 'selected' : ''}>Carrousel d’éveil (Découpage slide par slide)</option>
+        <option value="quiz" ${selected === 'quiz' ? 'selected' : ''}>Quiz ludo-éducatif interactif (3 questions avec Nounou)</option>
+        <option value="story" ${selected === 'story' ? 'selected' : ''}>Série de Stories interactives (Sondages & stickers)</option>
         <option value="article" ${selected === 'article' ? 'selected' : ''}>Article pédagogique jeunesse</option>
-        <option value="conte" ${selected === 'conte' ? 'selected' : ''}>Mini-conte ou histoire Nounou</option>
-        <option value="carrousel" ${selected === 'carrousel' ? 'selected' : ''}>Carrousel d’éveil (4-6 pages)</option>
-        <option value="quiz" ${selected === 'quiz' ? 'selected' : ''}>Quiz ludo-éducatif</option>
-        <option value="experience" ${selected === 'experience' ? 'selected' : ''}>Expérience scientifique simple</option>
-        <option value="defi" ${selected === 'defi' ? 'selected' : ''}>Défi lecture ou créativité</option>
+        <option value="conte" ${selected === 'conte' ? 'selected' : ''}>Mini-conte ou histoire de Nounou</option>
         <option value="infographie" ${selected === 'infographie' ? 'selected' : ''}>Infographie par étapes</option>
       `;
     }
     return `
+      <option value="post_institutionnel" ${selected === 'post_institutionnel' ? 'selected' : ''}>Publication institutionnelle officielle (5 hashtags ciblés)</option>
+      <option value="reel_pedagogique" ${selected === 'reel_pedagogique' ? 'selected' : ''}>Vidéo institutionnelle / Reel (Script minuté)</option>
+      <option value="carrousel_methode" ${selected === 'carrousel_methode' ? 'selected' : ''}>Carrousel méthodes pédagogiques (Slide par slide)</option>
       <option value="calendrier_mois" ${selected === 'calendrier_mois' ? 'selected' : ''}>Calendrier mensuel (4 semaines équilibrées)</option>
-      <option value="planning_semaine" ${selected === 'planning_semaine' ? 'selected' : ''}>Planning hebdomadaire (7 jours)</option>
-      <option value="post_institutionnel" ${selected === 'post_institutionnel' ? 'selected' : ''}>Publication institutionnelle officielle</option>
-      <option value="carrousel_methode" ${selected === 'carrousel_methode' ? 'selected' : ''}>Carrousel méthodes pédagogiques</option>
+      <option value="planning_semaine" ${selected === 'planning_semaine' ? 'selected' : ''}>Planning hebdomadaire (7 jours détaillés)</option>
       <option value="infographie_conseils" ${selected === 'infographie_conseils' ? 'selected' : ''}>Infographie conseils aux familles</option>
       <option value="annonce_officielle" ${selected === 'annonce_officielle' ? 'selected' : ''}>Annonce administrative validée</option>
     `;
+  }
   }
 
   function _renderTabContent(agent) {
@@ -459,6 +646,26 @@ const AgentView = (() => {
   }
 
   function _bindEvents() {
+    // Open AI Settings Modal
+    const btnOpenAi = document.getElementById('btn-open-ai-settings');
+    const btnOpenAiInline = document.getElementById('btn-open-ai-settings-inline');
+    if (btnOpenAi) btnOpenAi.onclick = showAiConfigModal;
+    if (btnOpenAiInline) btnOpenAiInline.onclick = showAiConfigModal;
+
+    // Format change listener for dynamic options (Duration for Reel, Slides for Carrousel, Tip for Post)
+    const formatSelect = document.getElementById('brief-format');
+    if (formatSelect) {
+      formatSelect.onchange = () => {
+        const fmt = formatSelect.value;
+        const durGroup = document.getElementById('format-duration-group');
+        const slidesGroup = document.getElementById('format-slides-group');
+        const tipBox = document.getElementById('format-tip-box');
+        if (durGroup) durGroup.style.display = /reel|vidéo|video/i.test(fmt) ? '' : 'none';
+        if (slidesGroup) slidesGroup.style.display = /carrousel/i.test(fmt) ? '' : 'none';
+        if (tipBox) tipBox.style.display = /post/i.test(fmt) ? '' : 'none';
+      };
+    }
+
     // Select agent
     const btnJunior = document.getElementById('select-agent-junior');
     const btnPlanning = document.getElementById('select-agent-planning');
@@ -577,9 +784,15 @@ const AgentView = (() => {
   }
 
   function _readFormInputs() {
+    const format = document.getElementById('brief-format').value;
+    const durEl = document.getElementById('brief-duration');
+    const slideEl = document.getElementById('brief-slides');
+
     return {
       topic: document.getElementById('brief-topic').value.trim(),
-      format: document.getElementById('brief-format').value,
+      format,
+      duration: durEl ? durEl.value : undefined,
+      slideCount: slideEl ? slideEl.value : undefined,
       platform: document.getElementById('brief-platform').value,
       audience: document.getElementById('brief-audience').value.trim(),
       targetDate: document.getElementById('brief-target-date').value,
@@ -603,10 +816,13 @@ const AgentView = (() => {
     btn.disabled = true;
     btn.textContent = 'Création en cours par l’agent...';
 
+    const aiConfig = getAiConfig();
+
     try {
       const response = await NidalAPI.generateEditorial({
         agentKey: _activeAgentKey,
         brand: _activeAgentKey === 'planning-nidal' ? 'nidal' : 'nidal-junior',
+        aiConfig,
         ...inputs
       });
 
@@ -638,6 +854,7 @@ const AgentView = (() => {
     const currentAgent = _state[_activeAgentKey];
     const gen = currentAgent.currentGeneration;
     const inputs = _readFormInputs();
+    const aiConfig = getAiConfig();
 
     showToast('Révision en cours...', 'info');
 
@@ -645,6 +862,7 @@ const AgentView = (() => {
       const response = await NidalAPI.generateEditorial({
         agentKey: _activeAgentKey,
         brand: _activeAgentKey === 'planning-nidal' ? 'nidal' : 'nidal-junior',
+        aiConfig,
         ...inputs,
         revisionOf: `Consignes de révision sur la proposition précédente (« ${gen?.structuredData?.titre || inputs.topic} ») :\n${revText}\n\nContenu précédent à ajuster :\n${gen?.output || ''}`
       });
@@ -660,6 +878,161 @@ const AgentView = (() => {
     } catch (err) {
       showToast(err.message, 'error');
     }
+  }
+
+  function showAiConfigModal() {
+    const existing = document.getElementById('modal-ai-config');
+    if (existing) existing.remove();
+
+    const aiConfig = getAiConfig();
+    let currentProviderId = aiConfig.provider || 'openrouter';
+    let currentModel = aiConfig.model || 'meta-llama/llama-3.3-70b-instruct';
+    let customModel = aiConfig.customModel || '';
+    let apiKey = aiConfig.apiKey || '';
+
+    const overlay = document.createElement('div');
+    overlay.className = 'modal-overlay';
+    overlay.id = 'modal-ai-config';
+
+    const renderModalBody = () => {
+      const provider = _aiProviders.find(p => p.id === currentProviderId) || _aiProviders[0];
+      const models = provider.models || [];
+      const isCustomSelected = currentModel === 'custom' || (!models.some(m => m.id === currentModel) && currentModel);
+
+      return `
+        <div class="modal" style="max-width: 620px;">
+          <div class="modal__header">
+            <div>
+              <span class="section-kicker">Configuration IA</span>
+              <h3 class="modal__title">Moteur d'IA & Choix des Modèles</h3>
+            </div>
+            <button class="modal__close" id="ai-modal-close" type="button">&times;</button>
+          </div>
+          <div class="modal__body">
+            <p style="margin: 0 0 16px; font-size: 11.5px; color: var(--muted);">
+              Personnalisez le fournisseur d'IA et le modèle utilisé par Studio Nidal Junior et Planning GS Nidal. Vos clés et choix sont conservés directement dans votre navigateur.
+            </p>
+
+            <div class="form-group">
+              <label for="ai-select-provider">Fournisseur d'IA *</label>
+              <select id="ai-select-provider" class="form-control">
+                ${_aiProviders.map(p => `
+                  <option value="${p.id}" ${p.id === currentProviderId ? 'selected' : ''}>
+                    ${escapeHtml(p.name)} — ${escapeHtml(p.description)}
+                  </option>
+                `).join('')}
+              </select>
+            </div>
+
+            <div class="form-group" id="ai-model-select-group" style="${currentProviderId === 'demo' ? 'display:none;' : ''}">
+              <label for="ai-select-model">Modèle de langage *</label>
+              <select id="ai-select-model" class="form-control">
+                ${models.map(m => `
+                  <option value="${m.id}" ${(!isCustomSelected && m.id === currentModel) ? 'selected' : ''}>
+                    ${escapeHtml(m.name)}${m.free ? ' [Gratuit]' : ''}${m.recommended ? ' ⭐' : ''}
+                  </option>
+                `).join('')}
+                ${provider.allowCustomModel ? `<option value="custom" ${isCustomSelected ? 'selected' : ''}>✏️ Autre modèle (saisir manuellement)...</option>` : ''}
+              </select>
+            </div>
+
+            <div class="form-group" id="ai-custom-model-group" style="${(isCustomSelected && currentProviderId !== 'demo') ? '' : 'display:none;'}">
+              <label for="ai-input-custom-model">Slug du modèle personnalisé *</label>
+              <input type="text" id="ai-input-custom-model" class="form-control"
+                value="${escapeHtml(customModel || (isCustomSelected ? currentModel : ''))}"
+                placeholder="${currentProviderId === 'openrouter' ? 'Ex: meta-llama/llama-3.3-70b-instruct' : 'Ex: gpt-4o ou gemini-2.0-flash'}">
+              <small style="color:var(--muted);font-size:10px;margin-top:4px;display:block;">
+                Saisissez le slug exact du modèle (ex: meta-llama/llama-3.3-70b-instruct pour OpenRouter).
+              </small>
+            </div>
+
+            <div class="form-group" style="${currentProviderId === 'demo' ? 'display:none;' : ''}">
+              <label for="ai-input-api-key">Clé d'API ${escapeHtml(provider.name)}</label>
+              <div style="display:flex;gap:6px;">
+                <input type="password" id="ai-input-api-key" class="form-control" style="flex:1;"
+                  value="${escapeHtml(apiKey)}"
+                  placeholder="Laisser vide si configurée côté serveur">
+                <button type="button" class="btn btn--secondary btn--sm" id="ai-toggle-key-visibility" title="Afficher/masquer">👁️</button>
+              </div>
+              <small style="color:var(--muted);font-size:10.5px;margin-top:5px;display:block;">
+                🔒 Votre clé est stockée dans votre navigateur (localStorage) et transmise lors des requêtes au serveur.
+              </small>
+            </div>
+          </div>
+          <div class="modal__footer">
+            <button type="button" class="btn btn--secondary" id="ai-modal-cancel">Annuler</button>
+            <button type="button" class="btn btn--primary" id="ai-modal-save">Enregistrer la configuration</button>
+          </div>
+        </div>
+      `;
+    };
+
+    overlay.innerHTML = renderModalBody();
+    document.body.appendChild(overlay);
+
+    const bindModalEvents = () => {
+      const closeBtn = document.getElementById('ai-modal-close');
+      const cancelBtn = document.getElementById('ai-modal-cancel');
+      const saveBtn = document.getElementById('ai-modal-save');
+      const providerSelect = document.getElementById('ai-select-provider');
+      const modelSelect = document.getElementById('ai-select-model');
+      const toggleKeyBtn = document.getElementById('ai-toggle-key-visibility');
+      const keyInput = document.getElementById('ai-input-api-key');
+
+      const closeModal = () => overlay.remove();
+      if (closeBtn) closeBtn.onclick = closeModal;
+      if (cancelBtn) cancelBtn.onclick = closeModal;
+
+      if (toggleKeyBtn && keyInput) {
+        toggleKeyBtn.onclick = () => {
+          keyInput.type = keyInput.type === 'password' ? 'text' : 'password';
+        };
+      }
+
+      if (providerSelect) {
+        providerSelect.onchange = () => {
+          currentProviderId = providerSelect.value;
+          const prov = _aiProviders.find(p => p.id === currentProviderId) || _aiProviders[0];
+          currentModel = prov.defaultModel || (prov.models?.[0]?.id || 'custom');
+          overlay.innerHTML = renderModalBody();
+          bindModalEvents();
+        };
+      }
+
+      if (modelSelect) {
+        modelSelect.onchange = () => {
+          currentModel = modelSelect.value;
+          const customGroup = document.getElementById('ai-custom-model-group');
+          if (customGroup) {
+            customGroup.style.display = currentModel === 'custom' ? '' : 'none';
+          }
+        };
+      }
+
+      if (saveBtn) {
+        saveBtn.onclick = () => {
+          const selectedProv = document.getElementById('ai-select-provider')?.value || 'openrouter';
+          const selectedMod = document.getElementById('ai-select-model')?.value || 'meta-llama/llama-3.3-70b-instruct';
+          const customModInput = document.getElementById('ai-input-custom-model')?.value?.trim() || '';
+          const keyVal = document.getElementById('ai-input-api-key')?.value?.trim() || '';
+
+          const finalModel = selectedMod === 'custom' && customModInput ? customModInput : selectedMod;
+
+          saveAiConfig({
+            provider: selectedProv,
+            model: finalModel,
+            customModel: customModInput,
+            apiKey: keyVal
+          });
+
+          showToast('Configuration IA enregistrée avec succès !', 'success');
+          closeModal();
+          render();
+        };
+      }
+    };
+
+    bindModalEvents();
   }
 
   async function _saveContent(status = 'brouillon') {
