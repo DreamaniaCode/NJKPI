@@ -344,7 +344,7 @@ app.get('/api/publish/jobs', async (req, res, next) => {
   } catch (error) { next(error); }
 });
 
-app.post('/api/publish/jobs', async (req, res, next) => {
+app.post('/api/publish/jobs', authenticate, authorize('admin', 'editor'), async (req, res, next) => {
   try {
     const brand = req.body.brand === 'nidal' ? 'nidal' : 'nidal-junior';
     const platforms = Array.isArray(req.body.platforms)
@@ -375,7 +375,7 @@ app.post('/api/publish/jobs', async (req, res, next) => {
   } catch (error) { next(error); }
 });
 
-app.post('/api/publish/jobs/:id/run', async (req, res, next) => {
+app.post('/api/publish/jobs/:id/run', authenticate, authorize('admin', 'editor'), async (req, res, next) => {
   try {
     const jobs = await listPublishJobs(null, 500);
     const job = jobs.find(item => item.id === req.params.id);
@@ -825,9 +825,11 @@ const server = app.listen(port, '0.0.0.0', () => {
   console.log(`Nidal Content Hub demarre sur http://0.0.0.0:${port}`);
   initDatabase().then(async () => {
     await initAuth();
-    await runHourlyAudienceSync();
+    if (process.env.META_HOURLY_SYNC_ENABLED !== 'false') {
+      await runHourlyAudienceSync();
+      setInterval(() => runHourlyAudienceSync().catch(err => console.warn('Sync horaire:', err.message)), 60 * 60 * 1000);
+    }
     await runPublishQueue();
-    setInterval(() => runHourlyAudienceSync().catch(err => console.warn('Sync horaire:', err.message)), 60 * 60 * 1000);
     setInterval(() => runPublishQueue().catch(err => console.warn('File publication:', err.message)), 60 * 1000);
   }).catch(error => {
     console.error('Avertissement initialisation base:', error.message);
