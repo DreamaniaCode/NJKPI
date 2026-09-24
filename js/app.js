@@ -1,6 +1,7 @@
 /** Routeur principal et theme. */
 const App = (() => {
   let _currentView = 'dashboard';
+  let _metaLiveTimer = null;
   const VIEWS = ['dashboard', 'planning', 'contents', 'agent', 'performance', 'insights', 'quality', 'settings'];
 
   async function init() {
@@ -34,10 +35,20 @@ const App = (() => {
     try {
       await NidalAPI.init();
       await NidalStore.syncRemote();
+      _startMetaLivePolling();
       _renderCurrentView();
     } catch (err) {
       console.warn('Synchronisation initiale différée:', err);
     }
+  }
+
+  function _startMetaLivePolling() {
+    if (_metaLiveTimer || typeof NidalStore.syncMetaLive !== 'function') return;
+    _metaLiveTimer = window.setInterval(async () => {
+      if (document.hidden || !NidalAPI.isOnline()) return;
+      const live = await NidalStore.syncMetaLive(getActiveBrand(), false);
+      if (live && _currentView === 'dashboard') _renderCurrentView();
+    }, 60000);
   }
 
   function _showLoginPage() {
