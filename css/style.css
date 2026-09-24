@@ -1486,3 +1486,64 @@ textarea.form-control { resize: vertical; }
     grid-column: 2;
   }
 }
+
+
+/* ── Upload média pour publication Meta ─────────────────────────── */
+.media-upload-box {
+  display: grid;
+  gap: 9px;
+  padding: 12px;
+  border: 1px dashed #aab7c8;
+  border-radius: 12px;
+  background: linear-gradient(180deg, #fbfcfe, #f6f8fb);
+}
+
+.media-upload-box__status {
+  color: var(--muted);
+  font-size: 10px;
+}
+
+.media-upload-box__url {
+  font-size: 10px;
+  color: var(--muted);
+  background: #fff;
+}
+
+.media-upload-preview {
+  display: flex;
+  align-items: center;
+  justify-content: flex-start;
+  min-height: 0;
+}
+
+.media-upload-preview:empty {
+  display: none;
+}
+
+.media-upload-preview img,
+.media-upload-preview video {
+  display: block;
+  max-width: 220px;
+  max-height: 180px;
+  border-radius: 10px;
+  border: 1px solid var(--line);
+  object-fit: cover;
+  background: #fff;
+}
+
+.bulk-post-row input[type="file"] {
+  padding: 7px;
+  font-size: 10px;
+  background: #fff;
+}
+
+.bulk-post-row__number {
+  text-transform: capitalize;
+}
+
+@media (max-width: 720px) {
+  .media-upload-preview img,
+  .media-upload-preview video {
+    max-width: 100%;
+  }
+}
