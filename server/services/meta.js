@@ -245,6 +245,155 @@ async function syncFacebook(brand, finalUrl) {
   };
 }
 
+async function getInstagramTopContent(brand, limit = 50) {
+  const userId = brandEnv('META_IG_USER_ID', brand);
+  if (!userId) return { items: [], error: `META_IG_USER_ID non configuré pour ${brand}` };
+
+  try {
+    const media = await graph(`${userId}/media`, {
+      fields: 'id,caption,media_type,media_product_type,permalink,timestamp,like_count,comments_count,thumbnail_url',
+      limit: Math.max(1, Math.min(Number(limit) || 50, 100))
+    });
+
+    const candidates = (media.data || []).slice(0, Math.max(1, Math.min(Number(limit) || 50, 100)));
+    const items = [];
+
+    for (const item of candidates) {
+      let metricValues = {};
+      const metricSets = [
+        'reach,views,saved,shares,total_interactions',
+        'reach,plays,saved,shares,total_interactions',
+        'reach,saved,shares'
+      ];
+      for (const metric of metricSets) {
+        try {
+          const insights = await graph(`${item.id}/insights`, { metric });
+          metricValues = Object.fromEntries((insights.data || []).map(metricItem => [
+            metricItem.name,
+            Number(metricItem.values?.[0]?.value ?? metricItem.total_value?.value ?? metricItem.value ?? 0)
+          ]));
+          break;
+        } catch {}
+      }
+
+      const likes = Number(item.like_count || 0);
+      const comments = Number(item.comments_count || 0);
+      const shares = Number(metricValues.shares || 0);
+      const saves = Number(metricValues.saved || 0);
+      const interactions = Number(metricValues.total_interactions || (likes + comments + shares + saves));
+
+      items.push({
+        id: item.id,
+        platform: 'instagram',
+        caption: item.caption || '',
+        mediaType: item.media_type || item.media_product_type || 'UNKNOWN',
+        permalink: item.permalink || '',
+        timestamp: item.timestamp || null,
+        thumbnailUrl: item.thumbnail_url || null,
+        metrics: {
+          reach: Number(metricValues.reach || 0),
+          views: Number(metricValues.views ?? metricValues.plays ?? 0),
+          likes,
+          comments,
+          shares,
+          saves,
+          interactions
+        }
+      });
+    }
+
+    items.sort((a, b) => {
+      const aScore = (a.metrics.reach * 2) + a.metrics.views + (a.metrics.interactions * 10);
+      const bScore = (b.metrics.reach * 2) + b.metrics.views + (b.metrics.interactions * 10);
+      return bScore - aScore;
+    });
+
+    return { items, error: null };
+  } catch (error) {
+    return { items: [], error: error.message };
+  }
+}
+
+async function getAdsAudienceBreakdowns(brand) {
+  const accountId = brandEnv('META_AD_ACCOUNT_ID', brand);
+  if (!accountId) {
+    return {
+      configured: false,
+      campaigns: [],
+      ageGender: [],
+      regions: [],
+      errors: ['META_AD_ACCOUNT_ID non configuré']
+    };
+  }
+
+  const actId = `act_${String(accountId).replace(/^act_/, '')}`;
+  const common = {
+    level: 'campaign',
+    fields: 'campaign_id,campaign_name,impressions,reach,clicks,ctr,cpc,cpm,spend,actions,cost_per_action_type',
+    date_preset: 'last_90d',
+    limit: 200
+  };
+
+  const result = { configured: true, campaigns: [], ageGender: [], regions: [], errors: [] };
+
+  try {
+    const campaigns = await graph(`${actId}/insights`, common);
+    result.campaigns = campaigns.data || [];
+  } catch (error) {
+    result.errors.push(`campaigns: ${error.message}`);
+  }
+
+  try {
+    const audience = await graph(`${actId}/insights`, { ...common, breakdowns: 'age,gender' });
+    result.ageGender = audience.data || [];
+  } catch (error) {
+    result.errors.push(`age/gender: ${error.message}`);
+  }
+
+  try {
+    const regions = await graph(`${actId}/insights`, { ...common, breakdowns: 'region' });
+    result.regions = regions.data || [];
+  } catch (error) {
+    result.errors.push(`region: ${error.message}`);
+  }
+
+  return result;
+}
+
+export async function syncAudienceConversions(brand) {
+  const normalizedBrand = brand === 'nidal' ? 'nidal' : 'nidal-junior';
+  const [topInstagram, ads] = await Promise.all([
+    getInstagramTopContent(normalizedBrand, Number(process.env.META_MEDIA_ANALYSIS_LIMIT || 50)),
+    getAdsAudienceBreakdowns(normalizedBrand)
+  ]);
+
+  const campaignSummary = (ads.campaigns || []).reduce((acc, row) => {
+    acc.spend += Number(row.spend || 0);
+    acc.impressions += Number(row.impressions || 0);
+    acc.reach += Number(row.reach || 0);
+    acc.clicks += Number(row.clicks || 0);
+    for (const action of row.actions || []) {
+      const key = action.action_type || 'other';
+      acc.actions[key] = (acc.actions[key] || 0) + Number(action.value || 0);
+    }
+    return acc;
+  }, { spend: 0, impressions: 0, reach: 0, clicks: 0, actions: {} });
+
+  return {
+    brand: normalizedBrand,
+    syncedAt: new Date().toISOString(),
+    instagram: {
+      analyzedMedia: topInstagram.items.length,
+      topContent: topInstagram.items,
+      error: topInstagram.error
+    },
+    ads: {
+      ...ads,
+      summary: campaignSummary
+    }
+  };
+}
+
 export async function syncAds(brand) {
   const accountId = brandEnv('META_AD_ACCOUNT_ID', brand);
   const demo = process.env.DEMO_MODE === 'true' || !process.env.META_ACCESS_TOKEN || !accountId;
