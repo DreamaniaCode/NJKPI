@@ -407,9 +407,9 @@ export function agentConfigured(aiConfig = {}) {
 
 export function getAiProvider(aiConfig = {}) {
   if (aiConfig?.provider) return aiConfig.provider;
+  if (process.env.GEMINI_API_KEY) return 'gemini';
   if (process.env.OPENROUTER_API_KEY) return 'openrouter';
   if (process.env.OPENAI_API_KEY) return 'openai';
-  if (process.env.GEMINI_API_KEY) return 'gemini';
   if (process.env.ANTHROPIC_API_KEY) return 'anthropic';
   if (process.env.GROQ_API_KEY) return 'groq';
   if (process.env.DEEPSEEK_API_KEY) return 'deepseek';
@@ -576,7 +576,7 @@ export async function generateEditorialOutput({
 
   // 3. GOOGLE GEMINI
   if (provider === 'gemini') {
-    const model = (aiConfig.model || 'gemini-2.0-flash').trim();
+    const model = (aiConfig.model || process.env.GEMINI_MODEL || 'gemini-2.5-flash').trim();
     const geminiUrl = `https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(model)}:generateContent?key=${encodeURIComponent(apiKey)}`;
     const response = await fetch(geminiUrl, {
       method: 'POST',
@@ -588,9 +588,29 @@ export async function generateEditorialOutput({
       })
     });
     const payload = await response.json();
-    if (!response.ok) throw new Error(payload.error?.message || `Google Gemini API ${response.status}`);
-    const output = payload.candidates?.[0]?.content?.parts?.[0]?.text;
-    if (!output) throw new Error('Réponse Gemini vide');
+    if (!response.ok || !payload.candidates?.[0]?.content?.parts?.[0]?.text) {
+      const geminiError = payload.error?.message || (!response.ok ? `Google Gemini API ${response.status}` : 'Réponse Gemini vide');
+      const canFallback = !aiConfig.disableFallback
+        && !aiConfig.apiKey
+        && Boolean(process.env.OPENROUTER_API_KEY);
+      if (canFallback) {
+        console.warn(`Gemini indisponible (${geminiError}). Bascule automatique vers OpenRouter.`);
+        return generateEditorialOutput({
+          agentKey,
+          brand: targetBrand,
+          briefData,
+          context,
+          aiConfig: {
+            provider: 'openrouter',
+            model: process.env.OPENROUTER_MODEL || 'openrouter/free',
+            apiKey: '',
+            disableFallback: true
+          }
+        });
+      }
+      throw new Error(geminiError);
+    }
+    const output = payload.candidates[0].content.parts[0].text;
 
     return {
       output,
