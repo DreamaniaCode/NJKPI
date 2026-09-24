@@ -101,16 +101,16 @@ const AgentView = (() => {
       if (raw) {
         const parsed = JSON.parse(raw);
         return {
-          provider: parsed.provider || 'openrouter',
-          model: parsed.model || 'meta-llama/llama-3.3-70b-instruct',
+          provider: parsed.provider || 'gemini',
+          model: parsed.model || 'gemini-2.5-flash',
           customModel: parsed.customModel || '',
           apiKey: parsed.apiKey || ''
         };
       }
     } catch {}
     return {
-      provider: 'openrouter',
-      model: 'meta-llama/llama-3.3-70b-instruct',
+      provider: 'gemini',
+      model: 'gemini-2.5-flash',
       customModel: '',
       apiKey: ''
     };
