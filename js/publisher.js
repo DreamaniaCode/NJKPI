@@ -46,6 +46,10 @@ const PublisherView = (() => {
           <h1 class="view__title">Publier & programmer</h1>
           <p class="view__subtitle">Publiez depuis NJKPI vers Instagram, Facebook ou les deux. Les publications planifiées sont exécutées automatiquement par le serveur.</p>
         </div>
+        <div class="header-actions">
+          <button class="btn btn--secondary" id="publisher-week-btn">📅 Planifier 7 jours</button>
+          <button class="btn btn--secondary" id="publisher-bulk-btn">＋ Création en masse</button>
+        </div>
       </header>
 
       <section class="analysis-panel" style="margin-bottom:22px;">
@@ -142,6 +146,13 @@ const PublisherView = (() => {
         </div>
       </section>
     `;
+
+    document.getElementById('publisher-week-btn')?.addEventListener('click', () => {
+      if (typeof ContentsView !== 'undefined') ContentsView.openWeeklyCreateForm();
+    });
+    document.getElementById('publisher-bulk-btn')?.addEventListener('click', () => {
+      if (typeof ContentsView !== 'undefined') ContentsView.openBulkCreateForm();
+    });
 
     const mediaFileInput = document.getElementById('publisher-media-file');
     const mediaUploadBtn = document.getElementById('publisher-media-upload-btn');
