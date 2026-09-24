@@ -11,7 +11,7 @@ const ContentsView = (() => {
     view.innerHTML = `
       <header class="view__header workspace-header">
         <div><span class="section-kicker">Production</span><h1 class="view__title">Contenus</h1><p class="view__subtitle">Messages, statuts, objectifs et resultats au meme endroit</p></div>
-        <div class="header-actions"><button class="btn btn--secondary" id="export-btn">📤 Exporter</button><button class="btn btn--secondary" id="import-url-btn">🔗 Importer</button><button class="btn btn--primary" id="add-content-btn">+ Nouveau contenu</button></div>
+        <div class="header-actions"><button class="btn btn--secondary" id="export-btn">📤 Exporter</button><button class="btn btn--secondary" id="import-url-btn">🔗 Importer</button><button class="btn btn--secondary" id="bulk-content-btn">＋ Création en masse</button><button class="btn btn--primary" id="add-content-btn">+ Nouveau contenu</button></div>
       </header>
       <div class="contents-toolbar">
         <input type="search" id="content-search" class="search-input" placeholder="Rechercher un titre, une classe ou un album" value="${escapeHtml(_query)}" aria-label="Rechercher">
@@ -21,6 +21,7 @@ const ContentsView = (() => {
       </div>
       <div class="table-responsive"><table class="data-table"><thead><tr><th>Date</th><th>Contenu</th><th>Public</th><th>Format</th><th>Statut</th><th>Controle</th><th class="actions-column">Actions</th></tr></thead><tbody id="contents-tbody"></tbody></table></div>`;
     document.getElementById('add-content-btn').onclick = () => openCreateForm();
+    document.getElementById('bulk-content-btn').onclick = () => openBulkCreateForm();
     document.getElementById('export-btn').onclick = () => NidalExport.openExportModal();
     document.getElementById('import-url-btn').onclick = () => { if (typeof NidalImport !== 'undefined') NidalImport.openImportModal(); else showToast('Module d\'import non disponible', 'error'); };
     document.getElementById('content-search').oninput = debounce(event => { _query = event.target.value.toLowerCase(); _renderRows(); });
@@ -63,10 +64,11 @@ const ContentsView = (() => {
   function _options(items, selected) { return items.map(item => `<option value="${item.id}" ${selected === item.id ? 'selected' : ''}>${item.label}</option>`).join(''); }
   function _value(value) { return value === null || value === undefined ? '' : escapeHtml(value); }
 
-  function _formHtml(content = {}) {
+  function _formHtml(content = {}, options = {}) {
     const checks = content.checks || { logo: true, valeurs: true, footer: true, autorisation: true };
     const objectifs = content.objectifs || { portee: 1000, interactions: 50, clics: 5 };
     const resultats = content.resultats || {};
+    const includePublishActions = Boolean(options.includePublishActions);
     const platformList = typeof PLATFORMS !== 'undefined' ? PLATFORMS : [
       { id: 'instagram-facebook', label: 'Instagram + Facebook (IG + FB)', icon: '🌐' },
       { id: 'instagram', label: 'Instagram (IG)', icon: '📷' },
@@ -81,14 +83,35 @@ const ContentsView = (() => {
       <div class="form-section"><h3>Publication</h3>
         <div class="form-group form-group--wide"><label for="form-title">Titre *</label><input id="form-title" class="form-control" required value="${_value(content.titre)}"></div>
         <div class="form-row form-row--three"><div class="form-group"><label for="form-date">Date</label><input type="date" id="form-date" class="form-control" value="${toISODate(content.datePublication)}"></div><div class="form-group"><label for="form-time">Heure</label><input type="time" id="form-time" class="form-control" value="${_value(content.heure || '18:30')}"></div><div class="form-group"><label for="form-platform">Plateforme</label><select id="form-platform" class="form-control">${platformList.map(p => `<option value="${p.label}" ${content.plateforme === p.label || content.plateforme === p.id || content.plateforme === p.short || (!content.plateforme && p.id === 'instagram-facebook') ? 'selected' : ''}>${p.icon} ${p.label}</option>`).join('')}</select></div></div>
-        <div class="form-group">
-          <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:4px;">
-            <label for="form-final-url">Lien final après publication</label>
-            <button type="button" class="btn btn--secondary btn--sm" id="btn-sync-url-metrics" style="padding:2px 8px;font-size:11px;" title="Récupérer les likes, commentaires et statistiques en direct">🔄 Récupérer Likes & Commentaires</button>
+        <div class="form-row">
+          <div class="form-group">
+            <label for="form-media-url">Média public à publier</label>
+            <input type="url" id="form-media-url" class="form-control" value="${_value(content.mediaUrl)}" placeholder="https://.../photo.jpg ou video.mp4">
+            <small style="color:var(--muted);">Requis pour Instagram. Meta doit pouvoir accéder directement à cette URL.</small>
           </div>
-          <input type="url" id="form-final-url" class="form-control" value="${_value(content.finalUrl)}" placeholder="https://www.instagram.com/p/...">
+          <div class="form-group">
+            <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:4px;">
+              <label for="form-final-url">Lien final après publication</label>
+              <button type="button" class="btn btn--secondary btn--sm" id="btn-sync-url-metrics" style="padding:2px 8px;font-size:11px;" title="Récupérer les likes, commentaires et statistiques en direct">🔄 Récupérer Likes & Commentaires</button>
+            </div>
+            <input type="url" id="form-final-url" class="form-control" value="${_value(content.finalUrl)}" placeholder="https://www.instagram.com/p/...">
+          </div>
         </div>
         <div class="form-row form-row--three"><div class="form-group"><label for="form-format">Format</label><select id="form-format" class="form-control">${_options(CONTENT_TYPES, content.format)}</select></div><div class="form-group"><label for="form-status">Statut</label><select id="form-status" class="form-control">${_options(STATUSES, content.statut)}</select></div><div class="form-group"><label for="form-validation">Validation</label><select id="form-validation" class="form-control">${_options(VALIDATIONS, content.validation)}</select></div></div>
+        ${includePublishActions ? `
+          <div class="publish-choice-panel">
+            <div>
+              <span class="section-kicker">Après création</span>
+              <strong>Que voulez-vous faire de ce post ?</strong>
+              <small>La programmation utilise la date et l'heure définies ci-dessus.</small>
+            </div>
+            <select id="form-publish-mode" class="form-control publish-choice-panel__select">
+              <option value="save">Enregistrer seulement</option>
+              <option value="now">Publier maintenant</option>
+              <option value="schedule">Programmer la publication</option>
+            </select>
+          </div>
+        ` : ''}
       </div>
       <div class="form-section"><h3>Vision editoriale</h3>
         <div class="form-row"><div class="form-group"><label for="form-level">Niveau</label><select id="form-level" class="form-control">${_options(LEVELS, content.niveau)}</select></div><div class="form-group"><label for="form-classes">Classe(s)</label><input id="form-classes" class="form-control" value="${_value(content.classes)}"></div></div>
@@ -134,7 +157,7 @@ const ContentsView = (() => {
 
   function _readForm(modal) {
     return {
-      titre: modal.querySelector('#form-title').value.trim(), datePublication: modal.querySelector('#form-date').value, heure: modal.querySelector('#form-time').value, finalUrl: modal.querySelector('#form-final-url').value.trim(),
+      titre: modal.querySelector('#form-title').value.trim(), datePublication: modal.querySelector('#form-date').value, heure: modal.querySelector('#form-time').value, mediaUrl: modal.querySelector('#form-media-url')?.value.trim() || '', finalUrl: modal.querySelector('#form-final-url').value.trim(),
       plateforme: modal.querySelector('#form-platform').value, format: modal.querySelector('#form-format').value, statut: modal.querySelector('#form-status').value, validation: modal.querySelector('#form-validation').value,
       niveau: modal.querySelector('#form-level').value, classes: modal.querySelector('#form-classes').value.trim(), album: modal.querySelector('#form-album').value.trim(), pilier: modal.querySelector('#form-pillar').value.trim(), objectif: modal.querySelector('#form-objective').value.trim(),
       message: modal.querySelector('#form-message').value.trim(), cta: modal.querySelector('#form-cta').value.trim(), livrable: modal.querySelector('#form-deliverable').value.trim(), notes: modal.querySelector('#form-notes').value.trim(),
@@ -218,18 +241,276 @@ const ContentsView = (() => {
     };
   }
 
+  function _platformsFromValue(value = '') {
+    const text = String(value || '').toLowerCase();
+    const platforms = [];
+    if (text.includes('instagram') || text.includes('ig')) platforms.push('instagram');
+    if (text.includes('facebook') || text.includes('fb')) platforms.push('facebook');
+    return [...new Set(platforms)];
+  }
+
+  function _mediaTypeForContent(values = {}) {
+    const text = `${values.format || ''} ${values.plateforme || ''}`.toLowerCase();
+    if (text.includes('reel') || text.includes('video') || text.includes('vidéo')) return 'reel';
+    return values.mediaUrl ? 'image' : 'text';
+  }
+
+  function _captionForContent(values = {}) {
+    return [values.message, values.cta].filter(Boolean).join('\n\n').trim();
+  }
+
+  function _scheduledAtFromContent(values = {}) {
+    if (!values.datePublication) throw new Error('Choisissez une date de publication.');
+    const time = values.heure || '18:30';
+    const date = new Date(`${values.datePublication}T${time}:00`);
+    if (Number.isNaN(date.getTime())) throw new Error('Date ou heure de publication invalide.');
+    return date;
+  }
+
+  async function _queueContentPublication(values, mode) {
+    if (!NidalAPI.isOnline()) throw new Error('Le serveur NJKPI doit être connecté pour publier via Meta.');
+    const platforms = _platformsFromValue(values.plateforme);
+    if (!platforms.length) throw new Error('Choisissez Instagram, Facebook ou les deux.');
+
+    if (platforms.includes('instagram') && !values.mediaUrl) {
+      throw new Error('Ajoutez une URL média publique pour publier sur Instagram.');
+    }
+
+    const scheduledAt = mode === 'schedule' ? _scheduledAtFromContent(values) : new Date();
+    const job = await NidalAPI.createPublishJob({
+      brand: getActiveBrand(),
+      message: _captionForContent(values),
+      mediaUrl: values.mediaUrl || '',
+      linkUrl: values.finalUrl || '',
+      mediaType: _mediaTypeForContent(values),
+      platforms,
+      scheduledAt: scheduledAt.toISOString(),
+      automationMode: mode === 'schedule' ? 'scheduled' : 'manual'
+    });
+
+    if (mode === 'now') return NidalAPI.runPublishJob(job.id);
+    return job;
+  }
+
+  function _bulkPlatformOptions(selected = 'Instagram + Facebook (IG + FB)') {
+    const items = [
+      'Instagram + Facebook (IG + FB)',
+      'Instagram (IG)',
+      'Facebook (FB)'
+    ];
+    return items.map(item => `<option value="${escapeHtml(item)}" ${item === selected ? 'selected' : ''}>${escapeHtml(item)}</option>`).join('');
+  }
+
+  function _bulkRowHtml(index, defaultDate = '') {
+    return `
+      <article class="bulk-post-row" data-bulk-row>
+        <div class="bulk-post-row__number">#${index + 1}</div>
+        <div class="bulk-post-row__fields">
+          <div class="form-row">
+            <div class="form-group"><label>Titre *</label><input class="form-control" data-bulk-title placeholder="Titre du post"></div>
+            <div class="form-group"><label>URL média publique</label><input class="form-control" type="url" data-bulk-media placeholder="https://.../image.jpg"></div>
+          </div>
+          <div class="form-group"><label>Texte / légende</label><textarea class="form-control" rows="3" data-bulk-message placeholder="Texte du post..."></textarea></div>
+          <div class="form-row form-row--three">
+            <div class="form-group"><label>Date</label><input class="form-control" type="date" data-bulk-date value="${escapeHtml(defaultDate)}"></div>
+            <div class="form-group"><label>Heure</label><input class="form-control" type="time" data-bulk-time value="18:30"></div>
+            <div class="form-group"><label>Format</label><select class="form-control" data-bulk-format><option value="post">Post</option><option value="video">Vidéo</option><option value="reel">Reel</option><option value="story">Story</option></select></div>
+          </div>
+        </div>
+        <button type="button" class="btn btn--icon btn--danger-text" data-remove-bulk title="Supprimer cette ligne">×</button>
+      </article>`;
+  }
+
+  function openBulkCreateForm(defaultDate = '') {
+    let rowCount = 3;
+    const today = defaultDate || new Date().toISOString().slice(0, 10);
+    const html = `
+      <div class="bulk-create">
+        <div class="bulk-create__defaults">
+          <div class="form-group">
+            <label for="bulk-platform">Plateforme pour le lot</label>
+            <select id="bulk-platform" class="form-control">${_bulkPlatformOptions()}</select>
+          </div>
+          <div class="form-group">
+            <label for="bulk-mode">Action après création</label>
+            <select id="bulk-mode" class="form-control">
+              <option value="save">Enregistrer seulement</option>
+              <option value="schedule">Programmer chaque post</option>
+              <option value="now">Publier maintenant</option>
+            </select>
+          </div>
+        </div>
+        <div class="bulk-create__toolbar">
+          <div>
+            <span class="section-kicker">Création en masse</span>
+            <strong>Préparez plusieurs posts en une seule fois</strong>
+          </div>
+          <button type="button" class="btn btn--secondary btn--sm" id="bulk-add-row">+ Ajouter un post</button>
+        </div>
+        <div id="bulk-rows" class="bulk-post-list">
+          ${[0,1,2].map(i => _bulkRowHtml(i, today)).join('')}
+        </div>
+      </div>`;
+
+    openModal('Créer plusieurs contenus', html, {
+      footer: `<button type="button" class="btn btn--secondary" data-close-modal>Annuler</button><button type="button" class="btn btn--primary" id="bulk-create-btn">Créer le lot</button>`,
+      onOpen: modal => {
+        const rows = modal.querySelector('#bulk-rows');
+        const renumber = () => modal.querySelectorAll('[data-bulk-row]').forEach((row, idx) => {
+          const number = row.querySelector('.bulk-post-row__number');
+          if (number) number.textContent = `#${idx + 1}`;
+        });
+        const bindRemovers = () => modal.querySelectorAll('[data-remove-bulk]').forEach(btn => {
+          btn.onclick = () => {
+            const all = modal.querySelectorAll('[data-bulk-row]');
+            if (all.length <= 1) return showToast('Gardez au moins un post dans le lot.', 'error');
+            btn.closest('[data-bulk-row]')?.remove();
+            renumber();
+          };
+        });
+
+        bindRemovers();
+
+        modal.querySelector('#bulk-add-row').onclick = () => {
+          const wrapper = document.createElement('div');
+          wrapper.innerHTML = _bulkRowHtml(rowCount++, today);
+          rows.appendChild(wrapper.firstElementChild);
+          bindRemovers();
+          renumber();
+        };
+
+        modal.querySelector('#bulk-create-btn').onclick = async () => {
+          const button = modal.querySelector('#bulk-create-btn');
+          const platform = modal.querySelector('#bulk-platform').value;
+          const mode = modal.querySelector('#bulk-mode').value;
+          const rowEls = [...modal.querySelectorAll('[data-bulk-row]')];
+          const batch = rowEls.map(row => ({
+            titre: row.querySelector('[data-bulk-title]').value.trim(),
+            message: row.querySelector('[data-bulk-message]').value.trim(),
+            mediaUrl: row.querySelector('[data-bulk-media]').value.trim(),
+            datePublication: row.querySelector('[data-bulk-date]').value,
+            heure: row.querySelector('[data-bulk-time]').value || '18:30',
+            format: row.querySelector('[data-bulk-format]').value || 'post',
+            plateforme: platform
+          })).filter(item => item.titre);
+
+          if (!batch.length) return showToast('Ajoutez au moins un titre.', 'error');
+
+          const needsInstagram = _platformsFromValue(platform).includes('instagram') && mode !== 'save';
+          if (needsInstagram && batch.some(item => !item.mediaUrl)) {
+            return showToast('Chaque post Instagram à publier doit avoir une URL média publique.', 'error');
+          }
+          if (mode === 'schedule' && batch.some(item => !item.datePublication)) {
+            return showToast('Chaque post programmé doit avoir une date.', 'error');
+          }
+
+          button.disabled = true;
+          button.textContent = 'Création du lot…';
+          let queued = 0;
+          let published = 0;
+          const errors = [];
+
+          for (const item of batch) {
+            const values = {
+              ...item,
+              statut: mode === 'now' ? 'en-production' : 'planifie',
+              validation: 'a-valider',
+              niveau: 'tous',
+              classes: '',
+              album: '',
+              pilier: '',
+              objectif: '',
+              cta: '',
+              livrable: '',
+              notes: '',
+              finalUrl: '',
+              objectifs: { portee: 1000, vues: 1500, commentaires: 15, interactions: 50, clics: 10, conversions: 5, eta: item.datePublication },
+              resultats: {},
+              checks: { logo: true, valeurs: true, footer: true, autorisation: true }
+            };
+            const created = NidalStore.create(values);
+
+            if (mode !== 'save') {
+              try {
+                await _queueContentPublication(values, mode);
+                if (mode === 'now') {
+                  NidalStore.update(created.id, { statut: 'publie' });
+                  published++;
+                } else {
+                  queued++;
+                }
+              } catch (error) {
+                errors.push(`${item.titre}: ${error.message}`);
+              }
+            }
+          }
+
+          closeModal();
+          const base = `${batch.length} contenu${batch.length > 1 ? 's' : ''} créé${batch.length > 1 ? 's' : ''}`;
+          if (errors.length) {
+            showToast(`${base}. ${errors.length} publication(s) à vérifier.`, 'error');
+          } else if (mode === 'now') {
+            showToast(`${base} · ${published} publié${published > 1 ? 's' : ''}.`, 'success');
+          } else if (mode === 'schedule') {
+            showToast(`${base} · ${queued} programmé${queued > 1 ? 's' : ''}.`, 'success');
+          } else {
+            showToast(base + '.', 'success');
+          }
+        };
+      }
+    });
+  }
+
   function openCreateForm(defaultDate = '') {
-    const initial = { datePublication: defaultDate, heure: '18:30', format: 'post', statut: 'planifie', niveau: 'tous', validation: 'a-valider', plateforme: 'Instagram + Facebook (IG + FB)', checks: { logo: true, valeurs: true, footer: true, autorisation: true }, objectifs: { portee: 1000, vues: 1500, commentaires: 15, interactions: 50, clics: 10, conversions: 5, eta: defaultDate }, resultats: {} };
-    openModal('Nouveau contenu', _formHtml(initial), {
-      footer: `<button type="button" class="btn btn--secondary" data-close-modal>Annuler</button><button type="button" class="btn btn--primary" id="save-content-btn">Enregistrer</button>`,
+    const today = defaultDate || new Date().toISOString().slice(0, 10);
+    const initial = { datePublication: today, heure: '18:30', format: 'post', statut: 'planifie', niveau: 'tous', validation: 'a-valider', plateforme: 'Instagram + Facebook (IG + FB)', mediaUrl: '', checks: { logo: true, valeurs: true, footer: true, autorisation: true }, objectifs: { portee: 1000, vues: 1500, commentaires: 15, interactions: 50, clics: 10, conversions: 5, eta: today }, resultats: {} };
+    openModal('Nouveau contenu', _formHtml(initial, { includePublishActions: true }), {
+      footer: `<button type="button" class="btn btn--secondary" data-close-modal>Annuler</button><button type="button" class="btn btn--primary" id="save-content-btn">Créer le post</button>`,
       onOpen: modal => {
         _bindFormSync(modal);
-        modal.querySelector('#save-content-btn').onclick = () => {
+        modal.querySelector('#save-content-btn').onclick = async () => {
+          const button = modal.querySelector('#save-content-btn');
           const values = _readForm(modal);
+          const mode = modal.querySelector('#form-publish-mode')?.value || 'save';
           if (!values.titre) return showToast('Le titre est obligatoire', 'error');
-          NidalStore.create(values);
-          closeModal();
-          showToast('Contenu créé', 'success');
+
+          if (mode === 'schedule' && !values.datePublication) {
+            return showToast('Choisissez la date de programmation.', 'error');
+          }
+          if (mode !== 'save' && _platformsFromValue(values.plateforme).includes('instagram') && !values.mediaUrl) {
+            return showToast('Ajoutez une URL média publique pour publier sur Instagram.', 'error');
+          }
+
+          button.disabled = true;
+          button.textContent = mode === 'now' ? 'Publication…' : (mode === 'schedule' ? 'Programmation…' : 'Enregistrement…');
+
+          const created = NidalStore.create({
+            ...values,
+            statut: mode === 'now' ? 'en-production' : values.statut
+          });
+
+          try {
+            if (mode === 'now') {
+              await _queueContentPublication(values, 'now');
+              NidalStore.update(created.id, { statut: 'publie' });
+            } else if (mode === 'schedule') {
+              await _queueContentPublication(values, 'schedule');
+              NidalStore.update(created.id, { statut: 'planifie' });
+            }
+
+            closeModal();
+            showToast(
+              mode === 'now' ? 'Contenu créé et envoyé à Meta.' :
+              mode === 'schedule' ? 'Contenu créé et publication programmée.' :
+              'Contenu créé.',
+              'success'
+            );
+          } catch (error) {
+            NidalStore.update(created.id, { statut: 'a-valider', notes: [values.notes, 'Publication Meta à vérifier : ' + error.message].filter(Boolean).join('\n') });
+            button.disabled = false;
+            button.textContent = 'Créer le post';
+            showToast('Contenu enregistré, mais publication Meta non terminée : ' + error.message, 'error');
+          }
         };
       }
     });
@@ -254,5 +535,5 @@ const ContentsView = (() => {
   }
 
   function deleteContent(id) { const content = NidalStore.getById(id); confirmAction(`Supprimer « ${content?.titre || 'ce contenu'} » ?`, () => { NidalStore.remove(id); showToast('Contenu supprime', 'success'); }); }
-  return { render, openCreateForm, openEditForm, deleteContent };
+  return { render, openCreateForm, openBulkCreateForm, openEditForm, deleteContent };
 })();
