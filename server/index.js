@@ -9,9 +9,11 @@ import {
   saveEditorialGeneration, listEditorialGenerations, getEditorialGeneration,
   deleteEditorialGeneration, saveEditorialTransfer,
   getKpiTargets, saveKpiTargets,
-  saveSocialProfiles, getSocialProfiles, getSocialProfileHistory
+  saveSocialProfiles, getSocialProfiles, getSocialProfileHistory,
+  saveAudienceSnapshot, listAudienceSnapshots,
+  savePublishJob, listPublishJobs, listDuePublishJobs
 } from './repository.js';
-import { metaConfigured, syncContentFromUrl, syncAds, syncSocialProfiles, syncAudienceConversions } from './services/meta.js';
+import { metaConfigured, syncContentFromUrl, syncAds, syncSocialProfiles, syncAudienceConversions, publishSocialJob } from './services/meta.js';
 import { getMetaLiveCache, setMetaLiveCache, isMetaLiveCacheFresh } from './services/meta-live.js';
 import { getAudienceCache, setAudienceCache, isAudienceCacheFresh } from './services/audience-cache.js';
 import {
@@ -327,6 +329,75 @@ app.post('/api/contents/:id/sync', async (req, res, next) => {
 
 app.get('/api/ads', async (req, res, next) => { try { res.json(await listAds(req.query.brand || 'nidal-junior')); } catch (error) { next(error); } });
 app.post('/api/ads/sync', async (req, res, next) => { try { const brand = req.body.brand || 'nidal-junior'; const campaigns = await syncAds(brand); res.json(await saveAds(brand, campaigns)); } catch (error) { next(error); } });
+
+app.get('/api/audience-history', async (req, res, next) => {
+  try {
+    const brand = req.query.brand === 'nidal' ? 'nidal' : 'nidal-junior';
+    res.json(await listAudienceSnapshots(brand, req.query.limit || 168));
+  } catch (error) { next(error); }
+});
+
+app.get('/api/publish/jobs', async (req, res, next) => {
+  try {
+    const brand = req.query.brand === 'nidal' ? 'nidal' : (req.query.brand === 'nidal-junior' ? 'nidal-junior' : null);
+    res.json(await listPublishJobs(brand, req.query.limit || 100));
+  } catch (error) { next(error); }
+});
+
+app.post('/api/publish/jobs', async (req, res, next) => {
+  try {
+    const brand = req.body.brand === 'nidal' ? 'nidal' : 'nidal-junior';
+    const platforms = Array.isArray(req.body.platforms)
+      ? req.body.platforms.filter(p => ['instagram', 'facebook'].includes(p))
+      : [];
+    if (!platforms.length) return res.status(400).json({ error: 'Sélectionnez Instagram et/ou Facebook.' });
+    if (!String(req.body.message || '').trim() && !req.body.mediaUrl && !req.body.linkUrl) {
+      return res.status(400).json({ error: 'Ajoutez un texte, un média ou un lien.' });
+    }
+
+    const scheduledAt = req.body.scheduledAt ? new Date(req.body.scheduledAt) : new Date();
+    if (Number.isNaN(scheduledAt.getTime())) return res.status(400).json({ error: 'Date de publication invalide.' });
+
+    const job = await savePublishJob({
+      id: crypto.randomUUID(),
+      brand,
+      message: String(req.body.message || ''),
+      mediaUrl: req.body.mediaUrl || null,
+      linkUrl: req.body.linkUrl || null,
+      mediaType: req.body.mediaType || (req.body.mediaUrl ? 'image' : 'text'),
+      platforms,
+      scheduledAt: scheduledAt.toISOString(),
+      status: 'scheduled',
+      automationMode: req.body.automationMode || 'manual'
+    });
+
+    res.status(201).json(job);
+  } catch (error) { next(error); }
+});
+
+app.post('/api/publish/jobs/:id/run', async (req, res, next) => {
+  try {
+    const jobs = await listPublishJobs(null, 500);
+    const job = jobs.find(item => item.id === req.params.id);
+    if (!job) return res.status(404).json({ error: 'Publication programmée introuvable.' });
+
+    const publishing = await savePublishJob({ ...job, status: 'publishing', error: null });
+    try {
+      const outcome = await publishSocialJob(publishing);
+      const done = await savePublishJob({
+        ...publishing,
+        status: Object.keys(outcome.errors || {}).length ? 'partial' : 'published',
+        result: outcome.result,
+        error: Object.entries(outcome.errors || {}).map(([p, m]) => `${p}: ${m}`).join(' | ') || null,
+        publishedAt: new Date().toISOString()
+      });
+      return res.json(done);
+    } catch (error) {
+      const failed = await savePublishJob({ ...publishing, status: 'failed', error: error.message });
+      return res.status(502).json(failed);
+    }
+  } catch (error) { next(error); }
+});
 
 app.get('/api/audience-conversions', async (req, res, next) => {
   try {
@@ -713,9 +784,52 @@ process.on('unhandledRejection', reason => {
   console.error('Rejet de promesse non gere:', reason);
 });
 
+async function runHourlyAudienceSync() {
+  for (const brand of ['nidal', 'nidal-junior']) {
+    try {
+      if (!metaConfigured(brand)) continue;
+      const payload = await syncAudienceConversions(brand);
+      await saveAudienceSnapshot(brand, payload);
+      try {
+        const profiles = await syncSocialProfiles({ brand });
+        await saveSocialProfiles(brand, profiles);
+      } catch (profileError) {
+        console.warn(`Snapshot profil ${brand} différé:`, profileError.message);
+      }
+    } catch (error) {
+      console.warn(`Snapshot audience ${brand} différé:`, error.message);
+    }
+  }
+}
+
+async function runPublishQueue() {
+  const due = await listDuePublishJobs(10);
+  for (const job of due) {
+    const locked = await savePublishJob({ ...job, status: 'publishing', error: null });
+    try {
+      const outcome = await publishSocialJob(locked);
+      await savePublishJob({
+        ...locked,
+        status: Object.keys(outcome.errors || {}).length ? 'partial' : 'published',
+        result: outcome.result,
+        error: Object.entries(outcome.errors || {}).map(([p, m]) => `${p}: ${m}`).join(' | ') || null,
+        publishedAt: new Date().toISOString()
+      });
+    } catch (error) {
+      await savePublishJob({ ...locked, status: 'failed', error: error.message });
+    }
+  }
+}
+
 const server = app.listen(port, '0.0.0.0', () => {
   console.log(`Nidal Content Hub demarre sur http://0.0.0.0:${port}`);
-  initDatabase().then(() => initAuth()).catch(error => {
+  initDatabase().then(async () => {
+    await initAuth();
+    await runHourlyAudienceSync();
+    await runPublishQueue();
+    setInterval(() => runHourlyAudienceSync().catch(err => console.warn('Sync horaire:', err.message)), 60 * 60 * 1000);
+    setInterval(() => runPublishQueue().catch(err => console.warn('File publication:', err.message)), 60 * 1000);
+  }).catch(error => {
     console.error('Avertissement initialisation base:', error.message);
   });
 });
