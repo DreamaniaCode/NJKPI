@@ -25,7 +25,8 @@ Navigateur
       -> PostgreSQL
       -> Meta Graph API
       -> Meta Marketing API
-      -> OpenAI Responses API
+      -> Google Gemini API (principal)
+      -> OpenRouter (fallback)
 ```
 
 Les jetons Meta et OpenAI ne sont jamais exposes dans le navigateur. Ils sont stockes dans les variables d'environnement Coolify.
@@ -72,7 +73,9 @@ Passer `DEMO_MODE=false` pour utiliser les integrations reelles.
 - `DATABASE_URL` : connexion PostgreSQL Coolify.
 - `APP_ACCESS_TOKEN` : protection des endpoints de l'application.
 - `CORS_ORIGIN` : domaine autorise si le frontend est separe.
-- `OPENAI_API_KEY` et `OPENAI_MODEL` : agent IA.
+- `GEMINI_API_KEY` et `GEMINI_MODEL` : fournisseur IA principal.
+- `OPENROUTER_API_KEY` et `OPENROUTER_MODEL` : fallback IA.
+- `NIDAL_WEBHOOK_SECRET` : protège le webhook d'automatisation KPI.
 - `META_ACCESS_TOKEN` : jeton Meta cote serveur.
 - `META_PAGE_ID_*` : Pages Facebook Nidal et Nidal Junior.
 - `META_IG_USER_ID_*` : comptes Instagram professionnels.
@@ -112,4 +115,26 @@ js/api.js
 js/store.js
 js/agent.js
 js/insights.js
+```
+
+
+## Automatisation KPI -> IA
+
+Le backend construit maintenant un contexte KPI à partir des objectifs et des métriques réellement synchronisées dans NJKPI.
+
+- Les métriques marquées `demo` sont exclues des agrégats réels.
+- Les générations éditoriales manuelles reçoivent automatiquement le contexte KPI disponible.
+- `GET /api/kpi/ai-context?brand=nidal-junior` permet d'inspecter le contexte transmis à l'IA.
+- `POST /webhooks/kpi-ai` déclenche une analyse KPI automatisée par le `Nidal KPI & Growth Manager`.
+- Le webhook exige l'en-tête `X-Nidal-Webhook-Secret`.
+- Gemini est utilisé en priorité côté serveur ; OpenRouter peut prendre le relais si Gemini échoue et qu'une clé OpenRouter est configurée.
+- L'analyse automatique ne publie aucun contenu : elle produit uniquement des recommandations internes et conserve la validation humaine.
+
+Exemple :
+
+```bash
+curl -X POST https://votre-domaine/webhooks/kpi-ai \
+  -H "Content-Type: application/json" \
+  -H "X-Nidal-Webhook-Secret: VOTRE_SECRET" \
+  -d '{"event":"kpi.daily.updated","brand":"nidal-junior"}'
 ```
