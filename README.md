@@ -153,3 +153,16 @@ Le dashboard peut maintenant lire les indicateurs Meta directement depuis Graph 
 - Le token Meta reste exclusivement côté serveur dans Coolify.
 
 Ce fonctionnement est du **quasi temps réel** : NJKPI peut interroger Meta chaque minute, mais la fraîcheur effective dépend du délai de mise à jour des Insights chez Meta. Les webhooks serviront plus tard aux événements pris en charge par Meta, pas à transformer toutes les métriques Insights en flux instantané.
+
+
+## Audience & conversions
+
+Une vue dédiée **Audience & conversions** sépare les données organiques et publicitaires :
+
+- Meta Ads sur les 90 derniers jours : dépenses, reach, impressions, clics et actions/conversions ;
+- audience publicitaire par âge/genre et par région lorsque le compte Ads et les permissions nécessaires sont disponibles ;
+- anciens contenus Instagram classés par performance réelle (reach, vues, interactions, partages, enregistrements) ;
+- anciens contenus Facebook classés séparément ;
+- cache de 15 minutes par défaut pour éviter de multiplier les appels Meta, avec actualisation manuelle possible.
+
+Pour activer la partie Ads, renseigner `META_AD_ACCOUNT_ID_NIDAL` / `META_AD_ACCOUNT_ID_NIDAL_JUNIOR` et utiliser un token Meta autorisé à lire les Insights publicitaires. Pour des conversions site précises (formulaire, RDV, inscription), relier ensuite le Pixel Meta et/ou la Conversions API avec des événements clairement définis.
