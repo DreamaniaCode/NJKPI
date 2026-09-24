@@ -88,7 +88,7 @@ const App = (() => {
   function onLoginSuccess() {
     _applyAuth();
     _routeFromHash();
-    NidalAPI.init().then(() => NidalStore.syncRemote()).then(() => _renderCurrentView()).catch(() => {});
+    NidalAPI.init().then(() => NidalStore.syncRemote()).then(() => { _startMetaLivePolling(); _renderCurrentView(); }).catch(() => {});
   }
 
   function _routeFromHash() {
