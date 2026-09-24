@@ -165,6 +165,37 @@ const AudienceView = (() => {
   }
 
 
+  function _campaignCards(rows = []) {
+    if (!rows.length) return '<div class="audience-empty">Aucune campagne disponible.</div>';
+    const sorted = [...rows].sort((a, b) => _num(b.spend) - _num(a.spend)).slice(0, 12);
+    const maxSpend = Math.max(...sorted.map(row => _num(row.spend)), 1);
+    return '<div class="campaign-performance-grid">' + sorted.map((row, index) => {
+      const spend = _num(row.spend);
+      const reach = _num(row.reach);
+      const impressions = _num(row.impressions);
+      const clicks = _num(row.clicks);
+      const ctr = _num(row.ctr);
+      const pct = Math.max(2, Math.round((spend / maxSpend) * 100));
+      return `
+        <article class="campaign-performance-card">
+          <div class="campaign-performance-card__head">
+            <div>
+              <span>Campagne ${String(index + 1).padStart(2, '0')}</span>
+              <strong>${escapeHtml(row.campaign_name || row.campaign_id || 'Campagne')}</strong>
+            </div>
+            <b>${spend.toFixed(2)}</b>
+          </div>
+          <div class="campaign-performance-card__bar"><i style="width:${pct}%"></i></div>
+          <div class="campaign-performance-card__metrics">
+            <div><span>Reach</span><strong>${formatNumber(reach)}</strong></div>
+            <div><span>Impressions</span><strong>${formatNumber(impressions)}</strong></div>
+            <div><span>Clics</span><strong>${formatNumber(clicks)}</strong></div>
+            <div><span>CTR</span><strong>${ctr.toFixed(2)}%</strong></div>
+          </div>
+        </article>`;
+    }).join('') + '</div>';
+  }
+
   function _campaignTable(rows = []) {
     if (!rows.length) return '<p style="color:var(--muted);font-size:12px;margin:0;">Aucune campagne disponible.</p>';
     return '<div class="table-responsive"><table class="data-table"><thead><tr><th>Campagne</th><th>Reach</th><th>Impressions</th><th>Clics</th><th>CTR</th><th>CPC</th><th>CPM</th><th>Dépenses</th></tr></thead><tbody>' +
@@ -275,8 +306,15 @@ const AudienceView = (() => {
           </div>
           ${actionRows.length ? '<div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:16px;">' + actionRows.map(item => '<span class="badge badge--planifie">' + escapeHtml(item.name) + ': ' + formatNumber(item.value) + '</span>').join('') + '</div>' : ''}
           <div class="analysis-panel" style="margin-bottom:16px;">
-            <div class="section-heading"><div><span class="section-kicker">Campagnes</span><h2>Détail des campagnes publicitaires</h2></div><span class="badge badge--planifie">${formatNumber((ads.campaigns || []).length)} campagnes</span></div>
-            ${_campaignTable(ads.campaigns || [])}
+            <div class="section-heading">
+              <div><span class="section-kicker">Campagnes</span><h2>Performance des campagnes</h2></div>
+              <span class="badge badge--planifie">${formatNumber((ads.campaigns || []).length)} campagnes</span>
+            </div>
+            ${_campaignCards(ads.campaigns || [])}
+            <details class="audience-details">
+              <summary>Voir le tableau détaillé</summary>
+              ${_campaignTable(ads.campaigns || [])}
+            </details>
           </div>
         </section>
 
@@ -297,7 +335,7 @@ const AudienceView = (() => {
               <span class="section-kicker">Tendances visuelles</span>
               <h2>Comprendre les performances d’un coup d’œil</h2>
             </div>
-            <span class="badge badge--planifie">Meta 30 jours · historique local ${_history.length} point${_history.length > 1 ? 's' : ''}</span>
+            <span class="badge badge--planifie">Meta 30 jours · ${_history.length} snapshot${_history.length > 1 ? 's' : ''} NJKPI</span>
           </div>
 
           <div class="dashboard-lower-grid">
