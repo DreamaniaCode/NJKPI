@@ -356,7 +356,7 @@ const ContentsView = (() => {
 
   function _bulkRowHtml(index, defaultDate = '', dayLabel = '') {
     return `
-      <article class="bulk-post-row" data-bulk-row>
+      <article class="bulk-post-row" data-bulk-row data-day-label="${dayLabel ? escapeHtml(dayLabel) : ''}">
         <div class="bulk-post-row__number">${dayLabel ? escapeHtml(dayLabel) : '#' + (index + 1)}</div>
         <div class="bulk-post-row__fields">
           <div class="form-row">
@@ -426,7 +426,7 @@ const ContentsView = (() => {
         const rows = modal.querySelector('#bulk-rows');
         const renumber = () => modal.querySelectorAll('[data-bulk-row]').forEach((row, idx) => {
           const number = row.querySelector('.bulk-post-row__number');
-          if (number) number.textContent = `#${idx + 1}`;
+          if (number) number.textContent = row.dataset.dayLabel || `#${idx + 1}`;
         });
         const bindRemovers = () => modal.querySelectorAll('[data-remove-bulk]').forEach(btn => {
           btn.onclick = () => {
