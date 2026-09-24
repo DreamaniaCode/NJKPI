@@ -32,6 +32,7 @@ const NidalStore = (() => {
       version: CURRENT_VERSION,
       contents: [],
       kpiTargets: JSON.parse(JSON.stringify(DEFAULT_BRAND_KPI_TARGETS)),
+      socialProfiles: {},
       settings: { theme: 'light' },
       lastModified: new Date().toISOString()
     };
@@ -106,6 +107,7 @@ const NidalStore = (() => {
       const raw = localStorage.getItem(STORAGE_KEY);
       _data = raw ? JSON.parse(raw) : _defaultData();
       _data.settings = _data.settings || { theme: 'light' };
+      _data.socialProfiles = _data.socialProfiles || {};
       _data.contents = Array.isArray(_data.contents) ? _data.contents.map(_normalize) : [];
       _data.version = CURRENT_VERSION;
     } catch (error) {
@@ -187,9 +189,10 @@ const NidalStore = (() => {
     if (!NidalAPI.isOnline()) return false;
     const brand = getActiveBrand();
     try {
-      const [remoteContents, remoteTargets] = await Promise.all([
+      const [remoteContents, remoteTargets, liveMeta] = await Promise.all([
         NidalAPI.listContents(brand).catch(() => []),
-        NidalAPI.getKpiTargets(brand).catch(() => null)
+        NidalAPI.getKpiTargets(brand).catch(() => null),
+        NidalAPI.getSocialLive(brand).catch(() => null)
       ]);
       const isCleared = localStorage.getItem('nidal-no-seed') === 'true';
       if (remoteContents && remoteContents.length) {
@@ -207,12 +210,36 @@ const NidalStore = (() => {
         if (!_data.kpiTargets) _data.kpiTargets = {};
         _data.kpiTargets[brand] = { ...(_data.kpiTargets[brand] || {}), ...(remoteTargets.targets || {}) };
       }
+      if (liveMeta?.ok) {
+        if (!_data.socialProfiles) _data.socialProfiles = {};
+        _data.socialProfiles[brand] = liveMeta;
+      }
       _save();
       return true;
     } catch (error) {
       console.warn('Synchronisation backend indisponible:', error.message);
       return false;
     }
+  }
+
+  async function syncMetaLive(brand = getActiveBrand(), refresh = false) {
+    if (!NidalAPI.isOnline()) return null;
+    const slug = brand === 'nidal' ? 'nidal' : 'nidal-junior';
+    try {
+      const live = await NidalAPI.getSocialLive(slug, refresh);
+      if (!_data.socialProfiles) _data.socialProfiles = {};
+      _data.socialProfiles[slug] = live;
+      _save();
+      return live;
+    } catch (error) {
+      console.warn('Synchronisation Meta live différée:', error.message);
+      return null;
+    }
+  }
+
+  function getSocialLive(brand = getActiveBrand()) {
+    const slug = brand === 'nidal' ? 'nidal' : 'nidal-junior';
+    return _data?.socialProfiles?.[slug] || null;
   }
 
   function _pushItem(item) {
@@ -244,6 +271,10 @@ const NidalStore = (() => {
     const fallback = DEFAULT_BRAND_KPI_TARGETS[slug] || DEFAULT_BRAND_KPI_TARGETS['nidal-junior'];
     const stored = _data?.kpiTargets?.[slug] || fallback;
     const merged = { ...fallback, ...stored };
+    const liveMeta = getSocialLive(slug);
+    if (liveMeta?.instagram?.source === 'meta-api' && Number.isFinite(Number(liveMeta.instagram.followers))) {
+      merged.followers = { ...(merged.followers || fallback.followers), current: Number(liveMeta.instagram.followers), source: 'meta-api', syncedAt: liveMeta.syncedAt || liveMeta.cachedAt || null };
+    }
 
     // Calculate actual aggregates from contents
     const contents = getAll(slug);
@@ -453,7 +484,7 @@ const NidalStore = (() => {
   return {
     init, getAll, getById, create, update, remove,
     getSettings, updateSettings, exportData, importData,
-    reset, clearMockData, loadDemoData, hasMockData, syncRemote,
+    reset, clearMockData, loadDemoData, hasMockData, syncRemote, syncMetaLive, getSocialLive,
     getInteractions, getEngagement, getControl, getStats, subscribe,
     getKpiTargets, updateKpiTargets, getEtaInfo
   };
