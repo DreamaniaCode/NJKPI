@@ -2,7 +2,7 @@
 const App = (() => {
   let _currentView = 'dashboard';
   let _metaLiveTimer = null;
-  const VIEWS = ['dashboard', 'planning', 'contents', 'agent', 'performance', 'insights', 'audience', 'quality', 'settings'];
+  const VIEWS = ['dashboard', 'planning', 'contents', 'agent', 'performance', 'insights', 'audience', 'publisher', 'quality', 'settings'];
 
   async function init() {
     // 1. Initialisation locale et affichage immédiat (0ms) pour éviter tout écran blanc
@@ -129,6 +129,7 @@ const App = (() => {
       performance: typeof PerformanceView !== 'undefined' ? PerformanceView : null,
       insights: typeof InsightsView !== 'undefined' ? InsightsView : null,
       audience: typeof AudienceView !== 'undefined' ? AudienceView : null,
+      publisher: typeof PublisherView !== 'undefined' ? PublisherView : null,
       quality: typeof QualityView !== 'undefined' ? QualityView : null,
       settings: typeof SettingsView !== 'undefined' ? SettingsView : null
     };
