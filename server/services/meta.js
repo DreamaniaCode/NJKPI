@@ -314,6 +314,67 @@ async function getInstagramTopContent(brand, limit = 50) {
   }
 }
 
+async function getFacebookTopContent(brand, limit = 50) {
+  const pageId = brandEnv('META_PAGE_ID', brand);
+  if (!pageId) return { items: [], error: `META_PAGE_ID non configuré pour ${brand}` };
+
+  try {
+    const posts = await graph(`${pageId}/published_posts`, {
+      fields: 'id,permalink_url,message,created_time,shares,reactions.limit(0).summary(true),comments.limit(0).summary(true)',
+      limit: Math.max(1, Math.min(Number(limit) || 50, 100))
+    });
+
+    const items = [];
+    const metrics = process.env.META_PAGE_POST_METRICS || 'post_media_view,post_total_media_view_unique';
+
+    for (const post of posts.data || []) {
+      let values = {};
+      try {
+        const insights = await graph(`${post.id}/insights`, { metric: metrics });
+        values = Object.fromEntries((insights.data || []).map(metricItem => [
+          metricItem.name,
+          Number(metricItem.values?.[0]?.value ?? metricItem.value ?? 0)
+        ]));
+      } catch {}
+
+      const reactions = Number(post.reactions?.summary?.total_count || 0);
+      const comments = Number(post.comments?.summary?.total_count || 0);
+      const shares = Number(post.shares?.count || 0);
+      const reach = Number(values.post_total_media_view_unique || 0);
+      const views = Number(values.post_media_view || 0);
+      const interactions = reactions + comments + shares;
+
+      items.push({
+        id: post.id,
+        platform: 'facebook',
+        caption: post.message || '',
+        mediaType: 'POST',
+        permalink: post.permalink_url || '',
+        timestamp: post.created_time || null,
+        metrics: {
+          reach,
+          views,
+          reactions,
+          comments,
+          shares,
+          saves: 0,
+          interactions
+        }
+      });
+    }
+
+    items.sort((a, b) => {
+      const aScore = (a.metrics.reach * 2) + a.metrics.views + (a.metrics.interactions * 10);
+      const bScore = (b.metrics.reach * 2) + b.metrics.views + (b.metrics.interactions * 10);
+      return bScore - aScore;
+    });
+
+    return { items, error: null };
+  } catch (error) {
+    return { items: [], error: error.message };
+  }
+}
+
 async function getAdsAudienceBreakdowns(brand) {
   const accountId = brandEnv('META_AD_ACCOUNT_ID', brand);
   if (!accountId) {
@@ -362,8 +423,9 @@ async function getAdsAudienceBreakdowns(brand) {
 
 export async function syncAudienceConversions(brand) {
   const normalizedBrand = brand === 'nidal' ? 'nidal' : 'nidal-junior';
-  const [topInstagram, ads] = await Promise.all([
+  const [topInstagram, topFacebook, ads] = await Promise.all([
     getInstagramTopContent(normalizedBrand, Number(process.env.META_MEDIA_ANALYSIS_LIMIT || 50)),
+    getFacebookTopContent(normalizedBrand, Number(process.env.META_MEDIA_ANALYSIS_LIMIT || 50)),
     getAdsAudienceBreakdowns(normalizedBrand)
   ]);
 
@@ -386,6 +448,11 @@ export async function syncAudienceConversions(brand) {
       analyzedMedia: topInstagram.items.length,
       topContent: topInstagram.items,
       error: topInstagram.error
+    },
+    facebook: {
+      analyzedMedia: topFacebook.items.length,
+      topContent: topFacebook.items,
+      error: topFacebook.error
     },
     ads: {
       ...ads,
