@@ -445,39 +445,67 @@ async function getAdsAudienceBreakdowns(brand) {
       campaigns: [],
       ageGender: [],
       regions: [],
+      daily: [],
       errors: ['META_AD_ACCOUNT_ID non configuré']
     };
   }
 
   const actId = `act_${String(accountId).replace(/^act_/, '')}`;
-  const common = {
-    level: 'campaign',
-    fields: 'campaign_id,campaign_name,impressions,reach,clicks,ctr,cpc,cpm,spend,actions,cost_per_action_type',
-    date_preset: 'last_90d',
-    limit: 200
-  };
-
-  const result = { configured: true, campaigns: [], ageGender: [], regions: [], errors: [] };
+  const result = { configured: true, campaigns: [], ageGender: [], regions: [], daily: [], errors: [] };
 
   try {
-    const campaigns = await graph(`${actId}/insights`, common);
+    const campaigns = await graph(`${actId}/insights`, {
+      level: 'campaign',
+      fields: 'campaign_id,campaign_name,impressions,reach,clicks,ctr,cpc,cpm,spend,actions,cost_per_action_type',
+      date_preset: 'last_90d',
+      limit: 200
+    });
     result.campaigns = campaigns.data || [];
   } catch (error) {
     result.errors.push(`campaigns: ${error.message}`);
   }
 
+  // Utiliser le niveau account pour éviter de sommer plusieurs campagnes
+  // et d'afficher une portée démographique/géographique artificiellement gonflée.
   try {
-    const audience = await graph(`${actId}/insights`, { ...common, breakdowns: 'age,gender' });
+    const audience = await graph(`${actId}/insights`, {
+      level: 'account',
+      fields: 'impressions,reach,clicks,spend',
+      breakdowns: 'age,gender',
+      date_preset: 'last_90d',
+      limit: 200
+    });
     result.ageGender = audience.data || [];
   } catch (error) {
     result.errors.push(`age/gender: ${error.message}`);
   }
 
   try {
-    const regions = await graph(`${actId}/insights`, { ...common, breakdowns: 'region' });
+    const regions = await graph(`${actId}/insights`, {
+      level: 'account',
+      fields: 'impressions,reach,clicks,spend',
+      breakdowns: 'region',
+      date_preset: 'last_90d',
+      limit: 200
+    });
     result.regions = regions.data || [];
   } catch (error) {
     result.errors.push(`region: ${error.message}`);
+  }
+
+  // Série quotidienne immédiatement exploitable par les graphiques :
+  // pas besoin d'attendre plusieurs snapshots locaux.
+  try {
+    const daily = await graph(`${actId}/insights`, {
+      level: 'account',
+      fields: 'impressions,reach,clicks,spend',
+      date_preset: 'last_30d',
+      time_increment: 1,
+      limit: 100
+    });
+    result.daily = daily.data || [];
+  } catch (error) {
+    result.errors.push(`daily: ${error.message}`);
   }
 
   return result;
