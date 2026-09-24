@@ -5,7 +5,7 @@ import express from 'express';
 import { initDatabase, databaseHealth } from './db.js';
 import { listBrands, listContents, getContent, upsertContent, deleteContent, saveMetrics, saveAds, listAds, saveAgentRun } from './repository.js';
 import { metaConfigured, syncContentFromUrl, syncAds } from './services/meta.js';
-import { agentConfigured, getAiProvider, generateAgentOutput } from './services/agent.js';
+import { agentConfigured, getAiProvider, generateAgentOutput, shouldAutoSave, parseStructuredContent } from './services/agent.js';
 
 const app = express();
 const port = Number(process.env.PORT || 3000);
@@ -80,12 +80,43 @@ app.post('/api/ads/sync', async (req, res, next) => { try { const brand = req.bo
 
 app.post('/api/agent/generate', async (req, res, next) => {
   try {
-    const { brand = 'nidal-junior', task = 'post', brief, context = '' } = req.body;
+    const { brand = 'nidal-junior', task = 'article', brief, context = '' } = req.body;
     if (!brief?.trim()) return res.status(400).json({ error: 'Brief obligatoire' });
-    const generated = await generateAgentOutput({ brand, task, brief: brief.trim(), context });
+
+    let enrichedContext = context;
+    try {
+      const existing = await listContents(brand);
+      if (existing?.length) {
+        const recentTitles = existing.slice(0, 15).map(c => `• ${c.data?.titre || c.data?.title || 'Sans titre'} (${c.data?.statut || 'brouillon'}, ${c.data?.format || 'article'})`).join('\n');
+        enrichedContext = enrichedContext
+          ? `${enrichedContext}\n\nContenus récents existants dans l’application (éviter doublons) :\n${recentTitles}`
+          : `Contenus récents existants dans l’application (éviter doublons) :\n${recentTitles}`;
+      }
+    } catch (e) {
+      console.warn('Contexte existant non injecté:', e.message);
+    }
+
+    const generated = await generateAgentOutput({ brand, task, brief: brief.trim(), context: enrichedContext });
     const run = { id: crypto.randomUUID(), brand, task, brief: brief.trim(), ...generated, createdAt: new Date().toISOString() };
     await saveAgentRun(run);
-    res.json(run);
+
+    let savedContent = null;
+    if (shouldAutoSave(brief) && generated.output) {
+      const parsed = parseStructuredContent(generated.output, brand);
+      if (parsed) {
+        const contentId = crypto.randomUUID();
+        savedContent = await upsertContent({
+          id: contentId,
+          brand,
+          data: { ...parsed, id: contentId, brand },
+          finalUrl: '',
+          platform: 'Instagram + Facebook',
+          syncStatus: 'not_connected'
+        });
+      }
+    }
+
+    res.json({ ...run, savedContent });
   } catch (error) { next(error); }
 });
 

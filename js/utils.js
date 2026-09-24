@@ -3,18 +3,27 @@
  */
 
 const CONTENT_TYPES = [
-  { id: 'story', label: 'Story', color: '#31b9cc' },
+  { id: 'article', label: 'Article', color: '#1746d1' },
+  { id: 'interview', label: 'Interview', color: '#31b9cc' },
+  { id: 'dossier', label: 'Dossier', color: '#6938ef' },
+  { id: 'breve', label: 'Brève', color: '#ffc928' },
+  { id: 'chronique', label: 'Chronique', color: '#d91b5c' },
+  { id: 'infographie', label: 'Infographie', color: '#0f8871' },
+  { id: 'quiz', label: 'Quiz', color: '#e04f16' },
   { id: 'post', label: 'Post image', color: '#1746d1' },
   { id: 'carrousel', label: 'Carrousel', color: '#d91b5c' },
-  { id: 'video', label: 'Video / Reel', color: '#ffc928' }
+  { id: 'video', label: 'Vidéo / Reel', color: '#ffc928' },
+  { id: 'story', label: 'Story', color: '#31b9cc' }
 ];
 
 const STATUSES = [
-  { id: 'planifie', label: 'Planifie', color: '#98a2b3' },
   { id: 'brouillon', label: 'Brouillon', color: '#c28b00' },
+  { id: 'en-cours', label: 'En cours', color: '#1746d1' },
+  { id: 'relecture', label: 'Relecture', color: '#6938ef' },
+  { id: 'planifie', label: 'Planifié', color: '#98a2b3' },
   { id: 'en-production', label: 'En production', color: '#1746d1' },
-  { id: 'pret', label: 'Pret', color: '#0f8871' },
-  { id: 'publie', label: 'Publie', color: '#17814f' },
+  { id: 'pret', label: 'Prêt', color: '#0f8871' },
+  { id: 'publie', label: 'Publié', color: '#17814f' },
   { id: 'suspendu', label: 'Suspendu', color: '#b42318' }
 ];
 
