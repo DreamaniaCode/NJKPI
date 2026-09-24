@@ -44,6 +44,7 @@ const NidalAPI = (() => {
   const saveKpiTargets = (brand, targets) => request('/api/kpi/targets', { method: 'POST', body: JSON.stringify({ brand, targets }) });
   const getSocialProfiles = brand => request(`/api/social/profiles?brand=${encodeURIComponent(brand)}`);
   const getSocialLive = (brand, refresh = false) => request(`/api/social/live?brand=${encodeURIComponent(brand)}${refresh ? '&refresh=1' : ''}`);
+  const getAudienceConversions = (brand, refresh = false) => request(`/api/audience-conversions?brand=${encodeURIComponent(brand)}${refresh ? '&refresh=1' : ''}`);
 
   const listEditorialAgents = () => request('/api/editorial/agents');
   const listEditorialProviders = () => request('/api/editorial/providers');
@@ -56,7 +57,7 @@ const NidalAPI = (() => {
   return {
     init, isOnline, getHealth, getConfig, saveConfig, request,
     listContents, upsertContent, deleteContent, syncContent,
-    generate, listAds, syncAds, getKpiTargets, saveKpiTargets, getSocialProfiles, getSocialLive,
+    generate, listAds, syncAds, getKpiTargets, saveKpiTargets, getSocialProfiles, getSocialLive, getAudienceConversions,
     listEditorialAgents, listEditorialProviders, listEditorialGenerations, generateEditorial,
     saveToPlanning, transferEditorial, deleteEditorialGeneration
   };
