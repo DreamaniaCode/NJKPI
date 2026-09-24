@@ -139,3 +139,35 @@ CREATE TABLE IF NOT EXISTS social_profile_snapshots (
 
 CREATE INDEX IF NOT EXISTS social_profile_snapshots_idx
   ON social_profile_snapshots (brand_slug, platform, captured_at DESC);
+
+
+CREATE TABLE IF NOT EXISTS audience_snapshots (
+  id BIGSERIAL PRIMARY KEY,
+  brand_slug TEXT NOT NULL REFERENCES brands(slug),
+  payload JSONB NOT NULL DEFAULT '{}'::jsonb,
+  captured_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+CREATE INDEX IF NOT EXISTS audience_snapshots_brand_idx
+  ON audience_snapshots (brand_slug, captured_at DESC);
+
+CREATE TABLE IF NOT EXISTS social_publish_jobs (
+  id TEXT PRIMARY KEY,
+  brand_slug TEXT NOT NULL REFERENCES brands(slug),
+  message TEXT NOT NULL DEFAULT '',
+  media_url TEXT,
+  link_url TEXT,
+  media_type TEXT NOT NULL DEFAULT 'text',
+  platforms JSONB NOT NULL DEFAULT '[]'::jsonb,
+  scheduled_at TIMESTAMPTZ NOT NULL,
+  status TEXT NOT NULL DEFAULT 'scheduled',
+  automation_mode TEXT NOT NULL DEFAULT 'manual',
+  result JSONB NOT NULL DEFAULT '{}'::jsonb,
+  error TEXT,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  published_at TIMESTAMPTZ,
+  updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+CREATE INDEX IF NOT EXISTS social_publish_jobs_due_idx
+  ON social_publish_jobs (status, scheduled_at);
