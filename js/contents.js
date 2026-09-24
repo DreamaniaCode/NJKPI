@@ -90,12 +90,17 @@ const ContentsView = (() => {
             <small style="color:var(--muted);">Requis pour Instagram. Meta doit pouvoir accéder directement à cette URL.</small>
           </div>
           <div class="form-group">
+            <label for="form-link-url">Lien CTA / site à partager</label>
+            <input type="url" id="form-link-url" class="form-control" value="${_value(content.linkUrl)}" placeholder="https://gsnidal.ma/...">
+            <small style="color:var(--muted);">Utilisé pour les publications Facebook avec lien.</small>
+          </div>
+        </div>
+        <div class="form-group">
             <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:4px;">
               <label for="form-final-url">Lien final après publication</label>
               <button type="button" class="btn btn--secondary btn--sm" id="btn-sync-url-metrics" style="padding:2px 8px;font-size:11px;" title="Récupérer les likes, commentaires et statistiques en direct">🔄 Récupérer Likes & Commentaires</button>
             </div>
             <input type="url" id="form-final-url" class="form-control" value="${_value(content.finalUrl)}" placeholder="https://www.instagram.com/p/...">
-          </div>
         </div>
         <div class="form-row form-row--three"><div class="form-group"><label for="form-format">Format</label><select id="form-format" class="form-control">${_options(CONTENT_TYPES, content.format)}</select></div><div class="form-group"><label for="form-status">Statut</label><select id="form-status" class="form-control">${_options(STATUSES, content.statut)}</select></div><div class="form-group"><label for="form-validation">Validation</label><select id="form-validation" class="form-control">${_options(VALIDATIONS, content.validation)}</select></div></div>
         ${includePublishActions ? `
@@ -157,7 +162,7 @@ const ContentsView = (() => {
 
   function _readForm(modal) {
     return {
-      titre: modal.querySelector('#form-title').value.trim(), datePublication: modal.querySelector('#form-date').value, heure: modal.querySelector('#form-time').value, mediaUrl: modal.querySelector('#form-media-url')?.value.trim() || '', finalUrl: modal.querySelector('#form-final-url').value.trim(),
+      titre: modal.querySelector('#form-title').value.trim(), datePublication: modal.querySelector('#form-date').value, heure: modal.querySelector('#form-time').value, mediaUrl: modal.querySelector('#form-media-url')?.value.trim() || '', linkUrl: modal.querySelector('#form-link-url')?.value.trim() || '', finalUrl: modal.querySelector('#form-final-url').value.trim(),
       plateforme: modal.querySelector('#form-platform').value, format: modal.querySelector('#form-format').value, statut: modal.querySelector('#form-status').value, validation: modal.querySelector('#form-validation').value,
       niveau: modal.querySelector('#form-level').value, classes: modal.querySelector('#form-classes').value.trim(), album: modal.querySelector('#form-album').value.trim(), pilier: modal.querySelector('#form-pillar').value.trim(), objectif: modal.querySelector('#form-objective').value.trim(),
       message: modal.querySelector('#form-message').value.trim(), cta: modal.querySelector('#form-cta').value.trim(), livrable: modal.querySelector('#form-deliverable').value.trim(), notes: modal.querySelector('#form-notes').value.trim(),
@@ -281,7 +286,7 @@ const ContentsView = (() => {
       brand: getActiveBrand(),
       message: _captionForContent(values),
       mediaUrl: values.mediaUrl || '',
-      linkUrl: values.finalUrl || '',
+      linkUrl: values.linkUrl || '',
       mediaType: _mediaTypeForContent(values),
       platforms,
       scheduledAt: scheduledAt.toISOString(),
@@ -506,7 +511,7 @@ const ContentsView = (() => {
               'success'
             );
           } catch (error) {
-            NidalStore.update(created.id, { statut: 'a-valider', notes: [values.notes, 'Publication Meta à vérifier : ' + error.message].filter(Boolean).join('\n') });
+            NidalStore.update(created.id, { statut: 'planifie', notes: [values.notes, 'Publication Meta à vérifier : ' + error.message].filter(Boolean).join('\n') });
             button.disabled = false;
             button.textContent = 'Créer le post';
             showToast('Contenu enregistré, mais publication Meta non terminée : ' + error.message, 'error');
