@@ -6,6 +6,8 @@ const memory = {
   ads: new Map(),
   socialProfiles: new Map(),
   socialSnapshots: [],
+  audienceSnapshots: [],
+  publishJobs: new Map(),
   agentRuns: []
 };
 
@@ -467,6 +469,133 @@ export async function getSocialProfileHistory(brand, platform, limit = 30) {
     return result.rows;
   } catch (error) {
     console.warn('Fallback mémoire getSocialProfileHistory:', error.message);
+    return [];
+  }
+}
+
+
+export async function saveAudienceSnapshot(brand, payload) {
+  const record = { brand_slug: brand, payload, captured_at: new Date().toISOString() };
+  memory.audienceSnapshots.push(record);
+  if (!hasDatabase) return record;
+  try {
+    const result = await query(
+      'INSERT INTO audience_snapshots (brand_slug, payload) VALUES ($1,$2::jsonb) RETURNING id, brand_slug, payload, captured_at',
+      [brand, JSON.stringify(payload || {})]
+    );
+    return result.rows[0];
+  } catch (error) {
+    console.warn('Fallback memoire saveAudienceSnapshot:', error.message);
+    return record;
+  }
+}
+
+export async function listAudienceSnapshots(brand, limit = 168) {
+  const safeLimit = Math.max(1, Math.min(Number(limit) || 168, 1000));
+  if (!hasDatabase) {
+    return memory.audienceSnapshots
+      .filter(item => item.brand_slug === brand)
+      .sort((a, b) => b.captured_at.localeCompare(a.captured_at))
+      .slice(0, safeLimit);
+  }
+  try {
+    const result = await query(
+      'SELECT id, brand_slug, payload, captured_at FROM audience_snapshots WHERE brand_slug=$1 ORDER BY captured_at DESC LIMIT $2',
+      [brand, safeLimit]
+    );
+    return result.rows;
+  } catch (error) {
+    console.warn('Fallback memoire listAudienceSnapshots:', error.message);
+    return memory.audienceSnapshots
+      .filter(item => item.brand_slug === brand)
+      .sort((a, b) => b.captured_at.localeCompare(a.captured_at))
+      .slice(0, safeLimit);
+  }
+}
+
+export async function savePublishJob(job) {
+  const record = {
+    id: job.id,
+    brand_slug: job.brand || job.brand_slug || 'nidal-junior',
+    message: job.message || '',
+    media_url: job.mediaUrl || job.media_url || null,
+    link_url: job.linkUrl || job.link_url || null,
+    media_type: job.mediaType || job.media_type || 'text',
+    platforms: Array.isArray(job.platforms) ? job.platforms : [],
+    scheduled_at: job.scheduledAt || job.scheduled_at || new Date().toISOString(),
+    status: job.status || 'scheduled',
+    automation_mode: job.automationMode || job.automation_mode || 'manual',
+    result: job.result || {},
+    error: job.error || null,
+    created_at: job.createdAt || job.created_at || new Date().toISOString(),
+    published_at: job.publishedAt || job.published_at || null,
+    updated_at: new Date().toISOString()
+  };
+  memory.publishJobs.set(record.id, record);
+  if (!hasDatabase) return record;
+  try {
+    const result = await query(`
+      INSERT INTO social_publish_jobs
+        (id, brand_slug, message, media_url, link_url, media_type, platforms, scheduled_at, status, automation_mode, result, error, created_at, published_at, updated_at)
+      VALUES ($1,$2,$3,$4,$5,$6,$7::jsonb,$8,$9,$10,$11::jsonb,$12,$13,$14,NOW())
+      ON CONFLICT (id) DO UPDATE SET
+        message=EXCLUDED.message, media_url=EXCLUDED.media_url, link_url=EXCLUDED.link_url,
+        media_type=EXCLUDED.media_type, platforms=EXCLUDED.platforms, scheduled_at=EXCLUDED.scheduled_at,
+        status=EXCLUDED.status, automation_mode=EXCLUDED.automation_mode, result=EXCLUDED.result,
+        error=EXCLUDED.error, published_at=EXCLUDED.published_at, updated_at=NOW()
+      RETURNING *
+    `, [
+      record.id, record.brand_slug, record.message, record.media_url, record.link_url,
+      record.media_type, JSON.stringify(record.platforms), record.scheduled_at, record.status,
+      record.automation_mode, JSON.stringify(record.result), record.error, record.created_at, record.published_at
+    ]);
+    return result.rows[0];
+  } catch (error) {
+    console.warn('Fallback memoire savePublishJob:', error.message);
+    return record;
+  }
+}
+
+export async function listPublishJobs(brand, limit = 100) {
+  const safeLimit = Math.max(1, Math.min(Number(limit) || 100, 500));
+  if (!hasDatabase) {
+    return [...memory.publishJobs.values()]
+      .filter(item => !brand || item.brand_slug === brand)
+      .sort((a, b) => b.scheduled_at.localeCompare(a.scheduled_at))
+      .slice(0, safeLimit);
+  }
+  try {
+    const result = await query(
+      'SELECT * FROM social_publish_jobs WHERE ($1::text IS NULL OR brand_slug=$1) ORDER BY scheduled_at DESC LIMIT $2',
+      [brand || null, safeLimit]
+    );
+    return result.rows;
+  } catch (error) {
+    console.warn('Fallback memoire listPublishJobs:', error.message);
+    return [...memory.publishJobs.values()]
+      .filter(item => !brand || item.brand_slug === brand)
+      .sort((a, b) => b.scheduled_at.localeCompare(a.scheduled_at))
+      .slice(0, safeLimit);
+  }
+}
+
+export async function listDuePublishJobs(limit = 20) {
+  const safeLimit = Math.max(1, Math.min(Number(limit) || 20, 100));
+  if (!hasDatabase) {
+    const now = Date.now();
+    return [...memory.publishJobs.values()]
+      .filter(item => item.status === 'scheduled' && new Date(item.scheduled_at).getTime() <= now)
+      .sort((a, b) => a.scheduled_at.localeCompare(b.scheduled_at))
+      .slice(0, safeLimit);
+  }
+  try {
+    const result = await query(
+      "SELECT * FROM social_publish_jobs WHERE status='scheduled' AND scheduled_at<=NOW() ORDER BY scheduled_at ASC LIMIT $1",
+      [safeLimit]
+    );
+    return result.rows;
+  } catch (error) {
+    console.warn('Fallback memoire listDuePublishJobs:', error.message);
     return [];
   }
 }
