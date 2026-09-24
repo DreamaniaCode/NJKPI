@@ -114,3 +114,28 @@ CREATE TABLE IF NOT EXISTS kpi_targets (
   updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 
+
+
+CREATE TABLE IF NOT EXISTS social_profiles (
+  brand_slug TEXT NOT NULL REFERENCES brands(slug),
+  platform TEXT NOT NULL,
+  profile JSONB NOT NULL DEFAULT '{}'::jsonb,
+  source TEXT NOT NULL DEFAULT 'meta-api',
+  synced_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  PRIMARY KEY (brand_slug, platform)
+);
+
+CREATE TABLE IF NOT EXISTS social_profile_snapshots (
+  id BIGSERIAL PRIMARY KEY,
+  brand_slug TEXT NOT NULL REFERENCES brands(slug),
+  platform TEXT NOT NULL,
+  followers BIGINT,
+  follows BIGINT,
+  media_count BIGINT,
+  profile JSONB NOT NULL DEFAULT '{}'::jsonb,
+  source TEXT NOT NULL DEFAULT 'meta-api',
+  captured_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+CREATE INDEX IF NOT EXISTS social_profile_snapshots_idx
+  ON social_profile_snapshots (brand_slug, platform, captured_at DESC);
