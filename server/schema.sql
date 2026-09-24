@@ -56,3 +56,54 @@ CREATE TABLE IF NOT EXISTS agent_runs (
   is_demo BOOLEAN NOT NULL DEFAULT FALSE,
   created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
+
+CREATE TABLE IF NOT EXISTS editorial_agents (
+  key TEXT PRIMARY KEY,
+  name TEXT NOT NULL,
+  role TEXT NOT NULL,
+  default_brand TEXT NOT NULL REFERENCES brands(slug),
+  avatar TEXT,
+  system_prompt TEXT NOT NULL,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+CREATE TABLE IF NOT EXISTS agent_conversations (
+  id TEXT PRIMARY KEY,
+  agent_key TEXT NOT NULL REFERENCES editorial_agents(key),
+  brand_slug TEXT NOT NULL REFERENCES brands(slug),
+  title TEXT NOT NULL,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+CREATE TABLE IF NOT EXISTS agent_generations (
+  id TEXT PRIMARY KEY,
+  agent_key TEXT NOT NULL REFERENCES editorial_agents(key),
+  brand_slug TEXT NOT NULL REFERENCES brands(slug),
+  conversation_id TEXT,
+  brief JSONB NOT NULL DEFAULT '{}'::jsonb,
+  output TEXT NOT NULL,
+  structured_data JSONB NOT NULL DEFAULT '{}'::jsonb,
+  storyboard JSONB,
+  quality_check JSONB,
+  status TEXT NOT NULL DEFAULT 'brouillon',
+  content_id TEXT REFERENCES contents(id) ON DELETE SET NULL,
+  parent_generation_id TEXT,
+  model TEXT,
+  is_demo BOOLEAN NOT NULL DEFAULT FALSE,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+CREATE INDEX IF NOT EXISTS agent_gen_agent_idx ON agent_generations (agent_key, created_at DESC);
+CREATE INDEX IF NOT EXISTS agent_gen_brand_idx ON agent_generations (brand_slug, created_at DESC);
+
+CREATE TABLE IF NOT EXISTS agent_transfers (
+  id TEXT PRIMARY KEY,
+  from_agent TEXT NOT NULL,
+  to_agent TEXT NOT NULL,
+  source_generation_id TEXT REFERENCES agent_generations(id) ON DELETE CASCADE,
+  notes TEXT,
+  status TEXT NOT NULL DEFAULT 'transfere',
+  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);

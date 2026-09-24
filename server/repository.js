@@ -129,3 +129,112 @@ export async function saveAgentRun(run) {
   }
   return run;
 }
+
+if (!memory.generations) memory.generations = new Map();
+if (!memory.transfers) memory.transfers = [];
+
+export async function saveEditorialGeneration(record) {
+  const gen = {
+    id: record.id,
+    agent_key: record.agentKey || record.agent_key,
+    brand_slug: record.brand || record.brand_slug || 'nidal-junior',
+    conversation_id: record.conversationId || record.conversation_id || null,
+    brief: record.brief || {},
+    output: record.output || '',
+    structured_data: record.structuredData || record.structured_data || {},
+    storyboard: record.storyboard || null,
+    quality_check: record.qualityCheck || record.quality_check || null,
+    status: record.status || 'brouillon',
+    content_id: record.contentId || record.content_id || null,
+    parent_generation_id: record.parentGenerationId || record.parent_generation_id || null,
+    model: record.model || null,
+    is_demo: Boolean(record.isDemo || record.is_demo),
+    created_at: record.createdAt || record.created_at || new Date().toISOString(),
+    updated_at: new Date().toISOString()
+  };
+  memory.generations.set(gen.id, gen);
+  if (!hasDatabase) return gen;
+  try {
+    const result = await query(`
+      INSERT INTO agent_generations (id, agent_key, brand_slug, conversation_id, brief, output, structured_data, storyboard, quality_check, status, content_id, parent_generation_id, model, is_demo, created_at, updated_at)
+      VALUES ($1, $2, $3, $4, $5::jsonb, $6, $7::jsonb, $8::jsonb, $9::jsonb, $10, $11, $12, $13, $14, $15, $16)
+      ON CONFLICT (id) DO UPDATE SET brief=EXCLUDED.brief, output=EXCLUDED.output, structured_data=EXCLUDED.structured_data,
+        storyboard=EXCLUDED.storyboard, quality_check=EXCLUDED.quality_check, status=EXCLUDED.status,
+        content_id=EXCLUDED.content_id, updated_at=NOW()
+      RETURNING *`,
+      [gen.id, gen.agent_key, gen.brand_slug, gen.conversation_id, JSON.stringify(gen.brief), gen.output, JSON.stringify(gen.structured_data), gen.storyboard ? JSON.stringify(gen.storyboard) : null, gen.quality_check ? JSON.stringify(gen.quality_check) : null, gen.status, gen.content_id, gen.parent_generation_id, gen.model, gen.is_demo, gen.created_at, gen.updated_at]
+    );
+    return result.rows[0];
+  } catch (error) {
+    console.warn('Fallback memoire saveEditorialGeneration:', error.message);
+    return gen;
+  }
+}
+
+export async function listEditorialGenerations(agentKey, brand) {
+  if (!hasDatabase) {
+    return [...memory.generations.values()]
+      .filter(item => (!agentKey || item.agent_key === agentKey) && (!brand || item.brand_slug === brand))
+      .sort((a, b) => b.created_at.localeCompare(a.created_at));
+  }
+  try {
+    const result = await query(
+      `SELECT * FROM agent_generations WHERE ($1::text IS NULL OR agent_key = $1) AND ($2::text IS NULL OR brand_slug = $2) ORDER BY created_at DESC LIMIT 50`,
+      [agentKey || null, brand || null]
+    );
+    return result.rows;
+  } catch (error) {
+    console.warn('Fallback memoire listEditorialGenerations:', error.message);
+    return [...memory.generations.values()]
+      .filter(item => (!agentKey || item.agent_key === agentKey) && (!brand || item.brand_slug === brand))
+      .sort((a, b) => b.created_at.localeCompare(a.created_at));
+  }
+}
+
+export async function getEditorialGeneration(id) {
+  if (!hasDatabase) return memory.generations.get(id) || null;
+  try {
+    const result = await query('SELECT * FROM agent_generations WHERE id = $1', [id]);
+    return result.rows[0] || null;
+  } catch (error) {
+    console.warn('Fallback memoire getEditorialGeneration:', error.message);
+    return memory.generations.get(id) || null;
+  }
+}
+
+export async function deleteEditorialGeneration(id) {
+  memory.generations.delete(id);
+  if (!hasDatabase) return true;
+  try {
+    const result = await query('DELETE FROM agent_generations WHERE id = $1', [id]);
+    return result.rowCount > 0;
+  } catch (error) {
+    console.warn('Fallback memoire deleteEditorialGeneration:', error.message);
+    return true;
+  }
+}
+
+export async function saveEditorialTransfer(transfer) {
+  const record = {
+    id: transfer.id,
+    from_agent: transfer.fromAgent || transfer.from_agent,
+    to_agent: transfer.toAgent || transfer.to_agent,
+    source_generation_id: transfer.sourceGenerationId || transfer.source_generation_id,
+    notes: transfer.notes || '',
+    status: transfer.status || 'transfere',
+    created_at: new Date().toISOString()
+  };
+  memory.transfers.push(record);
+  if (!hasDatabase) return record;
+  try {
+    const result = await query(
+      `INSERT INTO agent_transfers (id, from_agent, to_agent, source_generation_id, notes, status, created_at)
+       VALUES ($1, $2, $3, $4, $5, $6, $7) RETURNING *`,
+      [record.id, record.from_agent, record.to_agent, record.source_generation_id, record.notes, record.status, record.created_at]
+    );
+    return result.rows[0];
+  } catch (error) {
+    console.warn('Fallback memoire saveEditorialTransfer:', error.message);
+    return record;
+  }
+}

@@ -194,14 +194,47 @@ button { color: inherit; }
 .connection-pill { min-height: 28px; display: inline-flex; align-items: center; padding: 0 9px; border: 1px solid var(--line); font-size: 10px; font-weight: 800; }
 .connection-pill--ok { color: var(--green); background: var(--soft-green); }
 .connection-pill--off { color: var(--red); background: var(--soft-red); }
-.agent-layout { display: grid; grid-template-columns: minmax(300px, .8fr) minmax(0, 1.2fr); gap: 28px; }
+.agent-layout { display: grid; grid-template-columns: minmax(320px, .85fr) minmax(0, 1.15fr); gap: 24px; }
 .agent-brief, .agent-output { padding: 22px; background: var(--panel); border-top: 3px solid var(--blue); }
 .agent-brief h2, .agent-output h2, .sync-panel h2, .integration-panel h2 { margin: 3px 0 16px; font-size: 18px; }
 .agent-output { border-top-color: var(--magenta); }
-.agent-output__head { display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; padding-bottom: 15px; border-bottom: 1px solid var(--line); }
-.agent-output__head > div:last-child { display: flex; gap: 6px; }
-.agent-result { min-height: 430px; padding-top: 18px; color: var(--muted); }
+.agent-output__head { display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; padding-bottom: 12px; border-bottom: 1px solid var(--line); }
+.agent-output__head > div:last-child { display: flex; gap: 6px; flex-wrap: wrap; }
+.agent-result { min-height: 430px; padding-top: 14px; color: var(--muted); }
 .agent-result pre { margin: 0; color: var(--ink); font-family: var(--font); font-size: 12px; line-height: 1.65; white-space: pre-wrap; word-break: break-word; }
+
+/* Sélecteur des deux agents éditoriaux */
+.agents-selector { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; margin-bottom: 20px; }
+.agent-card { display: flex; align-items: center; gap: 14px; padding: 14px 16px; background: var(--panel); border: 2px solid var(--line); border-radius: 6px; cursor: pointer; text-align: left; transition: all .18s ease; }
+.agent-card:hover { border-color: var(--cyan); transform: translateY(-1px); }
+.agent-card.active { border-color: var(--blue); background: var(--soft-blue); box-shadow: 0 4px 14px rgba(23, 70, 209, .08); }
+.agent-card.agent-card--junior.active { border-color: var(--magenta); background: #fdf2f7; }
+.agent-card__avatar { width: 44px; height: 44px; border-radius: 50%; object-fit: contain; background: #ffffff; padding: 3px; border: 1px solid var(--line); flex-shrink: 0; }
+.agent-card__info strong { display: block; font-size: 14px; color: var(--ink); line-height: 1.25; }
+.agent-card__info small { display: block; margin-top: 3px; font-size: 11px; color: var(--muted); line-height: 1.3; }
+
+/* Onglets du studio de génération */
+.agent-tabs { display: flex; gap: 4px; border-bottom: 1px solid var(--line); margin-bottom: 14px; overflow-x: auto; padding-bottom: 4px; }
+.agent-tab-btn { padding: 8px 12px; border: 0; border-bottom: 2px solid transparent; background: transparent; font-size: 11px; font-weight: 700; color: var(--muted); cursor: pointer; white-space: nowrap; }
+.agent-tab-btn:hover { color: var(--ink); }
+.agent-tab-btn.active { color: var(--blue); border-bottom-color: var(--blue); }
+
+/* Cartes storyboard minuté */
+.storyboard-timeline { display: flex; flex-direction: column; gap: 12px; margin-top: 10px; }
+.storyboard-card { padding: 14px 16px; background: var(--surface); border-left: 4px solid var(--yellow); border-radius: 4px; font-size: 11px; line-height: 1.6; }
+.storyboard-card__head { display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px; font-weight: 800; color: var(--ink); }
+.storyboard-card__badge { background: var(--yellow); color: #4c3b0a; padding: 2px 8px; border-radius: 999px; font-size: 10px; font-weight: 800; }
+.storyboard-field { margin-bottom: 4px; }
+.storyboard-field strong { color: var(--ink); margin-right: 4px; }
+
+/* Boîte de révision rapide */
+.revision-panel { margin-top: 14px; padding: 12px; background: var(--surface); border: 1px dashed var(--line); border-radius: 4px; }
+.revision-panel textarea { width: 100%; box-sizing: border-box; }
+
+/* Historique des générations */
+.history-strip { margin-top: 20px; padding-top: 14px; border-top: 1px solid var(--line); }
+.history-item { display: flex; align-items: center; justify-content: space-between; gap: 10px; padding: 8px 10px; background: var(--surface); border-radius: 4px; margin-bottom: 6px; font-size: 11px; cursor: pointer; }
+.history-item:hover { background: var(--soft-blue); }
 .insight-grid { display: grid; grid-template-columns: minmax(0, 1.4fr) minmax(270px, .6fr); gap: 28px; }
 .sync-panel, .integration-panel { padding: 22px; background: var(--panel); border-top: 3px solid var(--cyan); }
 .sync-panel p, .integration-panel p, .sync-panel > small, .form-help { color: var(--muted); font-size: 10px; }

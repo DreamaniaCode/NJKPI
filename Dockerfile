@@ -7,8 +7,8 @@ COPY . .
 
 ENV NODE_ENV=production
 ENV PORT=3000
-ENV APP_VERSION=0.3.2
-LABEL version="0.3.2"
+ENV APP_VERSION=0.4.0
+LABEL version="0.4.0"
 EXPOSE 3000
 
 CMD ["npm", "start"]
