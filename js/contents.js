@@ -47,11 +47,12 @@ const ContentsView = (() => {
     }
     tbody.innerHTML = items.map(content => {
       const control = getControlMeta(NidalStore.getControl(content));
+      const platformMeta = typeof getPlatform === 'function' ? getPlatform(content.plateforme) : { icon: '🌐', short: content.plateforme || 'IG + FB' };
       return `<tr>
         <td><strong>${formatDate(content.datePublication, 'compact')}</strong><small>${escapeHtml(content.heure)}</small></td>
         <td><strong>${escapeHtml(content.titre)}</strong><small>${escapeHtml(content.album || content.objectif)}</small></td>
         <td>${escapeHtml(getLevel(content.niveau).label)}<small>${escapeHtml(content.classes)}</small></td>
-        <td>${escapeHtml(getContentType(content.format).label)}<small>${escapeHtml(content.plateforme)}</small></td>
+        <td>${escapeHtml(getContentType(content.format).label)}<span class="badge" style="margin-left:6px;font-size:10px;background:#eef4ff;color:#1746d1;font-weight:600;">${platformMeta.icon} ${escapeHtml(platformMeta.short)}</span></td>
         <td><span class="badge badge--${content.statut}">${escapeHtml(getStatus(content.statut).label)}</span></td>
         <td><span class="control-badge ${control.className}">${control.label}</span></td>
         <td class="actions-column"><button class="btn btn--icon btn--sm" onclick="ContentsView.openEditForm('${content.id}')" aria-label="Modifier ${escapeHtml(content.titre)}" title="Modifier">Modifier</button><button class="btn btn--icon btn--sm btn--danger-text" onclick="ContentsView.deleteContent('${content.id}')" aria-label="Supprimer ${escapeHtml(content.titre)}" title="Supprimer">Supprimer</button></td>
@@ -66,11 +67,27 @@ const ContentsView = (() => {
     const checks = content.checks || { logo: true, valeurs: true, footer: true, autorisation: true };
     const objectifs = content.objectifs || { portee: 1000, interactions: 50, clics: 5 };
     const resultats = content.resultats || {};
+    const platformList = typeof PLATFORMS !== 'undefined' ? PLATFORMS : [
+      { id: 'instagram-facebook', label: 'Instagram + Facebook (IG + FB)', icon: '🌐' },
+      { id: 'instagram', label: 'Instagram (IG)', icon: '📷' },
+      { id: 'facebook', label: 'Facebook (FB)', icon: '📘' },
+      { id: 'reel-ig', label: 'Instagram Reel (IG)', icon: '🎬' },
+      { id: 'story-ig', label: 'Instagram Story (IG)', icon: '📱' },
+      { id: 'tiktok', label: 'TikTok', icon: '🎵' },
+      { id: 'linkedin', label: 'LinkedIn', icon: '💼' }
+    ];
+
     return `<form id="content-form" onsubmit="return false;">
       <div class="form-section"><h3>Publication</h3>
         <div class="form-group form-group--wide"><label for="form-title">Titre *</label><input id="form-title" class="form-control" required value="${_value(content.titre)}"></div>
-        <div class="form-row form-row--three"><div class="form-group"><label for="form-date">Date</label><input type="date" id="form-date" class="form-control" value="${toISODate(content.datePublication)}"></div><div class="form-group"><label for="form-time">Heure</label><input type="time" id="form-time" class="form-control" value="${_value(content.heure || '18:30')}"></div><div class="form-group"><label for="form-platform">Plateforme</label><select id="form-platform" class="form-control">${['Instagram + Facebook','Instagram Reel + Facebook','Instagram Story','Facebook'].map(value => `<option ${content.plateforme === value ? 'selected' : ''}>${value}</option>`).join('')}</select></div></div>
-        <div class="form-group"><label for="form-final-url">Lien final apres publication</label><input type="url" id="form-final-url" class="form-control" value="${_value(content.finalUrl)}" placeholder="https://www.instagram.com/p/..."></div>
+        <div class="form-row form-row--three"><div class="form-group"><label for="form-date">Date</label><input type="date" id="form-date" class="form-control" value="${toISODate(content.datePublication)}"></div><div class="form-group"><label for="form-time">Heure</label><input type="time" id="form-time" class="form-control" value="${_value(content.heure || '18:30')}"></div><div class="form-group"><label for="form-platform">Plateforme</label><select id="form-platform" class="form-control">${platformList.map(p => `<option value="${p.label}" ${content.plateforme === p.label || content.plateforme === p.id || content.plateforme === p.short || (!content.plateforme && p.id === 'instagram-facebook') ? 'selected' : ''}>${p.icon} ${p.label}</option>`).join('')}</select></div></div>
+        <div class="form-group">
+          <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:4px;">
+            <label for="form-final-url">Lien final après publication</label>
+            <button type="button" class="btn btn--secondary btn--sm" id="btn-sync-url-metrics" style="padding:2px 8px;font-size:11px;" title="Récupérer les likes, commentaires et statistiques en direct">🔄 Récupérer Likes & Commentaires</button>
+          </div>
+          <input type="url" id="form-final-url" class="form-control" value="${_value(content.finalUrl)}" placeholder="https://www.instagram.com/p/...">
+        </div>
         <div class="form-row form-row--three"><div class="form-group"><label for="form-format">Format</label><select id="form-format" class="form-control">${_options(CONTENT_TYPES, content.format)}</select></div><div class="form-group"><label for="form-status">Statut</label><select id="form-status" class="form-control">${_options(STATUSES, content.statut)}</select></div><div class="form-group"><label for="form-validation">Validation</label><select id="form-validation" class="form-control">${_options(VALIDATIONS, content.validation)}</select></div></div>
       </div>
       <div class="form-section"><h3>Vision editoriale</h3>
@@ -144,14 +161,96 @@ const ContentsView = (() => {
     };
   }
 
+  function _bindFormSync(modal) {
+    const btnSync = modal.querySelector('#btn-sync-url-metrics');
+    if (!btnSync) return;
+    btnSync.onclick = async () => {
+      const urlInput = modal.querySelector('#form-final-url');
+      const url = urlInput?.value.trim();
+      if (!url) {
+        showToast('Veuillez d\'abord coller une URL Instagram ou Facebook', 'error');
+        urlInput?.focus();
+        return;
+      }
+      btnSync.disabled = true;
+      btnSync.textContent = 'Récupération en direct...';
+      try {
+        const brand = getActiveBrand();
+        const res = await NidalAPI.request('/api/import/url', { method: 'POST', body: JSON.stringify({ url, brand }) });
+        if (res?.metrics) {
+          const m = res.metrics;
+          const setV = (id, val) => { const el = modal.querySelector(`#${id}`); if (el && val !== null && val !== undefined) el.value = val; };
+          setV('result-reactions', m.reactions);
+          setV('result-comments', m.commentaires);
+          setV('result-views', m.vues);
+          setV('result-reach', m.portee);
+          setV('result-shares', m.partages);
+          setV('result-saves', m.enregistrements);
+          if (res.content?.data?.titre) {
+            const titleEl = modal.querySelector('#form-title');
+            if (titleEl && (!titleEl.value || titleEl.value.startsWith('Import '))) titleEl.value = res.content.data.titre;
+          }
+          if (res.content?.data?.message) {
+            const msgEl = modal.querySelector('#form-message');
+            if (msgEl && !msgEl.value) msgEl.value = res.content.data.message;
+          }
+          if (res.content?.data?.plateforme) {
+            const platEl = modal.querySelector('#form-platform');
+            if (platEl) {
+              const opt = Array.from(platEl.options).find(o => o.value.includes(res.content.data.plateforme) || res.content.data.plateforme.includes(o.value));
+              if (opt) platEl.value = opt.value;
+            }
+          }
+          if (res.content?.data?.format) {
+            const fmtEl = modal.querySelector('#form-format');
+            if (fmtEl) fmtEl.value = res.content.data.format;
+          }
+          showToast(`Métriques synchronisées : ${m.reactions || 0} likes, ${m.commentaires || 0} commentaires !`, 'success');
+        } else {
+          showToast('Lien analysé, aucune métrique publique trouvée', 'info');
+        }
+      } catch (err) {
+        showToast('Erreur lors de la récupération : ' + err.message, 'error');
+      } finally {
+        btnSync.disabled = false;
+        btnSync.textContent = '🔄 Récupérer Likes & Commentaires';
+      }
+    };
+  }
+
   function openCreateForm(defaultDate = '') {
-    const initial = { datePublication: defaultDate, heure: '18:30', format: 'post', statut: 'planifie', niveau: 'tous', validation: 'a-valider', plateforme: 'Instagram + Facebook', checks: { logo: true, valeurs: true, footer: true, autorisation: true }, objectifs: { portee: 1000, vues: 1500, commentaires: 15, interactions: 50, clics: 10, conversions: 5, eta: defaultDate }, resultats: {} };
-    openModal('Nouveau contenu', _formHtml(initial), { footer: `<button type="button" class="btn btn--secondary" data-close-modal>Annuler</button><button type="button" class="btn btn--primary" id="save-content-btn">Enregistrer</button>`, onOpen: modal => modal.querySelector('#save-content-btn').onclick = () => { const values = _readForm(modal); if (!values.titre) return showToast('Le titre est obligatoire', 'error'); NidalStore.create(values); closeModal(); showToast('Contenu cree', 'success'); } });
+    const initial = { datePublication: defaultDate, heure: '18:30', format: 'post', statut: 'planifie', niveau: 'tous', validation: 'a-valider', plateforme: 'Instagram + Facebook (IG + FB)', checks: { logo: true, valeurs: true, footer: true, autorisation: true }, objectifs: { portee: 1000, vues: 1500, commentaires: 15, interactions: 50, clics: 10, conversions: 5, eta: defaultDate }, resultats: {} };
+    openModal('Nouveau contenu', _formHtml(initial), {
+      footer: `<button type="button" class="btn btn--secondary" data-close-modal>Annuler</button><button type="button" class="btn btn--primary" id="save-content-btn">Enregistrer</button>`,
+      onOpen: modal => {
+        _bindFormSync(modal);
+        modal.querySelector('#save-content-btn').onclick = () => {
+          const values = _readForm(modal);
+          if (!values.titre) return showToast('Le titre est obligatoire', 'error');
+          NidalStore.create(values);
+          closeModal();
+          showToast('Contenu créé', 'success');
+        };
+      }
+    });
   }
 
   function openEditForm(id) {
-    const content = NidalStore.getById(id); if (!content) return;
-    openModal('Modifier le contenu', _formHtml(content), { footer: `<button type="button" class="btn btn--secondary" data-close-modal>Annuler</button><button type="button" class="btn btn--primary" id="save-content-btn">Enregistrer</button>`, onOpen: modal => modal.querySelector('#save-content-btn').onclick = () => { const values = _readForm(modal); if (!values.titre) return showToast('Le titre est obligatoire', 'error'); NidalStore.update(id, values); closeModal(); showToast('Modifications enregistrees', 'success'); } });
+    const content = NidalStore.getById(id);
+    if (!content) return;
+    openModal('Modifier le contenu', _formHtml(content), {
+      footer: `<button type="button" class="btn btn--secondary" data-close-modal>Annuler</button><button type="button" class="btn btn--primary" id="save-content-btn">Enregistrer</button>`,
+      onOpen: modal => {
+        _bindFormSync(modal);
+        modal.querySelector('#save-content-btn').onclick = () => {
+          const values = _readForm(modal);
+          if (!values.titre) return showToast('Le titre est obligatoire', 'error');
+          NidalStore.update(id, values);
+          closeModal();
+          showToast('Modifications enregistrées', 'success');
+        };
+      }
+    });
   }
 
   function deleteContent(id) { const content = NidalStore.getById(id); confirmAction(`Supprimer « ${content?.titre || 'ce contenu'} » ?`, () => { NidalStore.remove(id); showToast('Contenu supprime', 'success'); }); }

@@ -29,11 +29,44 @@ export function metaConfigured(brand) {
   return Boolean(process.env.META_ACCESS_TOKEN && (brandEnv('META_PAGE_ID', brand) || brandEnv('META_IG_USER_ID', brand)));
 }
 
+import { scrapeSocialPost } from './public-scraper.js';
+
 export async function syncContentFromUrl({ brand, finalUrl, platform }) {
-  const demo = process.env.DEMO_MODE === 'true' || !metaConfigured(brand);
-  if (demo) return demoContentMetrics(finalUrl, platform);
-  if (/instagram/i.test(platform) || /instagram\.com/i.test(finalUrl)) return syncInstagram(brand, finalUrl);
-  return syncFacebook(brand, finalUrl);
+  // 1. Si Meta API officielle est configurée, essayer l'API officielle
+  if (metaConfigured(brand) && process.env.DEMO_MODE !== 'true') {
+    try {
+      if (/instagram/i.test(platform) || /instagram\.com/i.test(finalUrl)) {
+        return await syncInstagram(brand, finalUrl);
+      }
+      return await syncFacebook(brand, finalUrl);
+    } catch (apiError) {
+      console.warn('Meta Graph API indisponible, tentative de lecture publique:', apiError.message);
+    }
+  }
+
+  // 2. Extraction publique en temps réel des métadonnées et vrais likes/commentaires
+  try {
+    const scraped = await scrapeSocialPost(finalUrl);
+    if (scraped.success && scraped.metrics) {
+      return {
+        source: /instagram/i.test(platform || finalUrl) ? 'instagram' : 'facebook',
+        externalMediaId: `scraped_${Date.now()}`,
+        permalink: scraped.cleanUrl || finalUrl,
+        isDemo: false,
+        metrics: scraped.metrics,
+        title: scraped.title,
+        caption: scraped.caption,
+        format: scraped.format,
+        mediaUrl: scraped.mediaUrl,
+        platform: scraped.platform
+      };
+    }
+  } catch (scrapeErr) {
+    console.warn('Scraping public échoué:', scrapeErr.message);
+  }
+
+  // 3. Fallback mode démo si tout échoue
+  return demoContentMetrics(finalUrl, platform);
 }
 
 async function syncInstagram(brand, finalUrl) {

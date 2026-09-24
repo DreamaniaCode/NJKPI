@@ -4,8 +4,8 @@
  */
 const NidalImport = (() => {
   const PLATFORM_PATTERNS = [
-    { pattern: /instagram\.com/i, platform: 'Instagram', icon: '📷' },
-    { pattern: /facebook\.com|fb\.watch/i, platform: 'Facebook', icon: '📘' },
+    { pattern: /instagram\.com/i, platform: 'Instagram (IG)', icon: '📷' },
+    { pattern: /facebook\.com|fb\.watch/i, platform: 'Facebook (FB)', icon: '📘' },
     { pattern: /tiktok\.com/i, platform: 'TikTok', icon: '🎵' },
     { pattern: /youtube\.com|youtu\.be/i, platform: 'YouTube', icon: '🎥' },
     { pattern: /linkedin\.com/i, platform: 'LinkedIn', icon: '💼' },
@@ -137,7 +137,11 @@ const NidalImport = (() => {
               if (NidalAPI.isOnline()) {
                 const result = await NidalAPI.request('/api/import/url', { method: 'POST', body: JSON.stringify({ url: urls[i], brand }) });
                 if (result?.content) {
-                  NidalStore.create(result.content.data || result.content);
+                  const itemToCreate = result.content.data || result.content;
+                  if (result.metrics) {
+                    itemToCreate.resultats = { ...(itemToCreate.resultats || {}), ...result.metrics };
+                  }
+                  NidalStore.create(itemToCreate);
                   imported++;
                 }
               } else {

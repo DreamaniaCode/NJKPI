@@ -46,6 +46,29 @@ const VALIDATIONS = [
   { id: 'refuse', label: 'Refuse' }
 ];
 
+const PLATFORMS = [
+  { id: 'instagram-facebook', label: 'Instagram + Facebook (IG + FB)', short: 'IG + FB', icon: '🌐', color: '#6938ef' },
+  { id: 'instagram', label: 'Instagram (IG)', short: 'IG', icon: '📷', color: '#d91b5c' },
+  { id: 'facebook', label: 'Facebook (FB)', short: 'FB', icon: '📘', color: '#1746d1' },
+  { id: 'reel-ig', label: 'Instagram Reel (IG)', short: 'IG Reel', icon: '🎬', color: '#d91b5c' },
+  { id: 'story-ig', label: 'Instagram Story (IG)', short: 'IG Story', icon: '📱', color: '#ffc928' },
+  { id: 'reel-fb', label: 'Facebook Reel (FB)', short: 'FB Reel', icon: '🎬', color: '#1746d1' },
+  { id: 'tiktok', label: 'TikTok', short: 'TikTok', icon: '🎵', color: '#0f8871' },
+  { id: 'linkedin', label: 'LinkedIn', short: 'LinkedIn', icon: '💼', color: '#0077b5' },
+  { id: 'youtube', label: 'YouTube', short: 'YouTube', icon: '🎥', color: '#e04f16' }
+];
+
+function getPlatform(labelOrId) {
+  if (!labelOrId) return PLATFORMS[0];
+  const s = String(labelOrId).trim().toLowerCase();
+  if (s === 'ig' || s === 'instagram' || s.startsWith('instagram (ig)')) return PLATFORMS[1];
+  if (s === 'fb' || s === 'facebook' || s.startsWith('facebook (fb)')) return PLATFORMS[2];
+  if (s.includes('instagram') && s.includes('facebook')) return PLATFORMS[0];
+  if (s.includes('reel') && s.includes('ig')) return PLATFORMS[3];
+  if (s.includes('story') && s.includes('ig')) return PLATFORMS[4];
+  return PLATFORMS.find(p => p.id === s || p.label.toLowerCase() === s) || PLATFORMS[0];
+}
+
 const MONTHS_FR = [
   'Janvier', 'Fevrier', 'Mars', 'Avril', 'Mai', 'Juin',
   'Juillet', 'Aout', 'Septembre', 'Octobre', 'Novembre', 'Decembre'

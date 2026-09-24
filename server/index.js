@@ -172,23 +172,45 @@ app.post('/api/import/url', async (req, res, next) => {
     if (!url) return res.status(400).json({ error: 'URL requise' });
     const parsed = parseContentUrl(url);
     if (!parsed.isValid) return res.status(400).json({ error: 'URL non reconnue', parsed });
-    const contentSkeleton = buildContentFromUrl(parsed);
-    const content = await upsertContent({
-      brand_slug: brand || 'nidal-junior',
-      data: contentSkeleton,
-      final_url: parsed.normalizedUrl,
-      platform: parsed.platform,
-      sync_status: 'pending'
-    });
-    // Try to sync metrics immediately
+    const brandSlug = brand || 'nidal-junior';
+
+    // 1. Synchroniser / extraire les métadonnées et métriques en temps réel
+    let syncData = null;
     try {
-      const isDemo = process.env.DEMO_MODE === 'true' || !metaConfigured(brand || 'nidal-junior');
-      const metrics = await syncContentFromUrl({ brand: brand || 'nidal-junior', finalUrl: parsed.normalizedUrl, platform: parsed.platform });
-      await saveMetrics(content.id, 'meta', metrics, isDemo);
-      res.json({ ok: true, content, metrics, isDemo, parsed });
-    } catch {
-      res.json({ ok: true, content, metrics: null, parsed });
+      syncData = await syncContentFromUrl({ brand: brandSlug, finalUrl: parsed.normalizedUrl, platform: parsed.platform });
+    } catch (e) {
+      console.warn('Sync URL metrics différé:', e.message);
     }
+
+    const skeleton = buildContentFromUrl(parsed);
+    const metricsObj = syncData?.metrics || { portee: 0, reactions: 0, commentaires: 0, partages: 0, enregistrements: 0, vues: 0 };
+
+    const contentData = {
+      ...skeleton,
+      titre: syncData?.title || skeleton.titre,
+      message: syncData?.caption || skeleton.notes || '',
+      format: syncData?.format || skeleton.format || 'post',
+      plateforme: syncData?.platform || skeleton.plateforme || 'Instagram (IG)',
+      brand: brandSlug,
+      mediaUrl: syncData?.mediaUrl || null,
+      resultats: metricsObj,
+      syncStatus: syncData?.isDemo ? 'demo' : 'connected',
+      lastSyncedAt: new Date().toISOString()
+    };
+
+    const content = await upsertContent({
+      brand_slug: brandSlug,
+      data: contentData,
+      final_url: parsed.normalizedUrl,
+      platform: contentData.plateforme,
+      sync_status: contentData.syncStatus
+    });
+
+    if (syncData) {
+      await saveMetrics(content.id, syncData.source || 'meta', syncData.metrics, Boolean(syncData.isDemo));
+    }
+
+    res.json({ ok: true, content: { ...content, data: contentData }, metrics: metricsObj, parsed });
   } catch (error) { next(error); }
 });
 

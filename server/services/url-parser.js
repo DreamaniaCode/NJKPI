@@ -60,7 +60,7 @@ const PLATFORM_RULES = [
 ];
 
 const FORMAT_MAP = { post: 'post', reel: 'video', story: 'story', video: 'video', short: 'video', article: 'article' };
-const PLATFORM_LABELS = { instagram: 'Instagram', facebook: 'Facebook', tiktok: 'TikTok', youtube: 'YouTube', linkedin: 'LinkedIn', x: 'X / Twitter' };
+const PLATFORM_LABELS = { instagram: 'Instagram (IG)', facebook: 'Facebook (FB)', tiktok: 'TikTok', youtube: 'YouTube', linkedin: 'LinkedIn', x: 'X / Twitter' };
 
 /**
  * Analyse une URL et détecte plateforme, type de contenu et identifiant.
@@ -71,7 +71,7 @@ export function parseContentUrl(url) {
 
   try {
     const cleaned = url.trim().replace(/\s+/g, '');
-    result.normalizedUrl = cleaned;
+    result.normalizedUrl = cleaned.replace(/\?.*$/, '').replace(/\/$/, '') + '/';
 
     for (const rule of PLATFORM_RULES) {
       if (!rule.patterns.some(p => p.test(cleaned))) continue;

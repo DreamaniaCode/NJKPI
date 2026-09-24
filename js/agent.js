@@ -334,8 +334,8 @@ const AgentView = (() => {
             <div class="form-group">
               <label for="brief-platform">Canal de diffusion</label>
               <select id="brief-platform" class="form-control">
-                ${['Instagram Reel + Facebook Story', 'Instagram + Facebook', 'Story Instagram', 'Facebook', 'LinkedIn + Facebook', 'Magazine jeunesse', 'Multi-plateformes']
-                  .map(p => `<option value="${p}" ${currentAgent.brief.platform === p ? 'selected' : ''}>${p}</option>`).join('')}
+                ${['Instagram + Facebook (IG + FB)', 'Instagram (IG)', 'Facebook (FB)', 'Instagram Reel + Facebook Story', 'Instagram Story', 'Facebook Reel', 'LinkedIn + Facebook', 'TikTok', 'Multi-plateformes']
+                  .map(p => `<option value="${p}" ${currentAgent.brief.platform === p || (!currentAgent.brief.platform && p.startsWith('Instagram + Facebook')) ? 'selected' : ''}>${p}</option>`).join('')}
               </select>
             </div>
           </div>
