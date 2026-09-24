@@ -8,6 +8,9 @@ const DashboardView = (() => {
     const isMock = typeof NidalStore.hasMockData === 'function' ? NidalStore.hasMockData() : false;
     const isEmpty = contents.length === 0;
     const focus = contents.find(item => item.statut === 'en-production') || contents.find(item => item.statut !== 'publie') || contents[0];
+    const liveMeta = typeof NidalStore.getSocialLive === 'function' ? NidalStore.getSocialLive() : null;
+    const liveInstagram = liveMeta?.instagram || null;
+    const liveInsights = liveInstagram?.insights || {};
 
     view.innerHTML = `
       <header class="view__header workspace-header">
@@ -54,6 +57,27 @@ const DashboardView = (() => {
         ${_kpi('Taux d’engagement', stats.engagement ? formatPercent(stats.engagement) : '—', 'Interactions / portee', '#ffc928')}
         ${_kpi('A controler', stats.controls, 'Validation ou charte', '#172033')}
       </section>
+
+      ${liveInstagram ? `
+        <section style="margin-top:16px;padding:16px;border:1px solid var(--line);border-radius:12px;background:var(--panel);" aria-label="Meta Live">
+          <div class="section-heading" style="margin-bottom:12px;">
+            <div>
+              <span class="section-kicker">Meta Live · @${escapeHtml(liveInstagram.username || 'instagram')}</span>
+              <h2 style="font-size:16px;">Données Instagram synchronisées</h2>
+            </div>
+            <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;">
+              <small style="color:var(--muted);">${liveMeta?.syncedAt ? `Dernière synchro : ${new Date(liveMeta.syncedAt).toLocaleTimeString('fr-FR', { hour:'2-digit', minute:'2-digit', second:'2-digit' })}` : 'Synchronisation Meta'}</small>
+              <button class="btn btn--secondary btn--sm" id="dashboard-meta-refresh-btn">↻ Actualiser</button>
+            </div>
+          </div>
+          <div class="kpi-strip">
+            ${_kpi('Followers Instagram', formatNumber(liveInstagram.followers ?? 0), 'Meta API', '#1746d1')}
+            ${_kpi('Visites profil', liveInsights.profileViews == null ? '—' : formatNumber(liveInsights.profileViews), 'Meta Insights', '#d91b5c')}
+            ${_kpi('Reach', liveInsights.reach == null ? '—' : formatNumber(liveInsights.reach), 'Meta Insights · estimé', '#31b9cc')}
+            ${_kpi('Médias', formatNumber(liveInstagram.mediaCount ?? 0), 'Publications Instagram', '#ffc928')}
+          </div>
+        </section>
+      ` : ''}
 
       <!-- Section des Objectifs KPI Stratégiques & Échéances (ETA) -->
       <section class="kpi-goals-section" style="margin-top:24px;margin-bottom:0;" aria-label="Objectifs KPI prioritaires">
@@ -150,6 +174,17 @@ const DashboardView = (() => {
         icon: type.icon
       })));
       NidalCharts.donutChart('chart-by-status', STATUSES.filter(status => (stats.byStatus[status.id] || 0) > 0).map(status => ({ label: status.label, value: stats.byStatus[status.id], color: status.color })));
+    }
+
+    const btnMetaRefresh = document.getElementById('dashboard-meta-refresh-btn');
+    if (btnMetaRefresh) {
+      btnMetaRefresh.onclick = async () => {
+        btnMetaRefresh.disabled = true;
+        btnMetaRefresh.textContent = 'Synchronisation…';
+        await NidalStore.syncMetaLive(getActiveBrand(), true);
+        showToast('Données Meta actualisées', 'success');
+        DashboardView.render();
+      };
     }
 
     const btnEditTargets = document.getElementById('dashboard-edit-targets-btn');

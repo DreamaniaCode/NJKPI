@@ -4,6 +4,8 @@ const memory = {
   contents: new Map(),
   metrics: [],
   ads: new Map(),
+  socialProfiles: new Map(),
+  socialSnapshots: [],
   agentRuns: []
 };
 
@@ -358,3 +360,113 @@ export async function saveKpiTargets(brand = 'nidal-junior', targets = {}) {
   }
 }
 
+
+
+export async function saveSocialProfiles(brand, profiles = {}) {
+  const saved = {};
+  for (const platform of ['instagram', 'facebook']) {
+    const profile = profiles?.[platform];
+    if (!profile) continue;
+
+    const record = {
+      brand_slug: brand,
+      platform,
+      profile,
+      source: profile.source || 'meta-api',
+      synced_at: new Date().toISOString()
+    };
+
+    memory.socialProfiles.set(`${brand}:${platform}`, record);
+    memory.socialSnapshots.push({
+      brand_slug: brand,
+      platform,
+      followers: profile.followers ?? null,
+      follows: profile.follows ?? null,
+      media_count: profile.mediaCount ?? null,
+      profile,
+      source: record.source,
+      captured_at: record.synced_at
+    });
+    saved[platform] = record;
+
+    if (!hasDatabase) continue;
+    try {
+      await query(
+        `INSERT INTO social_profiles (brand_slug, platform, profile, source, synced_at)
+         VALUES ($1,$2,$3::jsonb,$4,NOW())
+         ON CONFLICT (brand_slug, platform) DO UPDATE
+         SET profile=EXCLUDED.profile, source=EXCLUDED.source, synced_at=NOW()`,
+        [brand, platform, JSON.stringify(profile), record.source]
+      );
+
+      await query(
+        `INSERT INTO social_profile_snapshots
+         (brand_slug, platform, followers, follows, media_count, profile, source)
+         VALUES ($1,$2,$3,$4,$5,$6::jsonb,$7)`,
+        [
+          brand,
+          platform,
+          profile.followers ?? null,
+          profile.follows ?? null,
+          profile.mediaCount ?? null,
+          JSON.stringify(profile),
+          record.source
+        ]
+      );
+    } catch (error) {
+      console.warn('Fallback mémoire saveSocialProfiles:', error.message);
+    }
+  }
+  return saved;
+}
+
+export async function getSocialProfiles(brand) {
+  const buildFromMemory = () => {
+    const output = {};
+    for (const platform of ['instagram', 'facebook']) {
+      const record = memory.socialProfiles.get(`${brand}:${platform}`);
+      if (record) output[platform] = record;
+    }
+    return output;
+  };
+
+  if (!hasDatabase) return buildFromMemory();
+
+  try {
+    const result = await query(
+      `SELECT brand_slug, platform, profile, source, synced_at
+       FROM social_profiles
+       WHERE brand_slug = $1
+       ORDER BY platform ASC`,
+      [brand]
+    );
+    return Object.fromEntries(result.rows.map(row => [row.platform, row]));
+  } catch (error) {
+    console.warn('Fallback mémoire getSocialProfiles:', error.message);
+    return buildFromMemory();
+  }
+}
+
+export async function getSocialProfileHistory(brand, platform, limit = 30) {
+  const safeLimit = Math.max(1, Math.min(Number(limit) || 30, 365));
+  if (!hasDatabase) {
+    return memory.socialSnapshots
+      .filter(item => item.brand_slug === brand && (!platform || item.platform === platform))
+      .sort((a, b) => String(b.captured_at).localeCompare(String(a.captured_at)))
+      .slice(0, safeLimit);
+  }
+  try {
+    const result = await query(
+      `SELECT brand_slug, platform, followers, follows, media_count, profile, source, captured_at
+       FROM social_profile_snapshots
+       WHERE brand_slug=$1 AND ($2::text IS NULL OR platform=$2)
+       ORDER BY captured_at DESC
+       LIMIT $3`,
+      [brand, platform || null, safeLimit]
+    );
+    return result.rows;
+  } catch (error) {
+    console.warn('Fallback mémoire getSocialProfileHistory:', error.message);
+    return [];
+  }
+}

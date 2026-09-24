@@ -8,9 +8,11 @@ import {
   saveMetrics, saveAds, listAds, saveAgentRun,
   saveEditorialGeneration, listEditorialGenerations, getEditorialGeneration,
   deleteEditorialGeneration, saveEditorialTransfer,
-  getKpiTargets, saveKpiTargets
+  getKpiTargets, saveKpiTargets,
+  saveSocialProfiles, getSocialProfiles, getSocialProfileHistory
 } from './repository.js';
-import { metaConfigured, syncContentFromUrl, syncAds } from './services/meta.js';
+import { metaConfigured, syncContentFromUrl, syncAds, syncSocialProfiles } from './services/meta.js';
+import { getMetaLiveCache, setMetaLiveCache, isMetaLiveCacheFresh } from './services/meta-live.js';
 import {
   agentConfigured, getAiProvider, generateAgentOutput, shouldAutoSave,
   parseStructuredContent, getEditorialAgents, generateEditorialOutput,
@@ -49,11 +51,12 @@ function requireAccess(req, res, next) {
 }
 
 async function getAiKpiContext(brand) {
-  const [targetsRecord, contents] = await Promise.all([
+  const [targetsRecord, contents, socialProfiles] = await Promise.all([
     getKpiTargets(brand),
-    listContents(brand)
+    listContents(brand),
+    getSocialProfiles(brand)
   ]);
-  return buildKpiContext({ brand, targetsRecord, contents });
+  return buildKpiContext({ brand, targetsRecord, contents, socialProfiles });
 }
 
 app.get('/api/health', async (_req, res) => {
@@ -323,6 +326,58 @@ app.post('/api/contents/:id/sync', async (req, res, next) => {
 
 app.get('/api/ads', async (req, res, next) => { try { res.json(await listAds(req.query.brand || 'nidal-junior')); } catch (error) { next(error); } });
 app.post('/api/ads/sync', async (req, res, next) => { try { const brand = req.body.brand || 'nidal-junior'; const campaigns = await syncAds(brand); res.json(await saveAds(brand, campaigns)); } catch (error) { next(error); } });
+
+app.get('/api/social/live', async (req, res, next) => {
+  try {
+    const brand = req.query.brand === 'nidal' ? 'nidal' : 'nidal-junior';
+    const ttlSeconds = Number(process.env.META_LIVE_CACHE_SECONDS || 60);
+    const force = String(req.query.refresh || '') === '1';
+
+    if (!force && isMetaLiveCacheFresh(brand, ttlSeconds)) {
+      return res.json({ ok: true, cached: true, ...getMetaLiveCache(brand) });
+    }
+
+    const synced = await syncSocialProfiles({ brand });
+    const saved = await saveSocialProfiles(brand, synced);
+    const live = setMetaLiveCache(brand, {
+      brand,
+      syncedAt: synced.syncedAt,
+      instagram: synced.instagram,
+      facebook: synced.facebook,
+      errors: synced.errors || [],
+      saved
+    });
+    res.json({ ok: true, cached: false, ...live });
+  } catch (error) { next(error); }
+});
+
+app.get('/api/social/profiles', async (req, res, next) => {
+  try {
+    const brand = req.query.brand === 'nidal' ? 'nidal' : 'nidal-junior';
+    res.json(await getSocialProfiles(brand));
+  } catch (error) { next(error); }
+});
+
+app.get('/api/social/profiles/history', async (req, res, next) => {
+  try {
+    const brand = req.query.brand === 'nidal' ? 'nidal' : 'nidal-junior';
+    const platform = ['instagram', 'facebook'].includes(req.query.platform) ? req.query.platform : null;
+    res.json(await getSocialProfileHistory(brand, platform, req.query.limit));
+  } catch (error) { next(error); }
+});
+
+app.post('/api/social/profiles/sync', async (req, res, next) => {
+  try {
+    const brand = req.body.brand === 'nidal' ? 'nidal' : 'nidal-junior';
+    const synced = await syncSocialProfiles({
+      brand,
+      instagramUrl: req.body.instagramUrl || '',
+      facebookUrl: req.body.facebookUrl || ''
+    });
+    const saved = await saveSocialProfiles(brand, synced);
+    res.json({ ok: true, ...synced, saved });
+  } catch (error) { next(error); }
+});
 
 app.get('/api/kpi/targets', async (req, res, next) => {
   try {

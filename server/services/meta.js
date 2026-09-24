@@ -29,7 +29,127 @@ export function metaConfigured(brand) {
   return Boolean(process.env.META_ACCESS_TOKEN && (brandEnv('META_PAGE_ID', brand) || brandEnv('META_IG_USER_ID', brand)));
 }
 
-import { scrapeSocialPost } from './public-scraper.js';
+async function syncInstagramAccountInsights(igUserId) {
+  const metrics = ['profile_views', 'reach', 'accounts_engaged'];
+  const values = {};
+  const errors = [];
+
+  for (const metric of metrics) {
+    try {
+      const payload = await graph(`${igUserId}/insights`, {
+        metric,
+        period: 'day',
+        metric_type: 'total_value'
+      });
+      const item = payload.data?.[0];
+      values[metric] = Number(item?.total_value?.value ?? item?.values?.[0]?.value ?? item?.value ?? 0);
+    } catch (error) {
+      errors.push({ metric, message: error.message });
+    }
+  }
+
+  return {
+    period: 'day',
+    metricType: 'total_value',
+    profileViews: values.profile_views ?? null,
+    reach: values.reach ?? null,
+    accountsEngaged: values.accounts_engaged ?? null,
+    errors
+  };
+}
+
+async function syncInstagramProfile(brand) {
+  const igUserId = brandEnv('META_IG_USER_ID', brand);
+  if (!igUserId) throw new Error(`META_IG_USER_ID non configuré pour ${brand}`);
+
+  const fields = 'id,username,name,biography,website,followers_count,follows_count,media_count,profile_picture_url';
+  const profile = await graph(igUserId, { fields });
+  const insights = await syncInstagramAccountInsights(igUserId);
+  const hasInsights = [insights.profileViews, insights.reach, insights.accountsEngaged].some(value => value !== null);
+
+  return {
+    platform: 'instagram',
+    source: 'meta-api',
+    externalId: profile.id,
+    username: profile.username || null,
+    name: profile.name || null,
+    biography: profile.biography || '',
+    website: profile.website || '',
+    followers: Number(profile.followers_count || 0),
+    follows: Number(profile.follows_count || 0),
+    mediaCount: Number(profile.media_count || 0),
+    profilePictureUrl: profile.profile_picture_url || null,
+    profileUrl: profile.username ? `https://www.instagram.com/${profile.username}/` : null,
+    insightsAvailable: hasInsights,
+    insights
+  };
+}
+
+async function syncFacebookProfile(brand) {
+  const pageId = brandEnv('META_PAGE_ID', brand);
+  if (!pageId) throw new Error(`META_PAGE_ID non configuré pour ${brand}`);
+
+  const fields = 'id,name,username,about,description,category,website,link,fan_count,followers_count,picture.type(large)';
+  const profile = await graph(pageId, { fields });
+
+  return {
+    platform: 'facebook',
+    source: 'meta-api',
+    externalId: profile.id,
+    username: profile.username || null,
+    name: profile.name || null,
+    biography: profile.about || profile.description || '',
+    category: profile.category || '',
+    website: profile.website || '',
+    followers: Number(profile.followers_count ?? profile.fan_count ?? 0),
+    follows: null,
+    mediaCount: null,
+    profilePictureUrl: profile.picture?.data?.url || null,
+    profileUrl: profile.link || (profile.id ? `https://www.facebook.com/${profile.id}` : null),
+    insightsAvailable: false
+  };
+}
+
+export async function syncSocialProfiles({ brand, instagramUrl = '', facebookUrl = '' }) {
+  const result = {
+    brand,
+    syncedAt: new Date().toISOString(),
+    instagram: null,
+    facebook: null,
+    errors: []
+  };
+
+  if (process.env.META_ACCESS_TOKEN && process.env.DEMO_MODE !== 'true') {
+    if (brandEnv('META_IG_USER_ID', brand)) {
+      try { result.instagram = await syncInstagramProfile(brand); }
+      catch (error) { result.errors.push({ platform: 'instagram', source: 'meta-api', message: error.message }); }
+    }
+    if (brandEnv('META_PAGE_ID', brand)) {
+      try { result.facebook = await syncFacebookProfile(brand); }
+      catch (error) { result.errors.push({ platform: 'facebook', source: 'meta-api', message: error.message }); }
+    }
+  }
+
+  if (!result.instagram && instagramUrl) {
+    const fallback = await scrapeSocialProfile(instagramUrl);
+    if (fallback.success) result.instagram = fallback;
+    else result.errors.push({ platform: 'instagram', source: 'public', message: fallback.error });
+  }
+
+  if (!result.facebook && facebookUrl) {
+    const fallback = await scrapeSocialProfile(facebookUrl);
+    if (fallback.success) result.facebook = fallback;
+    else result.errors.push({ platform: 'facebook', source: 'public', message: fallback.error });
+  }
+
+  if (!result.instagram && !result.facebook) {
+    throw new Error('Aucun profil social synchronisé. Configurez Meta API ou fournissez un lien Instagram/Facebook public.');
+  }
+
+  return result;
+}
+
+import { scrapeSocialPost, scrapeSocialProfile } from './public-scraper.js';
 
 export async function syncContentFromUrl({ brand, finalUrl, platform }) {
   // 1. Si Meta API officielle est configurée, essayer l'API officielle
