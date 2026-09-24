@@ -37,8 +37,8 @@ const AgentView = (() => {
     {
       id: 'gemini',
       name: 'Google Gemini',
-      description: 'API officielle Google Gemini (Gemini 2.0 Flash, 1.5 Pro)',
-      defaultModel: 'gemini-2.0-flash',
+      description: 'API officielle Google Gemini (Gemini 2.5 Flash, 2.5 Pro)',
+      defaultModel: 'gemini-2.5-flash',
       models: [
         { id: 'gemini-2.0-flash', name: 'Gemini 2.0 Flash (Très rapide & récent)', recommended: true },
         { id: 'gemini-1.5-flash', name: 'Gemini 1.5 Flash (Équilibré)' },
