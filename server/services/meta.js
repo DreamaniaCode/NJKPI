@@ -92,6 +92,26 @@ async function syncFacebookProfile(brand) {
   const fields = 'id,name,username,about,description,category,website,link,fan_count,followers_count,picture.type(large)';
   const profile = await graph(pageId, { fields });
 
+  // Vérifier réellement l'accès aux insights de contenu Facebook au lieu de
+  // déclarer les Insights inactifs en dur.
+  const contentInsights = await getFacebookTopContent(
+    brand,
+    Number(process.env.META_FACEBOOK_LIVE_POST_LIMIT || 8)
+  );
+  const analyzedPosts = contentInsights.items || [];
+  const aggregate = analyzedPosts.reduce((acc, item) => {
+    const metrics = item.metrics || {};
+    acc.reach += Number(metrics.reach || 0);
+    acc.views += Number(metrics.views || 0);
+    acc.interactions += Number(metrics.interactions || 0);
+    acc.comments += Number(metrics.comments || 0);
+    acc.shares += Number(metrics.shares || 0);
+    acc.reactions += Number(metrics.reactions || 0);
+    return acc;
+  }, { reach: 0, views: 0, interactions: 0, comments: 0, shares: 0, reactions: 0 });
+
+  const insightsAvailable = !contentInsights.error && analyzedPosts.length > 0;
+
   return {
     platform: 'facebook',
     source: 'meta-api',
@@ -103,10 +123,22 @@ async function syncFacebookProfile(brand) {
     website: profile.website || '',
     followers: Number(profile.followers_count ?? profile.fan_count ?? 0),
     follows: null,
-    mediaCount: null,
+    mediaCount: analyzedPosts.length || null,
     profilePictureUrl: profile.picture?.data?.url || null,
     profileUrl: profile.link || (profile.id ? `https://www.facebook.com/${profile.id}` : null),
-    insightsAvailable: false
+    insightsAvailable,
+    insights: {
+      scope: 'recent-published-posts',
+      analyzedPosts: analyzedPosts.length,
+      reach: aggregate.reach,
+      views: aggregate.views,
+      interactions: aggregate.interactions,
+      comments: aggregate.comments,
+      shares: aggregate.shares,
+      reactions: aggregate.reactions,
+      topContent: analyzedPosts.slice(0, 3),
+      error: contentInsights.error || null
+    }
   };
 }
 
