@@ -166,3 +166,20 @@ Une vue dédiée **Audience & conversions** sépare les données organiques et p
 - cache de 15 minutes par défaut pour éviter de multiplier les appels Meta, avec actualisation manuelle possible.
 
 Pour activer la partie Ads, renseigner `META_AD_ACCOUNT_ID_NIDAL` / `META_AD_ACCOUNT_ID_NIDAL_JUNIOR` et utiliser un token Meta autorisé à lire les Insights publicitaires. Pour des conversions site précises (formulaire, RDV, inscription), relier ensuite le Pixel Meta et/ou la Conversions API avec des événements clairement définis.
+
+
+## Publication directe et programmée
+
+NJKPI dispose d'une vue **Publier & programmer** :
+
+- publication Facebook et Instagram séparée ou simultanée ;
+- publication immédiate ou planifiée ;
+- file serveur vérifiée toutes les 60 secondes ;
+- statut `scheduled`, `publishing`, `published`, `partial` ou `failed` ;
+- conservation du résultat Meta et des erreurs par plateforme ;
+- Instagram requiert une URL média publiquement accessible pour les images/Reels ;
+- Facebook accepte texte/lien et image publique.
+
+La collecte Audience/Ads est aussi persistée dans PostgreSQL chaque heure. La page **Audience & conversions** utilise cet historique pour afficher des courbes horaires et conserver les résultats après redémarrage.
+
+Pour la publication Instagram, le token Meta doit disposer de l'autorisation de publication de contenu Instagram. Pour Facebook, la Page doit être administrable avec `pages_manage_posts` et un Page Access Token valide.
