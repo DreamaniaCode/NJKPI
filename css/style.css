@@ -44,7 +44,8 @@ button { color: inherit; }
 .app-layout { min-height: 100vh; display: grid; grid-template-columns: var(--sidebar) minmax(0, 1fr); }
 .sidebar { position: sticky; top: 0; height: 100vh; overflow-y: auto; overflow-x: hidden; display: flex; flex-direction: column; padding: 20px 16px 14px; background: var(--panel); border-right: 1px solid var(--line); z-index: 30; }
 .sidebar__brand { display: flex; flex-direction: column; gap: 2px; padding: 0 4px 16px; border-bottom: 1px solid var(--line); }
-.sidebar__logo-img { width: auto; max-width: 190px; height: 50px; object-fit: contain; object-position: left center; margin-bottom: 2px; }
+.sidebar__logo-img { width: 100%; max-width: 200px; height: auto; max-height: 56px; object-fit: contain; object-position: left center; display: block; margin-bottom: 6px; }
+[data-theme="dark"] .sidebar__logo-img { background: #ffffff; padding: 4px 6px; border-radius: 4px; }
 .sidebar__brand strong { margin-top: 6px; color: var(--blue); font-size: 19px; font-weight: 800; }
 .sidebar__brand span { color: var(--muted); font-size: 12px; }
 .brand-switch-label { margin-top: 12px; color: var(--muted); font-size: 9px; font-weight: 800; text-transform: uppercase; letter-spacing: .06em; }

@@ -35,26 +35,49 @@ export async function generateAgentOutput({ brand, task, brief, context = '' }) 
   const userPrompt = `Brief : ${brief}\nContexte disponible : ${context || 'Aucun'}`;
 
   if (process.env.OPENROUTER_API_KEY) {
-    const model = process.env.OPENROUTER_MODEL || 'meta-llama/llama-3.3-70b-instruct:free';
-    const response = await fetch(OPENROUTER_URL, {
-      method: 'POST',
-      headers: {
-        'Authorization': `Bearer ${process.env.OPENROUTER_API_KEY}`,
-        'HTTP-Referer': process.env.APP_URL || 'https://gsnidal.ma',
-        'X-Title': 'Nidal Content Hub',
-        'Content-Type': 'application/json'
-      },
-      body: JSON.stringify({
-        model,
-        messages: [
-          { role: 'system', content: instructions },
-          { role: 'user', content: userPrompt }
-        ],
-        temperature: 0.7
-      })
-    });
-    const payload = await response.json();
-    if (!response.ok) throw new Error(payload.error?.message || `OpenRouter API ${response.status}`);
+    let model = (process.env.OPENROUTER_MODEL || 'meta-llama/llama-3.3-70b-instruct').trim();
+    if (model === 'meta-llama/llama-3.3-70b-instruct:free') {
+      model = 'meta-llama/llama-3.3-70b-instruct';
+    }
+
+    async function callOpenRouter(selectedModel) {
+      const res = await fetch(OPENROUTER_URL, {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${process.env.OPENROUTER_API_KEY}`,
+          'HTTP-Referer': process.env.APP_URL || 'https://gsnidal.ma',
+          'X-Title': 'Nidal Content Hub',
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+          model: selectedModel,
+          messages: [
+            { role: 'system', content: instructions },
+            { role: 'user', content: userPrompt }
+          ],
+          temperature: 0.7
+        })
+      });
+      const data = await res.json();
+      return { res, data };
+    }
+
+    let { res: response, data: payload } = await callOpenRouter(model);
+
+    if (!response.ok) {
+      const errMsg = payload.error?.message || `OpenRouter API ${response.status}`;
+      const slugMatch = errMsg.match(/use this slug instead:\s*([a-zA-Z0-9_\-\.\/:]+)/i);
+      if (slugMatch && slugMatch[1] && slugMatch[1] !== model) {
+        const suggestedModel = slugMatch[1].trim();
+        console.warn(`OpenRouter a suggere le slug ${suggestedModel}, nouvelle tentative automatique...`);
+        const retry = await callOpenRouter(suggestedModel);
+        if (retry.res.ok && retry.data.choices?.[0]?.message?.content) {
+          return { output: retry.data.choices[0].message.content, model: suggestedModel, provider: 'openrouter', isDemo: false };
+        }
+      }
+      throw new Error(errMsg);
+    }
+
     const output = payload.choices?.[0]?.message?.content;
     if (!output) throw new Error('Reponse OpenRouter vide');
     return { output, model, provider: 'openrouter', isDemo: false };
