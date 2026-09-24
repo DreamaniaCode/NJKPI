@@ -12,8 +12,8 @@ function normalizedUrl(value) {
   } catch { return String(value || '').replace(/\/$/, '').toLowerCase(); }
 }
 
-async function graph(path, params = {}) {
-  const token = process.env.META_ACCESS_TOKEN;
+async function graph(path, params = {}, accessToken = process.env.META_ACCESS_TOKEN) {
+  const token = accessToken;
   if (!token) throw new Error('META_ACCESS_TOKEN non configure');
   const url = new URL(`${GRAPH_URL}/${path.replace(/^\//, '')}`);
   Object.entries({ ...params, access_token: token }).forEach(([key, value]) => {
@@ -23,6 +23,36 @@ async function graph(path, params = {}) {
   const payload = await response.json();
   if (!response.ok || payload.error) throw new Error(payload.error?.message || `Meta API ${response.status}`);
   return payload;
+}
+
+const PAGE_TOKEN_CACHE = new Map();
+
+async function resolvePageAccessToken(brand) {
+  const configured = brandEnv('META_PAGE_ACCESS_TOKEN', brand);
+  if (configured) return configured;
+
+  const pageId = brandEnv('META_PAGE_ID', brand);
+  if (!pageId) throw new Error(`META_PAGE_ID non configuré pour ${brand}`);
+
+  const cached = PAGE_TOKEN_CACHE.get(pageId);
+  if (cached) return cached;
+
+  const payload = await graph('me/accounts', {
+    fields: 'id,name,access_token',
+    limit: 100
+  });
+  const page = (payload.data || []).find(item => String(item.id) === String(pageId));
+  if (!page?.access_token) {
+    throw new Error(`Aucun Page Access Token disponible pour la Page ${pageId}. Vérifiez pages_show_list/pages_read_engagement et les rôles de la Page.`);
+  }
+
+  PAGE_TOKEN_CACHE.set(pageId, page.access_token);
+  return page.access_token;
+}
+
+async function pageGraph(brand, path, params = {}) {
+  const pageToken = await resolvePageAccessToken(brand);
+  return graph(path, params, pageToken);
 }
 
 export function metaConfigured(brand) {
@@ -90,7 +120,7 @@ async function syncFacebookProfile(brand) {
   if (!pageId) throw new Error(`META_PAGE_ID non configuré pour ${brand}`);
 
   const fields = 'id,name,username,about,description,category,website,link,fan_count,followers_count,picture.type(large)';
-  const profile = await graph(pageId, { fields });
+  const profile = await pageGraph(brand, pageId, { fields });
 
   // Vérifier réellement l'accès aux insights de contenu Facebook au lieu de
   // déclarer les Insights inactifs en dur.
@@ -257,11 +287,11 @@ async function syncInstagram(brand, finalUrl) {
 async function syncFacebook(brand, finalUrl) {
   const pageId = brandEnv('META_PAGE_ID', brand);
   if (!pageId) throw new Error(`Page Facebook non configuree pour ${brand}`);
-  const posts = await graph(`${pageId}/published_posts`, { fields: 'id,permalink_url,message,created_time,shares,reactions.limit(0).summary(true),comments.limit(0).summary(true)', limit: 100 });
+  const posts = await pageGraph(brand, `${pageId}/published_posts`, { fields: 'id,permalink_url,message,created_time,shares,reactions.limit(0).summary(true),comments.limit(0).summary(true)', limit: 100 });
   const target = posts.data?.find(item => normalizedUrl(item.permalink_url) === normalizedUrl(finalUrl));
   if (!target) throw new Error('Publication Facebook introuvable dans les 100 posts recents');
   const metrics = process.env.META_PAGE_POST_METRICS || 'post_media_view,post_total_media_view_unique';
-  const insights = await graph(`${target.id}/insights`, { metric: metrics });
+  const insights = await pageGraph(brand, `${target.id}/insights`, { metric: metrics });
   const values = Object.fromEntries((insights.data || []).map(item => [item.name, item.values?.[0]?.value ?? 0]));
   return {
     source: 'facebook', externalMediaId: target.id, permalink: target.permalink_url, isDemo: false,
@@ -351,7 +381,7 @@ async function getFacebookTopContent(brand, limit = 50) {
   if (!pageId) return { items: [], error: `META_PAGE_ID non configuré pour ${brand}` };
 
   try {
-    const posts = await graph(`${pageId}/published_posts`, {
+    const posts = await pageGraph(brand, `${pageId}/published_posts`, {
       fields: 'id,permalink_url,message,created_time,shares,reactions.limit(0).summary(true),comments.limit(0).summary(true)',
       limit: Math.max(1, Math.min(Number(limit) || 50, 100))
     });
@@ -362,7 +392,7 @@ async function getFacebookTopContent(brand, limit = 50) {
     for (const post of posts.data || []) {
       let values = {};
       try {
-        const insights = await graph(`${post.id}/insights`, { metric: metrics });
+        const insights = await pageGraph(brand, `${post.id}/insights`, { metric: metrics });
         values = Object.fromEntries((insights.data || []).map(metricItem => [
           metricItem.name,
           Number(metricItem.values?.[0]?.value ?? metricItem.value ?? 0)
