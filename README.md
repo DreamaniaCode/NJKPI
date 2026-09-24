@@ -142,12 +142,13 @@ curl -X POST https://votre-domaine/webhooks/kpi-ai \
 
 ## Meta Live KPI
 
-Le dashboard peut maintenant lire les indicateurs Instagram professionnels directement depuis Meta Graph API.
+Le dashboard peut maintenant lire les indicateurs Meta directement depuis Graph API en gardant Facebook et Instagram clairement séparés.
 
 - `GET /api/social/live?brand=nidal` synchronise le profil Meta côté serveur et utilise un cache court.
 - Le navigateur rafraîchit la vue Meta Live toutes les 60 secondes quand l'application est ouverte.
 - `?refresh=1` force une nouvelle lecture Meta (bouton « Actualiser » du dashboard).
-- Les followers Instagram provenant de `followers_count` alimentent automatiquement la valeur courante du KPI Followers sans modifier la cible définie par l'utilisateur.
+- Les abonnés Instagram provenant de `followers_count` alimentent le KPI **Followers Instagram** sans être additionnés aux abonnés Facebook.
+- Le dashboard affiche un bloc Instagram et un bloc Facebook distincts afin d'éviter tout mélange entre les plateformes.
 - Les insights de compte lus actuellement sont `profile_views`, `reach` et `accounts_engaged`, avec `period=day` et `metric_type=total_value`.
 - Le token Meta reste exclusivement côté serveur dans Coolify.
 
