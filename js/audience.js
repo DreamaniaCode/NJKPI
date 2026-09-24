@@ -75,6 +75,34 @@ const AudienceView = (() => {
       '</tbody></table></div>';
   }
 
+  function _campaignTable(rows = []) {
+    if (!rows.length) return '<p style="color:var(--muted);font-size:12px;margin:0;">Aucune campagne disponible.</p>';
+    return '<div class="table-responsive"><table class="data-table"><thead><tr><th>Campagne</th><th>Reach</th><th>Impressions</th><th>Clics</th><th>CTR</th><th>CPC</th><th>CPM</th><th>Dépenses</th></tr></thead><tbody>' +
+      rows.slice(0, 20).map(row => '<tr>' +
+        '<td><strong>' + escapeHtml(row.campaign_name || row.campaign_id || 'Campagne') + '</strong></td>' +
+        '<td>' + formatNumber(_num(row.reach)) + '</td>' +
+        '<td>' + formatNumber(_num(row.impressions)) + '</td>' +
+        '<td>' + formatNumber(_num(row.clicks)) + '</td>' +
+        '<td>' + (_num(row.ctr)).toFixed(2) + '%</td>' +
+        '<td>' + (_num(row.cpc)).toFixed(2) + '</td>' +
+        '<td>' + (_num(row.cpm)).toFixed(2) + '</td>' +
+        '<td><b>' + (_num(row.spend)).toFixed(2) + '</b></td>' +
+      '</tr>').join('') + '</tbody></table></div>';
+  }
+
+  function _contentTotals(items = []) {
+    return items.reduce((acc, item) => {
+      const m = item.metrics || {};
+      acc.reach += _num(m.reach);
+      acc.views += _num(m.views);
+      acc.interactions += _num(m.interactions);
+      acc.comments += _num(m.comments);
+      acc.shares += _num(m.shares);
+      acc.saves += _num(m.saves);
+      return acc;
+    }, { reach: 0, views: 0, interactions: 0, comments: 0, shares: 0, saves: 0 });
+  }
+
   function _contentTable(items = [], platform = 'instagram') {
     if (!items.length) return '<p style="color:var(--muted);font-size:12px;margin:0;">Aucun contenu historique disponible pour cette plateforme.</p>';
     return '<div class="table-responsive"><table class="data-table"><thead><tr><th>Date</th><th>Contenu</th><th>Type</th><th>Reach</th><th>Vues</th><th>Interactions</th><th>Partages</th><th>Enreg.</th><th></th></tr></thead><tbody>' +
@@ -107,6 +135,8 @@ const AudienceView = (() => {
     const actionRows = _topActions(adSummary.actions || {});
     const ig = _data?.instagram || {};
     const fb = _data?.facebook || {};
+    const igTotals = _contentTotals(ig.topContent || []);
+    const fbTotals = _contentTotals(fb.topContent || []);
 
     view.innerHTML = `
       <header class="view__header workspace-header">
@@ -127,6 +157,22 @@ const AudienceView = (() => {
       ${_data ? `
         <section style="margin-bottom:24px;">
           <div class="section-heading">
+            <div><span class="section-kicker">Couverture des données</span><h2>Ce que NJKPI reçoit réellement de Meta</h2></div>
+          </div>
+          <div class="kpi-strip" style="margin-bottom:16px;">
+            ${_summaryCard('Instagram analysé', formatNumber(ig.analyzedMedia || 0), ig.error ? 'Accès partiel / erreur' : 'Médias historiques')}
+            ${_summaryCard('Facebook analysé', formatNumber(fb.analyzedMedia || 0), fb.error ? 'Accès partiel / erreur' : 'Publications historiques')}
+            ${_summaryCard('Meta Ads', ads.configured ? 'Connecté' : 'Non configuré', ads.configured ? 'Compte publicitaire détecté' : 'META_AD_ACCOUNT_ID requis')}
+            ${_summaryCard('Audience démographique', (ads.ageGender || []).length ? 'Disponible' : 'Indisponible', (ads.ageGender || []).length ? 'Âge + genre' : 'Dépend du compte Ads / permissions')}
+            ${_summaryCard('Régions Ads', (ads.regions || []).length ? 'Disponible' : 'Indisponible', (ads.regions || []).length ? 'Répartition géographique' : 'Dépend du compte Ads / permissions')}
+          </div>
+          ${ads.errors?.length ? '<div style="padding:12px 14px;background:#fff8e6;border:1px solid #f2d58a;border-radius:9px;font-size:11px;color:#7a5a00;margin-bottom:16px;"><strong>Pourquoi certaines infos manquent :</strong> ' + ads.errors.map(escapeHtml).join(' · ') + '</div>' : ''}
+          ${ig.error ? '<div style="padding:10px 12px;background:var(--surface);border:1px solid var(--line);border-radius:8px;font-size:11px;color:var(--muted);margin-bottom:8px;"><strong>Instagram :</strong> ' + escapeHtml(ig.error) + '</div>' : ''}
+          ${fb.error ? '<div style="padding:10px 12px;background:var(--surface);border:1px solid var(--line);border-radius:8px;font-size:11px;color:var(--muted);margin-bottom:8px;"><strong>Facebook :</strong> ' + escapeHtml(fb.error) + '</div>' : ''}
+        </section>
+
+        <section style="margin-bottom:24px;">
+          <div class="section-heading">
             <div><span class="section-kicker">Meta Ads · 90 derniers jours</span><h2>Acquisition & conversions publicitaires</h2></div>
             <small style="color:var(--muted);">${ads.configured ? 'Compte Ads configuré' : 'Compte Ads non configuré'}</small>
           </div>
@@ -137,8 +183,11 @@ const AudienceView = (() => {
             ${_summaryCard('Clics Ads', formatNumber(_num(adSummary.clicks)), 'Trafic généré')}
             ${_summaryCard('Actions / conversions', formatNumber(actionsTotal), 'Actions Meta enregistrées')}
           </div>
-          ${ads.errors?.length ? '<div style="padding:10px 12px;background:var(--surface);border:1px solid var(--line);border-radius:8px;font-size:11px;color:var(--muted);margin-bottom:14px;"><strong>À configurer :</strong> ' + ads.errors.map(escapeHtml).join(' · ') + '</div>' : ''}
           ${actionRows.length ? '<div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:16px;">' + actionRows.map(item => '<span class="badge badge--planifie">' + escapeHtml(item.name) + ': ' + formatNumber(item.value) + '</span>').join('') + '</div>' : ''}
+          <div class="analysis-panel" style="margin-bottom:16px;">
+            <div class="section-heading"><div><span class="section-kicker">Campagnes</span><h2>Détail des campagnes publicitaires</h2></div><span class="badge badge--planifie">${formatNumber((ads.campaigns || []).length)} campagnes</span></div>
+            ${_campaignTable(ads.campaigns || [])}
+          </div>
         </section>
 
         <section class="dashboard-lower-grid" style="margin-bottom:24px;">
@@ -157,6 +206,13 @@ const AudienceView = (() => {
             <div><span class="section-kicker">Instagram · historique</span><h2>Anciens posts et vidéos qui ont le mieux marché</h2></div>
             <span class="badge badge--planifie">${formatNumber(ig.analyzedMedia || 0)} médias analysés</span>
           </div>
+          <div class="kpi-strip" style="margin-bottom:14px;">
+            ${_summaryCard('Reach analysé IG', formatNumber(igTotals.reach), 'Sur les médias récupérés')}
+            ${_summaryCard('Vues analysées IG', formatNumber(igTotals.views), 'Sur les médias récupérés')}
+            ${_summaryCard('Interactions IG', formatNumber(igTotals.interactions), 'Likes + commentaires + partages + enregistrements')}
+            ${_summaryCard('Partages IG', formatNumber(igTotals.shares), 'Contenus partagés')}
+            ${_summaryCard('Enregistrements IG', formatNumber(igTotals.saves), 'Contenus sauvegardés')}
+          </div>
           ${ig.error ? '<p style="color:var(--muted);font-size:11px;">' + escapeHtml(ig.error) + '</p>' : ''}
           ${_contentTable(ig.topContent || [], 'instagram')}
         </section>
@@ -165,6 +221,13 @@ const AudienceView = (() => {
           <div class="section-heading">
             <div><span class="section-kicker">Facebook · historique</span><h2>Anciens posts et vidéos qui ont le mieux marché</h2></div>
             <span class="badge badge--brouillon">${formatNumber(fb.analyzedMedia || 0)} publications analysées</span>
+          </div>
+          <div class="kpi-strip" style="margin-bottom:14px;">
+            ${_summaryCard('Reach analysé FB', formatNumber(fbTotals.reach), 'Sur les publications récupérées')}
+            ${_summaryCard('Vues analysées FB', formatNumber(fbTotals.views), 'Sur les publications récupérées')}
+            ${_summaryCard('Interactions FB', formatNumber(fbTotals.interactions), 'Réactions + commentaires + partages')}
+            ${_summaryCard('Commentaires FB', formatNumber(fbTotals.comments), 'Conversations générées')}
+            ${_summaryCard('Partages FB', formatNumber(fbTotals.shares), 'Diffusion organique')}
           </div>
           ${fb.error ? '<p style="color:var(--muted);font-size:11px;">' + escapeHtml(fb.error) + '</p>' : ''}
           ${_contentTable(fb.topContent || [], 'facebook')}
