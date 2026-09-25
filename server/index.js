@@ -23,7 +23,7 @@ import {
   parseStructuredEditorial, parseStoryboard, parseQualityCheck,
   SUPPORTED_AI_PROVIDERS
 } from './services/agent.js';
-import { initAuth, authenticate, authorize, loginUser, listUsers, createUser, updateUserRole, isAuthEnabled } from './middleware/auth.js';
+import { initAuth, authenticate, authorize, loginUser, listUsers, createUser, updateUserRole, isAuthEnabled, verifyToken } from './middleware/auth.js';
 import { generatePdfExport, generateExcelExport, generateMarkdownExport, generateCsvExport } from './services/export.js';
 import { parseContentUrl, buildContentFromUrl } from './services/url-parser.js';
 import { buildKpiContext, formatKpiContext, buildKpiAutomationBrief } from './services/kpi-ai.js';
@@ -54,11 +54,23 @@ app.use((req, res, next) => {
 });
 
 function requireAccess(req, res, next) {
+  // Login et vérification de session doivent rester accessibles sans le
+  // token legacy APP_ACCESS_TOKEN, sinon un utilisateur ne peut pas se connecter.
+  if (req.path === '/auth/login' || req.path === '/auth/me') return next();
+
   const expected = process.env.APP_ACCESS_TOKEN;
   if (!expected) return next();
-  const supplied = req.headers.authorization?.replace(/^Bearer\s+/i, '');
-  if (supplied !== expected) return res.status(401).json({ error: 'Acces refuse' });
-  next();
+
+  const bearer = req.headers.authorization?.replace(/^Bearer\s+/i, '') || '';
+  const legacyHeader = String(req.headers['x-access-token'] || '');
+
+  // Compatibilité ancien mode APP_ACCESS_TOKEN.
+  if (legacyHeader === expected || bearer === expected) return next();
+
+  // Le nouveau mode JWT doit aussi être accepté par la barrière legacy.
+  if (bearer && verifyToken(bearer)) return next();
+
+  return res.status(401).json({ error: 'Acces refuse' });
 }
 
 async function getAiKpiContext(brand) {
@@ -147,7 +159,11 @@ app.post('/webhooks/kpi-ai', async (req, res, next) => {
 });
 
 app.use('/api', requireAccess);
-app.use('/api', authenticate);
+app.use('/api', (req, res, next) => {
+  // Ces deux routes gèrent elles-mêmes l'authentification.
+  if (req.path === '/auth/login' || req.path === '/auth/me') return next();
+  return authenticate(req, res, next);
+});
 
 // ── Auth routes (pas de requireAccess sur login) ──────────────────────
 app.post('/api/auth/login', async (req, res, next) => {
