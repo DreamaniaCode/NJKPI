@@ -2,6 +2,7 @@
 const App = (() => {
   let _currentView = 'dashboard';
   let _metaLiveTimer = null;
+  let _remoteSyncTimer = null;
   const VIEWS = ['dashboard', 'planning', 'contents', 'agent', 'performance', 'insights', 'audience', 'publisher', 'quality', 'settings'];
 
   async function init() {
@@ -35,11 +36,34 @@ const App = (() => {
     try {
       await NidalAPI.init();
       await NidalStore.syncRemote();
+      _startRemoteSyncPolling();
       _startMetaLivePolling();
       _renderCurrentView();
     } catch (err) {
       console.warn('Synchronisation initiale différée:', err);
     }
+  }
+
+  function _startRemoteSyncPolling() {
+    if (_remoteSyncTimer || typeof NidalStore.syncRemote !== 'function') return;
+
+    const refresh = async () => {
+      if (document.hidden || !NidalAPI.isOnline()) return;
+      const ok = await NidalStore.syncRemote({ includeMeta: false });
+      if (ok) _renderCurrentView();
+    };
+
+    _remoteSyncTimer = window.setInterval(() => {
+      refresh().catch(error => console.warn('Sync multi-appareils:', error.message));
+    }, 30000);
+
+    window.addEventListener('focus', () => {
+      refresh().catch(() => {});
+    });
+
+    document.addEventListener('visibilitychange', () => {
+      if (!document.hidden) refresh().catch(() => {});
+    });
   }
 
   function _startMetaLivePolling() {
@@ -88,7 +112,7 @@ const App = (() => {
   function onLoginSuccess() {
     _applyAuth();
     _routeFromHash();
-    NidalAPI.init().then(() => NidalStore.syncRemote()).then(() => { _startMetaLivePolling(); _renderCurrentView(); }).catch(() => {});
+    NidalAPI.init().then(() => NidalStore.syncRemote()).then(() => { _startRemoteSyncPolling(); _startMetaLivePolling(); _renderCurrentView(); }).catch(() => {});
   }
 
   function _routeFromHash() {
@@ -181,6 +205,9 @@ const App = (() => {
     select.onchange = async () => {
       setActiveBrand(select.value);
       _updateBrandName();
+      if (NidalAPI.isOnline()) {
+        await NidalStore.syncRemote({ includeMeta: false });
+      }
       _renderCurrentView();
       showToast(`Marque active : ${getActiveBrandLabel()}`, 'success');
       await NidalStore.syncRemote();
