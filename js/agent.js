@@ -7,6 +7,7 @@ const AgentView = (() => {
   })();
 
   const AI_CONFIG_KEY = 'nidal_ai_settings';
+  const AI_PROFILES_KEY = 'nidal_ai_provider_profiles_v2';
   const BRIEF_DRAFT_KEY = 'nidal_agent_brief_drafts';
 
   function _loadBriefDrafts() {
@@ -202,35 +203,99 @@ const AgentView = (() => {
   let _aiProviders = DEFAULT_PROVIDERS;
   let _serverAiMeta = { currentServerProvider: 'none', hasServerKey: false };
 
-  function getAiConfig() {
+  function _loadAiProfiles() {
     try {
-      const raw = localStorage.getItem(AI_CONFIG_KEY);
-      if (raw) {
-        const parsed = JSON.parse(raw);
-        const provider = parsed.provider || 'gemini';
-        let model = parsed.model || 'gemini-3.8-flash';
-        if (provider === 'gemini' && /^gemini-2\./i.test(model)) {
-          model = 'gemini-3.8-flash';
-          localStorage.setItem(AI_CONFIG_KEY, JSON.stringify({ ...parsed, provider, model }));
-        }
-        return {
-          provider,
-          model,
-          customModel: parsed.customModel || '',
-          apiKey: parsed.apiKey || ''
-        };
-      }
-    } catch {}
+      return JSON.parse(localStorage.getItem(AI_PROFILES_KEY) || '{}') || {};
+    } catch {
+      return {};
+    }
+  }
+
+  function _saveAiProfiles(profiles) {
+    localStorage.setItem(AI_PROFILES_KEY, JSON.stringify(profiles || {}));
+  }
+
+  function _providerDefaults(providerId) {
+    const provider = _aiProviders?.find?.(item => item.id === providerId);
     return {
-      provider: 'gemini',
-      model: 'gemini-3.8-flash',
+      model: provider?.defaultModel || (providerId === 'gemini' ? 'gemini-3.8-flash' : providerId === 'openrouter' ? 'openrouter/free' : ''),
       customModel: '',
       apiKey: ''
     };
   }
 
+  function _getAiProviderProfile(providerId) {
+    const profiles = _loadAiProfiles();
+    return {
+      ..._providerDefaults(providerId),
+      ...(profiles[providerId] || {})
+    };
+  }
+
+  function _saveAiProviderProfile(providerId, profile) {
+    if (!providerId) return;
+    const profiles = _loadAiProfiles();
+    profiles[providerId] = {
+      ..._providerDefaults(providerId),
+      ...(profiles[providerId] || {}),
+      ...(profile || {}),
+      updatedAt: new Date().toISOString()
+    };
+    _saveAiProfiles(profiles);
+  }
+
+  function getAiConfig() {
+    let active = {};
+    try {
+      active = JSON.parse(localStorage.getItem(AI_CONFIG_KEY) || '{}') || {};
+    } catch {}
+
+    const provider = active.provider || 'gemini';
+    const profiles = _loadAiProfiles();
+
+    // Migration automatique de l'ancien format qui ne mémorisait qu'une seule clé.
+    if (!profiles[provider] && (active.apiKey || active.model || active.customModel)) {
+      profiles[provider] = {
+        model: active.model || _providerDefaults(provider).model,
+        customModel: active.customModel || '',
+        apiKey: active.apiKey || '',
+        migratedAt: new Date().toISOString()
+      };
+      _saveAiProfiles(profiles);
+    }
+
+    const profile = {
+      ..._providerDefaults(provider),
+      ...(profiles[provider] || {})
+    };
+
+    if (provider === 'gemini' && /^gemini-2\./i.test(profile.model || '')) {
+      profile.model = 'gemini-3.8-flash';
+      _saveAiProviderProfile(provider, profile);
+    }
+
+    return {
+      provider,
+      model: profile.model || _providerDefaults(provider).model,
+      customModel: profile.customModel || '',
+      apiKey: profile.apiKey || ''
+    };
+  }
+
   function saveAiConfig(cfg) {
-    localStorage.setItem(AI_CONFIG_KEY, JSON.stringify(cfg));
+    const provider = cfg?.provider || 'gemini';
+    _saveAiProviderProfile(provider, {
+      model: cfg?.model || _providerDefaults(provider).model,
+      customModel: cfg?.customModel || '',
+      apiKey: cfg?.apiKey || ''
+    });
+
+    // La config active ne sert plus à stocker toutes les clés : seulement le fournisseur actif.
+    localStorage.setItem(AI_CONFIG_KEY, JSON.stringify({
+      provider,
+      model: cfg?.model || _providerDefaults(provider).model,
+      customModel: cfg?.customModel || ''
+    }));
   }
 
   const _state = {
@@ -1591,9 +1656,27 @@ const AgentView = (() => {
 
     const aiConfig = getAiConfig();
     let currentProviderId = aiConfig.provider || 'openrouter';
-    let currentModel = aiConfig.model || 'gemini-3.8-flash';
-    let customModel = aiConfig.customModel || '';
-    let apiKey = aiConfig.apiKey || '';
+    let currentProfile = _getAiProviderProfile(currentProviderId);
+    let currentModel = currentProfile.model || aiConfig.model || 'gemini-3.8-flash';
+    let customModel = currentProfile.customModel || '';
+    let apiKey = currentProfile.apiKey || aiConfig.apiKey || '';
+
+    const captureCurrentProviderProfile = () => {
+      const selectedModel = document.getElementById('ai-select-model')?.value || currentModel;
+      const customValue = document.getElementById('ai-input-custom-model')?.value?.trim() || customModel || '';
+      const keyValue = document.getElementById('ai-input-api-key')?.value?.trim() || apiKey || '';
+      const finalModel = selectedModel === 'custom' && customValue ? customValue : selectedModel;
+
+      _saveAiProviderProfile(currentProviderId, {
+        model: finalModel,
+        customModel: customValue,
+        apiKey: keyValue
+      });
+
+      currentModel = finalModel;
+      customModel = customValue;
+      apiKey = keyValue;
+    };
 
     const overlay = document.createElement('div');
     overlay.className = 'modal-overlay';
@@ -1615,7 +1698,7 @@ const AgentView = (() => {
           </div>
           <div class="modal__body">
             <p style="margin: 0 0 16px; font-size: 11.5px; color: var(--muted);">
-              Personnalisez le fournisseur d'IA et le modèle utilisé par Studio Nidal Junior et Planning GS Nidal. Vos clés et choix sont conservés directement dans votre navigateur.
+              Personnalisez le fournisseur et le modèle. Chaque fournisseur garde désormais sa propre clé API et son dernier modèle : changer de modèle ou de fournisseur ne vous oblige plus à ressaisir les clés.
             </p>
 
             <div class="form-group">
@@ -1660,7 +1743,7 @@ const AgentView = (() => {
                 <button type="button" class="btn btn--secondary btn--sm" id="ai-toggle-key-visibility" title="Afficher/masquer">👁️</button>
               </div>
               <small style="color:var(--muted);font-size:10.5px;margin-top:5px;display:block;">
-                🔒 Votre clé est stockée dans votre navigateur (localStorage) et transmise lors des requêtes au serveur.
+                🔒 Clé mémorisée séparément pour ce fournisseur dans ce navigateur. Elle sera restaurée automatiquement lorsque vous revenez sur ce fournisseur.
               </small>
             </div>
           </div>
@@ -1696,9 +1779,15 @@ const AgentView = (() => {
 
       if (providerSelect) {
         providerSelect.onchange = () => {
+          captureCurrentProviderProfile();
+
           currentProviderId = providerSelect.value;
           const prov = _aiProviders.find(p => p.id === currentProviderId) || _aiProviders[0];
-          currentModel = prov.defaultModel || (prov.models?.[0]?.id || 'custom');
+          currentProfile = _getAiProviderProfile(currentProviderId);
+          currentModel = currentProfile.model || prov.defaultModel || (prov.models?.[0]?.id || 'custom');
+          customModel = currentProfile.customModel || '';
+          apiKey = currentProfile.apiKey || '';
+
           overlay.innerHTML = renderModalBody();
           bindModalEvents();
         };
@@ -1707,6 +1796,9 @@ const AgentView = (() => {
       if (modelSelect) {
         modelSelect.onchange = () => {
           currentModel = modelSelect.value;
+          apiKey = document.getElementById('ai-input-api-key')?.value?.trim() || apiKey || '';
+          customModel = document.getElementById('ai-input-custom-model')?.value?.trim() || customModel || '';
+
           const customGroup = document.getElementById('ai-custom-model-group');
           if (customGroup) {
             customGroup.style.display = currentModel === 'custom' ? '' : 'none';
@@ -1730,7 +1822,7 @@ const AgentView = (() => {
             apiKey: keyVal
           });
 
-          showToast('Configuration IA enregistrée avec succès !', 'success');
+          showToast(`Configuration enregistrée. La clé ${selectedProv} et le modèle sélectionné seront restaurés automatiquement.`, 'success', 5500);
           closeModal();
           render();
         };
