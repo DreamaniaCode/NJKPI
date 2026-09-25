@@ -181,7 +181,12 @@ const NidalAPI = (() => {
   const listEditorialProviders = () => request('/api/editorial/providers');
   const testEditorialProvider = aiConfig => request('/api/editorial/provider-test', { method: 'POST', body: JSON.stringify({ aiConfig }) });
   const listEditorialGenerations = (agent = '', brand = '') => request(`/api/editorial/generations?agent=${encodeURIComponent(agent)}&brand=${encodeURIComponent(brand)}`);
-  async function generateProfessionalPlan(body) {
+  async function generateProfessionalPlan(body, onProgress = null) {
+    const notify = snapshot => {
+      if (typeof onProgress !== 'function') return;
+      try { onProgress(snapshot); } catch {}
+    };
+
     const started = await request('/api/editorial/pro-plan', {
       method: 'POST',
       body: JSON.stringify(body)
@@ -190,10 +195,20 @@ const NidalAPI = (() => {
     // Compatibilité avec une ancienne version serveur qui renvoyait directement le résultat.
     if (!started?.jobId) return started;
 
+    notify({
+      status: started.status || 'queued',
+      progress: started.progress || 5,
+      message: 'Analyse mise en file d’attente',
+      detail: 'Le serveur prépare le job professionnel.',
+      stage: 'queued'
+    });
+
     const deadline = Date.now() + 12 * 60 * 1000;
     while (Date.now() < deadline) {
-      await new Promise(resolve => setTimeout(resolve, 2000));
+      await new Promise(resolve => setTimeout(resolve, 1500));
       const job = await request('/api/editorial/pro-plan/' + encodeURIComponent(started.jobId));
+
+      notify(job);
 
       if (job.status === 'completed') return job.result;
       if (job.status === 'failed') throw new Error(job.error || 'Échec de l’analyse professionnelle');
