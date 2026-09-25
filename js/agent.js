@@ -131,7 +131,9 @@ const AgentView = (() => {
       description: 'API officielle Google Gemini',
       defaultModel: 'gemini-3.8-flash',
       models: [
-        { id: 'gemini-3.8-flash', name: 'Gemini 3.8 Flash (GA)', recommended: true }
+        { id: 'gemini-3.8-flash', name: 'Gemini 3.8 Flash (GA)', recommended: true },
+        { id: 'gemini-3.7-flash', name: 'Gemini 3.7 Flash' },
+        { id: 'gemini-3.5-flash-lite', name: 'Gemini 3.5 Flash-Lite (rapide)' }
       ],
       allowCustomModel: true
     },
