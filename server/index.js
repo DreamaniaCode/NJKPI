@@ -762,6 +762,216 @@ app.get('/api/editorial/generations', async (req, res, next) => {
   } catch (error) { next(error); }
 });
 
+app.post('/api/editorial/pro-plan', async (req, res, next) => {
+  try {
+    const {
+      brand = 'nidal',
+      days = 30,
+      objective = 'croissance, engagement et inscriptions',
+      notes = '',
+      aiConfig = {}
+    } = req.body || {};
+
+    const targetBrand = brand === 'nidal-junior' ? 'nidal-junior' : 'nidal';
+    const agentKey = targetBrand === 'nidal' ? 'planning-nidal' : 'studio-junior';
+    const horizon = [7, 14, 30].includes(Number(days)) ? Number(days) : 30;
+
+    const [contents, targetsRecord, socialProfiles, audienceRows, ads] = await Promise.all([
+      listContents(targetBrand).catch(() => []),
+      getKpiTargets(targetBrand).catch(() => ({ targets: {} })),
+      getSocialProfiles(targetBrand).catch(() => ({})),
+      listAudienceSnapshots(targetBrand, 3).catch(() => []),
+      listAds(targetBrand).catch(() => [])
+    ]);
+
+    const normalized = (contents || []).map(row => {
+      const data = row.data || {};
+      const results = data.resultats || {};
+      const format = String(data.format || 'post').toLowerCase();
+      const platform = String(data.plateforme || row.platform || '');
+      const interactions = ['reactions', 'commentaires', 'partages', 'enregistrements']
+        .reduce((sum, key) => sum + Number(results[key] || 0), 0);
+      return {
+        title: data.titre || data.title || 'Sans titre',
+        format,
+        platform,
+        status: data.statut || 'brouillon',
+        date: data.datePublication || row.created_at || null,
+        reach: Number(results.portee || 0),
+        views: Number(results.vues || 0),
+        comments: Number(results.commentaires || 0),
+        reactions: Number(results.reactions || 0),
+        shares: Number(results.partages || 0),
+        saves: Number(results.enregistrements || 0),
+        conversions: Number(results.conversions || 0),
+        interactions,
+        pillar: data.pilier || '',
+        objective: data.objectif || '',
+        finalUrl: row.final_url || data.finalUrl || ''
+      };
+    });
+
+    const published = normalized.filter(item => /publi/i.test(item.status) || item.finalUrl);
+    const formatCounts = normalized.reduce((acc, item) => {
+      const key = /reel/.test(item.format) ? 'reel'
+        : /story/.test(item.format) ? 'story'
+        : /video|vidéo/.test(item.format) ? 'video'
+        : /carrousel/.test(item.format) ? 'carrousel'
+        : 'post';
+      acc[key] = (acc[key] || 0) + 1;
+      return acc;
+    }, { post: 0, reel: 0, story: 0, video: 0, carrousel: 0 });
+
+    const topContent = [...published]
+      .sort((a, b) => ((b.interactions * 10) + b.reach + b.views) - ((a.interactions * 10) + a.reach + a.views))
+      .slice(0, 10);
+
+    const recentContent = [...normalized]
+      .sort((a, b) => String(b.date || '').localeCompare(String(a.date || '')))
+      .slice(0, 25);
+
+    const audience = audienceRows?.[0]?.payload || null;
+    const igProfile = socialProfiles?.instagram?.profile || socialProfiles?.instagram || null;
+    const fbProfile = socialProfiles?.facebook?.profile || socialProfiles?.facebook || null;
+
+    const adsSummary = (ads || []).slice(0, 10).map(row => ({
+      name: row.name || row.insights?.campaign_name || 'Campagne',
+      spend: Number(row.insights?.spend || 0),
+      reach: Number(row.insights?.reach || 0),
+      impressions: Number(row.insights?.impressions || 0),
+      clicks: Number(row.insights?.clicks || 0),
+      actions: row.insights?.actions || []
+    }));
+
+    const dataContext = {
+      generatedAt: new Date().toISOString(),
+      horizonDays: horizon,
+      brand: targetBrand,
+      kpiTargets: targetsRecord?.targets || {},
+      contentInventory: {
+        total: normalized.length,
+        published: published.length,
+        formats: formatCounts,
+        recent: recentContent,
+        topPerformers: topContent
+      },
+      social: {
+        instagram: igProfile ? {
+          followers: igProfile.followers ?? igProfile.followers_count ?? null,
+          reach: igProfile.insights?.reach ?? null,
+          accountsEngaged: igProfile.insights?.accountsEngaged ?? null,
+          mediaCount: igProfile.mediaCount ?? igProfile.media_count ?? null,
+          syncedAt: socialProfiles?.instagram?.synced_at || null
+        } : null,
+        facebook: fbProfile ? {
+          followers: fbProfile.followers ?? fbProfile.followers_count ?? null,
+          reach: fbProfile.insights?.reach ?? null,
+          views: fbProfile.insights?.views ?? null,
+          interactions: fbProfile.insights?.interactions ?? null,
+          comments: fbProfile.insights?.comments ?? null,
+          syncedAt: socialProfiles?.facebook?.synced_at || null
+        } : null
+      },
+      audienceSnapshot: audience,
+      ads: adsSummary
+    };
+
+    const strategyBrief = `
+MISSION : Agis comme un Directeur Social Media senior spécialisé dans l'éducation privée au Maroc.
+
+Tu dois AUDITER les données réellement collectées par NJKPI, identifier ce qui manque dans la stratégie actuelle, puis créer un PLAN DE TRAVAIL PROFESSIONNEL sur ${horizon} jours.
+
+OBJECTIF BUSINESS : ${objective}
+${notes ? `NOTES DU RESPONSABLE : ${notes}` : ''}
+
+RÈGLES IMPÉRATIVES :
+1. Commence par un diagnostic factuel : ce qui fonctionne, ce qui manque, les formats sous-utilisés, les trous éditoriaux et les KPI à améliorer.
+2. N'invente jamais une métrique absente. Écris "donnée indisponible" lorsqu'elle n'existe pas.
+3. Utilise les performances des contenus existants pour décider quoi renforcer, arrêter ou tester.
+4. Le plan doit mélanger intelligemment : POSTS, CARROUSELS, REELS, STORIES et VIDÉOS.
+5. Ne fais pas un calendrier répétitif. Chaque contenu doit avoir un rôle précis dans le tunnel :
+   - Notoriété
+   - Preuve / confiance
+   - Engagement
+   - Éducation / valeur
+   - Conversion / inscription
+   - Communauté / coulisses
+6. Pour chaque contenu du plan donne :
+   - Jour/date relative
+   - Format
+   - Plateforme
+   - Objectif
+   - Sujet / angle
+   - Hook
+   - Contenu ou script détaillé
+   - CTA
+   - Visuel / séquence vidéo recommandée
+   - Prompt image IA si image
+   - Plan de scènes si Reel/Vidéo
+   - Story interactive associée quand pertinent
+   - 5 hashtags
+   - KPI principal à surveiller
+7. Les Reels/Vidéos doivent avoir une durée conseillée et un storyboard court.
+8. Les Stories doivent utiliser sondage, quiz, question, curseur ou CTA DM quand pertinent.
+9. Termine par :
+   - fréquence hebdomadaire recommandée par format
+   - 3 tests A/B
+   - 5 actions prioritaires de la semaine
+   - ce qu'il faut mesurer lors de la prochaine analyse
+10. Évite la scène générique "enseignante + élèves assis à des tables". Les visuels doivent varier selon le sujet.
+
+Présente le résultat comme un document opérationnel de direction marketing, clair, précis, directement exécutable par une équipe social media.
+`;
+
+    const generated = await generateEditorialOutput({
+      agentKey,
+      brand: targetBrand,
+      briefData: {
+        topic: `Plan Social Media professionnel ${horizon} jours basé sur les données réelles`,
+        brief: strategyBrief,
+        format: 'planning stratégique',
+        platform: 'Instagram + Facebook + Stories + Reels + Vidéos',
+        objective,
+        language: 'Français',
+        notes
+      },
+      context: `=== DONNÉES NJKPI À ANALYSER ===\n${JSON.stringify(dataContext, null, 2)}`,
+      aiConfig
+    });
+
+    const generationId = crypto.randomUUID();
+    const record = {
+      id: generationId,
+      agentKey,
+      brand: targetBrand,
+      brief: {
+        topic: `Plan Social Media professionnel ${horizon} jours`,
+        format: 'planning stratégique',
+        horizon,
+        objective,
+        notes
+      },
+      output: generated.output,
+      structuredData: {
+        ...(generated.structuredData || {}),
+        strategyPlan: true,
+        horizonDays: horizon,
+        dataAudit: dataContext
+      },
+      storyboard: generated.storyboard,
+      qualityCheck: generated.qualityCheck,
+      status: 'brouillon',
+      model: generated.model,
+      provider: generated.provider,
+      isDemo: generated.isDemo,
+      createdAt: new Date().toISOString()
+    };
+
+    await saveEditorialGeneration(record);
+    res.json({ ...record, dataAudit: dataContext });
+  } catch (error) { next(error); }
+});
+
 app.post('/api/editorial/generate', async (req, res, next) => {
   try {
     const {
