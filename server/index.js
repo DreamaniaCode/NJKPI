@@ -1077,23 +1077,99 @@ Après l'analyse humaine, ajoute exactement le marqueur ===PLAN_JSON=== puis un 
 N'ajoute AUCUN commentaire dans le JSON et assure-toi qu'il contient exactement ${horizon} éléments.
 `;
 
-    const generated = await generateEditorialOutput({
+    const dataContextText = `=== DONNÉES NJKPI À ANALYSER ===\n${JSON.stringify(dataContext, null, 2)}`;
+
+    // Étape 1 : diagnostic stratégique court.
+    const analysisGenerated = await generateEditorialOutput({
       agentKey,
       brand: targetBrand,
       briefData: {
-        topic: `Plan Social Media professionnel ${horizon} jours basé sur les données réelles`,
-        brief: strategyBrief,
-        format: 'planning stratégique',
-        platform: 'Instagram + Facebook + Stories + Reels + Vidéos',
+        topic: 'Diagnostic Social Media & Growth basé sur les données réelles',
+        brief: `
+Analyse uniquement les données NJKPI ci-dessous.
+Ne génère PAS encore le calendrier complet.
+Livre un diagnostic professionnel, concret et priorisé :
+- forces / faiblesses ;
+- formats sous-utilisés ;
+- problèmes détectés ;
+- preuve chiffrée quand disponible ;
+- hypothèses clairement signalées ;
+- solutions ;
+- KPI de validation ;
+- Meta Ads / Audience / Conversions ;
+- 5 priorités opérationnelles.
+Réponse concise mais profonde, sans JSON.
+`,
+        format: 'analyse stratégique',
+        platform: 'Instagram + Facebook + Meta Ads',
         objective,
         language: 'Français',
         notes
       },
-      context: `=== DONNÉES NJKPI À ANALYSER ===\n${JSON.stringify(dataContext, null, 2)}`,
+      context: dataContextText,
       aiConfig
     });
 
-    const planItems = extractProfessionalPlanItems(generated.output);
+    // Étape 2 : produire le calendrier par petits lots.
+    // Un seul appel pour 30 captions + scripts + prompts dépassait souvent 150 s.
+    const planItems = [];
+    const batchSize = 5;
+    for (let offset = 0; offset < horizon; offset += batchSize) {
+      const count = Math.min(batchSize, horizon - offset);
+      const batchStartDate = new Date(startDate + 'T00:00:00Z');
+      batchStartDate.setUTCDate(batchStartDate.getUTCDate() + offset);
+      const batchStartIso = batchStartDate.toISOString().slice(0, 10);
+
+      const batchBrief = `
+Tu construis les jours ${offset + 1} à ${offset + count} du calendrier Social Media Nidal.
+Le diagnostic stratégique est fourni dans le contexte.
+Crée EXACTEMENT ${count} contenus à partir du ${batchStartIso}.
+
+Pour chaque jour : date, heure, titre clair, format, plateforme, tunnel, objectif,
+sujet, angle, hook, caption complète prête à publier, CTA, 5 hashtags, KPI,
+justification liée aux données, prompt photo si visuel, script vidéo complet +
+storyboard si Reel/Vidéo, Story associée si pertinent.
+
+Réponds UNIQUEMENT avec :
+===PLAN_JSON===
+{"planItems":[...]}
+JSON valide, sans commentaire avant ou après.
+`;
+
+      const batchGenerated = await generateEditorialOutput({
+        agentKey,
+        brand: targetBrand,
+        briefData: {
+          topic: `Planning Social Media jours ${offset + 1}-${offset + count}`,
+          brief: batchBrief,
+          format: 'planning stratégique batch',
+          platform: 'Instagram + Facebook + Stories + Reels + Vidéos',
+          objective,
+          language: 'Français',
+          notes
+        },
+        context: `${dataContextText}\n\n=== DIAGNOSTIC STRATÉGIQUE ===\n${analysisGenerated.output.slice(0, 12000)}`,
+        aiConfig
+      });
+
+      const batchItems = extractProfessionalPlanItems(batchGenerated.output);
+      for (let i = 0; i < batchItems.length && i < count; i++) {
+        const item = batchItems[i];
+        item.dayNumber = offset + i + 1;
+        if (!item.date) {
+          const d = new Date(startDate + 'T00:00:00Z');
+          d.setUTCDate(d.getUTCDate() + offset + i);
+          item.date = d.toISOString().slice(0, 10);
+        }
+        planItems.push(item);
+      }
+    }
+
+    const generated = {
+      ...analysisGenerated,
+      output: `${analysisGenerated.output}\n\n===PLAN_JSON===\n${JSON.stringify({ planItems }, null, 2)}`
+    };
+
     const generationId = crypto.randomUUID();
     const record = {
       id: generationId,
