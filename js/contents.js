@@ -619,7 +619,7 @@ const ContentsView = (() => {
 
         const runAction = async (mode, button) => {
           const values = _readForm(modal);
-          if (!values.titre) return showToast('Le titre est obligatoire', 'error');
+          if (!values.message && !values.mediaUrl) return showToast('Ajoutez un texte, une photo ou une vidéo.', 'error');
           if (mode === 'schedule' && !values.datePublication) return showToast('Choisissez la date de programmation.', 'error');
           if (mode !== 'save' && _platformsFromValue(values.plateforme).includes('instagram') && !values.mediaUrl) {
             return showToast('Choisissez et téléversez une photo ou vidéo pour Instagram.', 'error');
@@ -686,7 +686,7 @@ const ContentsView = (() => {
 
           const runExistingAction = async (mode, button) => {
             const values = _readForm(modal);
-            if (!values.titre) return showToast('Le titre est obligatoire', 'error');
+            if (!values.message && !values.mediaUrl) return showToast('Ajoutez un texte, une photo ou une vidéo.', 'error');
             if (mode === 'schedule' && !values.datePublication) {
               return showToast('Choisissez la date de programmation.', 'error');
             }
