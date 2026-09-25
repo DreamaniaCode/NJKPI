@@ -77,19 +77,85 @@ async function repairLegacyContentsSchema() {
     // Les colonnes du schéma actuel sont alimentées explicitement.
     if (['data','sync_status','created_at','updated_at'].includes(name)) continue;
 
+    const safeName = '"' + String(name).replace(/"/g, '""') + '"';
     let defaultSql = null;
-    if (['text','character varying','character'].includes(column.data_type)) defaultSql = "''";
-    else if (column.data_type === 'boolean') defaultSql = 'FALSE';
+
+    // Certaines anciennes colonnes ont encore des CHECK constraints
+    // (ex. contents_statut_check). Un DEFAULT '' rend l'INSERT invalide.
+    const checks = await pool.query(`
+      SELECT conname, pg_get_constraintdef(oid) AS definition
+      FROM pg_constraint
+      WHERE conrelid = 'contents'::regclass
+        AND contype = 'c'
+        AND pg_get_constraintdef(oid) ILIKE $1
+    `, [`%${name}%`]);
+
+    if (['text','character varying','character'].includes(column.data_type)) {
+      const preferredByColumn = {
+        statut: 'brouillon',
+        status: 'brouillon',
+        validation: 'a-valider',
+        format: 'post',
+        plateforme: 'instagram-facebook',
+        niveau: 'tous'
+      };
+      const preferred = preferredByColumn[name];
+
+      let allowedValues = [];
+      for (const check of checks.rows) {
+        const matches = [...String(check.definition || '').matchAll(/'([^']+)'/g)]
+          .map(match => match[1])
+          .filter(Boolean);
+        allowedValues.push(...matches);
+      }
+      allowedValues = [...new Set(allowedValues)];
+
+      let chosen = null;
+      if (preferred && (!allowedValues.length || allowedValues.includes(preferred))) chosen = preferred;
+      else if (allowedValues.length) chosen = allowedValues[0];
+      else chosen = '';
+
+      defaultSql = "'" + String(chosen).replace(/'/g, "''") + "'";
+
+      // Normaliser également les anciennes lignes NULL avant les nouveaux INSERT.
+      await pool.query(`UPDATE contents SET ${safeName} = ${defaultSql} WHERE ${safeName} IS NULL`);
+    } else if (column.data_type === 'boolean') defaultSql = 'FALSE';
     else if (['smallint','integer','bigint','numeric','real','double precision'].includes(column.data_type)) defaultSql = '0';
     else if (column.data_type === 'json' || column.data_type === 'jsonb') defaultSql = "'{}'";
     else if (column.data_type.includes('timestamp')) defaultSql = 'NOW()';
     else if (column.data_type === 'date') defaultSql = 'CURRENT_DATE';
 
     if (defaultSql) {
-      const safeName = '"' + String(name).replace(/"/g, '""') + '"';
       await pool.query(`ALTER TABLE contents ALTER COLUMN ${safeName} SET DEFAULT ${defaultSql}`);
-      console.log(`Migration legacy contents: DEFAULT ajouté à ${name}`);
+      console.log(`Migration legacy contents: DEFAULT compatible ajouté à ${name}`);
     }
+  }
+
+  const legacyStatusColumn = await pool.query(`
+    SELECT 1
+    FROM information_schema.columns
+    WHERE table_schema='public' AND table_name='contents' AND column_name='statut'
+  `);
+  if (legacyStatusColumn.rowCount) {
+    const statusCheck = await pool.query(`
+      SELECT pg_get_constraintdef(oid) AS definition
+      FROM pg_constraint
+      WHERE conrelid='contents'::regclass
+        AND contype='c'
+        AND conname='contents_statut_check'
+      LIMIT 1
+    `);
+
+    const definition = String(statusCheck.rows?.[0]?.definition || '');
+    const allowed = [...definition.matchAll(/'([^']+)'/g)].map(match => match[1]);
+    const safeStatus = allowed.includes('brouillon') ? 'brouillon' : (allowed[0] || 'brouillon');
+    const escaped = "'" + safeStatus.replace(/'/g, "''") + "'";
+
+    await pool.query(`ALTER TABLE contents ALTER COLUMN statut SET DEFAULT ${escaped}`);
+    await pool.query(`UPDATE contents SET statut = ${escaped} WHERE statut IS NULL OR statut = ''`).catch(error => {
+      console.warn('Migration legacy statut partielle:', error.message);
+    });
+    console.log(`Migration legacy contents: statut par défaut = ${safeStatus}`);
   }
 
   await pool.query("CREATE INDEX IF NOT EXISTS contents_brand_idx ON contents (brand_slug, updated_at DESC)");
