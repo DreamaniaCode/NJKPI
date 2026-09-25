@@ -187,8 +187,9 @@ const AgentView = (() => {
       defaultModel: '@cf/qwen/qwen3.8-27b',
       models: [
         { id: '@cf/qwen/qwen3.8-27b', name: 'Qwen 3.8 27B', recommended: true },
-        { id: '@cf/zai-org/glm-5.2', name: 'GLM 5.2' },
-        { id: '@cf/meta/llama-4-scout-17b-16e-instruct', name: 'Llama 4 Scout' }
+        { id: '@cf/meta/llama-3.3-70b-instruct-fp8-fast', name: 'Llama 3.3 70B Fast' },
+        { id: '@cf/meta/llama-4-scout-17b-16e-instruct', name: 'Llama 4 Scout' },
+        { id: '@cf/zai-org/glm-5.2', name: 'GLM 5.2' }
       ],
       allowCustomModel: true
     },
