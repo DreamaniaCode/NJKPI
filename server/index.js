@@ -826,7 +826,7 @@ function extractProfessionalPlanItems(output = '') {
   return [];
 }
 
-app.post('/api/editorial/pro-plan', async (req, res, next) => {
+async function buildProfessionalPlan(body = {}) {
   try {
     const {
       brand = 'nidal',
@@ -834,7 +834,7 @@ app.post('/api/editorial/pro-plan', async (req, res, next) => {
       objective = 'croissance, engagement et inscriptions',
       notes = '',
       aiConfig = {}
-    } = req.body || {};
+    } = body || {};
 
     const targetBrand = brand === 'nidal-junior' ? 'nidal-junior' : 'nidal';
     const agentKey = targetBrand === 'nidal' ? 'planning-nidal' : 'studio-junior';
@@ -1125,8 +1125,71 @@ N'ajoute AUCUN commentaire dans le JSON et assure-toi qu'il contient exactement 
     };
 
     await saveEditorialGeneration(record);
-    res.json({ ...record, dataAudit: dataContext, planItems });
-  } catch (error) { next(error); }
+    return { ...record, dataAudit: dataContext, planItems };
+  } catch (error) {
+    throw error;
+  }
+}
+
+const professionalPlanJobs = new Map();
+
+app.post('/api/editorial/pro-plan', async (req, res) => {
+  const jobId = crypto.randomUUID();
+  professionalPlanJobs.set(jobId, {
+    id: jobId,
+    status: 'queued',
+    progress: 5,
+    message: 'Analyse mise en file d’attente',
+    createdAt: new Date().toISOString(),
+    updatedAt: new Date().toISOString(),
+    result: null,
+    error: null
+  });
+
+  res.status(202).json({ jobId, status: 'queued', progress: 5 });
+
+  setImmediate(async () => {
+    const job = professionalPlanJobs.get(jobId);
+    if (!job) return;
+    job.status = 'running';
+    job.progress = 18;
+    job.message = 'Collecte et analyse des données NJKPI';
+    job.updatedAt = new Date().toISOString();
+
+    try {
+      const result = await buildProfessionalPlan(req.body || {});
+      job.status = 'completed';
+      job.progress = 100;
+      job.message = 'Analyse et planning terminés';
+      job.result = result;
+      job.updatedAt = new Date().toISOString();
+    } catch (error) {
+      job.status = 'failed';
+      job.progress = 100;
+      job.message = 'Échec de l’analyse';
+      job.error = error?.message || String(error);
+      job.updatedAt = new Date().toISOString();
+    }
+
+    setTimeout(() => professionalPlanJobs.delete(jobId), 30 * 60 * 1000);
+  });
+});
+
+app.get('/api/editorial/pro-plan/:jobId', async (req, res) => {
+  const job = professionalPlanJobs.get(req.params.jobId);
+  if (!job) {
+    return res.status(404).json({ error: 'Analyse introuvable ou expirée', code: 'PLAN_JOB_NOT_FOUND' });
+  }
+
+  res.json({
+    id: job.id,
+    status: job.status,
+    progress: job.progress,
+    message: job.message,
+    error: job.error,
+    result: job.status === 'completed' ? job.result : undefined,
+    updatedAt: job.updatedAt
+  });
 });
 
 app.post('/api/editorial/generate', async (req, res, next) => {
