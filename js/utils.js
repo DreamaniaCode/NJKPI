@@ -206,20 +206,42 @@ function announceToScreenReader(message, priority = 'polite') {
   requestAnimationFrame(() => { region.textContent = message; });
 }
 
-function showToast(message, type = 'success', duration = 3000) {
+function showToast(message, type = 'success', duration = null) {
   const container = document.getElementById('toast-container');
   if (!container) return;
+
+  const meta = {
+    success: { icon: '✓', title: 'Succès', duration: 5000 },
+    error: { icon: '×', title: 'Erreur', duration: 7000 },
+    info: { icon: 'i', title: 'Information', duration: 5200 },
+    warning: { icon: '!', title: 'Attention', duration: 6000 }
+  };
+  const cfg = meta[type] || meta.info;
+  const timeout = Number(duration) > 0 ? Number(duration) : cfg.duration;
+
   const toast = document.createElement('div');
   toast.className = `toast toast--${type}`;
   toast.setAttribute('role', 'alert');
-  toast.innerHTML = `<span aria-hidden="true">${type === 'success' ? '✓' : type === 'error' ? '×' : 'i'}</span><span>${escapeHtml(message)}</span>`;
+  toast.innerHTML = `
+    <span class="toast__icon" aria-hidden="true">${cfg.icon}</span>
+    <span class="toast__content">
+      <strong class="toast__title">${cfg.title}</strong>
+      <span class="toast__message">${escapeHtml(message)}</span>
+    </span>
+    <button class="toast__close" type="button" aria-label="Fermer">×</button>
+  `;
+
+  const close = () => {
+    if (!toast.isConnected) return;
+    toast.classList.remove('toast--visible');
+    window.setTimeout(() => toast.remove(), 250);
+  };
+
+  toast.querySelector('.toast__close')?.addEventListener('click', close);
   container.appendChild(toast);
   requestAnimationFrame(() => toast.classList.add('toast--visible'));
-  announceToScreenReader(message);
-  setTimeout(() => {
-    toast.classList.remove('toast--visible');
-    setTimeout(() => toast.remove(), 250);
-  }, duration);
+  announceToScreenReader(`${cfg.title}. ${message}`);
+  window.setTimeout(close, timeout);
 }
 
 let _releaseFocus = null;
