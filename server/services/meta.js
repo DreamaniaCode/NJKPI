@@ -195,13 +195,22 @@ async function syncFacebookProfile(brand) {
   // déclarer les Insights inactifs en dur.
   const contentInsights = await getFacebookTopContent(
     brand,
-    Number(process.env.META_FACEBOOK_LIVE_POST_LIMIT || 8)
+    Number(process.env.META_FACEBOOK_LIVE_POST_LIMIT || 50)
   );
   const analyzedPosts = contentInsights.items || [];
+  const availableCounts = { reach: 0, views: 0 };
   const aggregate = analyzedPosts.reduce((acc, item) => {
     const metrics = item.metrics || {};
-    acc.reach += Number(metrics.reach || 0);
-    acc.views += Number(metrics.views || 0);
+
+    if (metrics.reach !== null && metrics.reach !== undefined) {
+      acc.reach += Number(metrics.reach || 0);
+      availableCounts.reach++;
+    }
+    if (metrics.views !== null && metrics.views !== undefined) {
+      acc.views += Number(metrics.views || 0);
+      availableCounts.views++;
+    }
+
     acc.interactions += Number(metrics.interactions || 0);
     acc.comments += Number(metrics.comments || 0);
     acc.shares += Number(metrics.shares || 0);
@@ -229,8 +238,8 @@ async function syncFacebookProfile(brand) {
     insights: {
       scope: 'recent-published-posts',
       analyzedPosts: analyzedPosts.length,
-      reach: aggregate.reach,
-      views: aggregate.views,
+      reach: availableCounts.reach ? aggregate.reach : null,
+      views: availableCounts.views ? aggregate.views : null,
       interactions: aggregate.interactions,
       comments: aggregate.comments,
       shares: aggregate.shares,
@@ -508,8 +517,8 @@ async function getInstagramTopContent(brand, limit = 50) {
     }
 
     items.sort((a, b) => {
-      const aScore = (a.metrics.reach * 2) + a.metrics.views + (a.metrics.interactions * 10);
-      const bScore = (b.metrics.reach * 2) + b.metrics.views + (b.metrics.interactions * 10);
+      const aScore = (Number(a.metrics.reach || 0) * 2) + Number(a.metrics.views || 0) + (Number(a.metrics.interactions || 0) * 10);
+      const bScore = (Number(b.metrics.reach || 0) * 2) + Number(b.metrics.views || 0) + (Number(b.metrics.interactions || 0) * 10);
       return bScore - aScore;
     });
 
@@ -534,19 +543,26 @@ async function getFacebookTopContent(brand, limit = 50) {
 
     for (const post of posts.data || []) {
       let values = {};
+      let insightsError = null;
       try {
         const insights = await pageGraph(brand, `${post.id}/insights`, { metric: metrics });
         values = Object.fromEntries((insights.data || []).map(metricItem => [
           metricItem.name,
-          Number(metricItem.values?.[0]?.value ?? metricItem.value ?? 0)
+          metricItem.values?.[0]?.value ?? metricItem.total_value?.value ?? metricItem.value ?? null
         ]));
-      } catch {}
+      } catch (error) {
+        insightsError = error.message;
+      }
 
       const reactions = Number(post.reactions?.summary?.total_count || 0);
       const comments = Number(post.comments?.summary?.total_count || 0);
       const shares = Number(post.shares?.count || 0);
-      const reach = Number(values.post_total_media_view_unique || 0);
-      const views = Number(values.post_media_view || 0);
+      const reach = Object.prototype.hasOwnProperty.call(values, 'post_total_media_view_unique')
+        ? Number(values.post_total_media_view_unique)
+        : null;
+      const views = Object.prototype.hasOwnProperty.call(values, 'post_media_view')
+        ? Number(values.post_media_view)
+        : null;
       const interactions = reactions + comments + shares;
 
       items.push({
@@ -562,8 +578,10 @@ async function getFacebookTopContent(brand, limit = 50) {
           reactions,
           comments,
           shares,
-          saves: 0,
-          interactions
+          saves: null,
+          interactions,
+          insightsAvailable: reach !== null || views !== null,
+          insightsError
         }
       });
     }
