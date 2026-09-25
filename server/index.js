@@ -98,7 +98,7 @@ async function getAiKpiContext(brand) {
 
 app.get('/api/version', (_req, res) => {
   res.setHeader('Cache-Control', 'no-store, max-age=0, must-revalidate');
-  res.json({ build: '20260925-36', appVersion: process.env.APP_VERSION || null, now: new Date().toISOString() });
+  res.json({ build: '20260925-37', appVersion: process.env.APP_VERSION || null, now: new Date().toISOString() });
 });
 
 app.get('/api/health', async (_req, res) => {
@@ -871,7 +871,18 @@ function extractProfessionalPlanItems(output = '') {
   return [];
 }
 
-async function buildProfessionalPlan(body = {}) {
+async function buildProfessionalPlan(body = {}, onProgress = () => {}) {
+  const reportProgress = (progress, message, detail = '', meta = {}) => {
+    try {
+      onProgress({
+        progress: Math.max(0, Math.min(100, Number(progress) || 0)),
+        message,
+        detail,
+        ...meta
+      });
+    } catch {}
+  };
+
   try {
     const {
       brand = 'nidal',
@@ -886,6 +897,13 @@ async function buildProfessionalPlan(body = {}) {
     const horizon = [7, 14, 30].includes(Number(days)) ? Number(days) : 30;
     const planAiConfig = { ...aiConfig, planMode: true };
 
+    reportProgress(
+      10,
+      'Collecte des données NJKPI',
+      'Chargement des contenus, KPI, profils sociaux, audience et campagnes Meta Ads.',
+      { stage: 'data', provider: planAiConfig.provider || 'auto', model: planAiConfig.model || 'auto', totalDays: horizon }
+    );
+
     const [contents, targetsRecord, socialProfiles, audienceRows, ads] = await Promise.all([
       listContents(targetBrand).catch(() => []),
       getKpiTargets(targetBrand).catch(() => ({ targets: {} })),
@@ -893,6 +911,13 @@ async function buildProfessionalPlan(body = {}) {
       listAudienceSnapshots(targetBrand, 3).catch(() => []),
       listAds(targetBrand).catch(() => [])
     ]);
+
+    reportProgress(
+      22,
+      'Données NJKPI chargées',
+      `${(contents || []).length} contenus · ${(ads || []).length} campagnes Ads · audience et profils sociaux prêts pour l’analyse.`,
+      { stage: 'data-ready', provider: planAiConfig.provider || 'auto', model: planAiConfig.model || 'auto', totalDays: horizon }
+    );
 
     const normalized = (contents || []).map(row => {
       const data = row.data || {};
@@ -1126,6 +1151,13 @@ N'ajoute AUCUN commentaire dans le JSON et assure-toi qu'il contient exactement 
     const dataContextText = `=== DONNÉES NJKPI À ANALYSER ===\n${JSON.stringify(dataContext, null, 2)}`;
 
     // Étape 1 : diagnostic stratégique court.
+    reportProgress(
+      30,
+      'Diagnostic stratégique par l’IA',
+      'Analyse des performances, formats, audience, conversions et Meta Ads.',
+      { stage: 'diagnostic', provider: planAiConfig.provider || 'auto', model: planAiConfig.model || 'auto', totalDays: horizon }
+    );
+
     let analysisGenerated;
     try {
       analysisGenerated = await generateEditorialOutput({
@@ -1165,6 +1197,18 @@ Réponse concise mais profonde, sans JSON.
       );
     }
 
+    reportProgress(
+      42,
+      'Diagnostic stratégique terminé',
+      `Réponse obtenue via ${analysisGenerated.provider || 'IA'} · ${analysisGenerated.model || 'modèle automatique'}.`,
+      {
+        stage: 'diagnostic-done',
+        provider: analysisGenerated.provider || planAiConfig.provider || 'auto',
+        model: analysisGenerated.model || planAiConfig.model || 'auto',
+        totalDays: horizon
+      }
+    );
+
     // Si Gemini 3.8 est saturé et que l'étape diagnostic a réussi via un
     // modèle de secours, conserver ce modèle pour tous les lots suivants.
     // Même logique si la génération a dû basculer vers OpenRouter côté serveur.
@@ -1203,6 +1247,20 @@ Réponds UNIQUEMENT avec :
 {"planItems":[...]}
 JSON valide, sans commentaire avant ou après.
 `;
+
+      const batchStartProgress = 45 + Math.floor((offset / horizon) * 48);
+      reportProgress(
+        batchStartProgress,
+        `Création du planning · jours ${offset + 1} à ${offset + count}`,
+        `Génération des contenus prêts à publier avec ${effectivePlanAiConfig.provider || 'auto'} · ${effectivePlanAiConfig.model || 'modèle automatique'}.`,
+        {
+          stage: 'planning-batch',
+          provider: effectivePlanAiConfig.provider || 'auto',
+          model: effectivePlanAiConfig.model || 'auto',
+          completedDays: offset,
+          totalDays: horizon
+        }
+      );
 
       let batchGenerated;
       try {
@@ -1255,6 +1313,19 @@ JSON valide, sans commentaire avant ou après.
         }
         planItems.push(item);
       }
+
+      reportProgress(
+        45 + Math.floor(((offset + count) / horizon) * 48),
+        `Planning généré · ${Math.min(offset + count, horizon)}/${horizon} jours`,
+        `Dernier lot traité via ${batchGenerated.provider || effectivePlanAiConfig.provider || 'IA'} · ${batchGenerated.model || effectivePlanAiConfig.model || 'modèle automatique'}.`,
+        {
+          stage: 'planning-progress',
+          provider: batchGenerated.provider || effectivePlanAiConfig.provider || 'auto',
+          model: batchGenerated.model || effectivePlanAiConfig.model || 'auto',
+          completedDays: Math.min(offset + count, horizon),
+          totalDays: horizon
+        }
+      );
     }
 
     const generated = {
@@ -1292,7 +1363,33 @@ JSON valide, sans commentaire avant ou après.
       createdAt: new Date().toISOString()
     };
 
+    reportProgress(
+      96,
+      'Finalisation du plan',
+      'Contrôle du calendrier et enregistrement du résultat dans NJKPI.',
+      {
+        stage: 'saving',
+        provider: generated.provider || effectivePlanAiConfig.provider || 'auto',
+        model: generated.model || effectivePlanAiConfig.model || 'auto',
+        completedDays: horizon,
+        totalDays: horizon
+      }
+    );
+
     await saveEditorialGeneration(record);
+
+    reportProgress(
+      99,
+      'Plan enregistré',
+      `${horizon} jours prêts à être affichés.`,
+      {
+        stage: 'saved',
+        provider: generated.provider || effectivePlanAiConfig.provider || 'auto',
+        model: generated.model || effectivePlanAiConfig.model || 'auto',
+        completedDays: horizon,
+        totalDays: horizon
+      }
+    );
     return { ...record, dataAudit: dataContext, planItems };
   } catch (error) {
     throw error;
@@ -1311,7 +1408,13 @@ app.post('/api/editorial/pro-plan', async (req, res) => {
     createdAt: new Date().toISOString(),
     updatedAt: new Date().toISOString(),
     result: null,
-    error: null
+    error: null,
+    detail: 'Initialisation du job d’analyse.',
+    stage: 'queued',
+    provider: req.body?.aiConfig?.provider || 'auto',
+    model: req.body?.aiConfig?.model || 'auto',
+    completedDays: 0,
+    totalDays: [7, 14, 30].includes(Number(req.body?.days)) ? Number(req.body.days) : 30
   });
 
   res.status(202).json({ jobId, status: 'queued', progress: 5 });
@@ -1320,21 +1423,35 @@ app.post('/api/editorial/pro-plan', async (req, res) => {
     const job = professionalPlanJobs.get(jobId);
     if (!job) return;
     job.status = 'running';
-    job.progress = 18;
-    job.message = 'Collecte et analyse des données NJKPI';
+    job.progress = 8;
+    job.message = 'Démarrage de l’analyse';
+    job.detail = 'Préparation de la collecte des données NJKPI.';
+    job.stage = 'starting';
     job.updatedAt = new Date().toISOString();
 
     try {
-      const result = await buildProfessionalPlan(req.body || {});
+      const result = await buildProfessionalPlan(req.body || {}, update => {
+        Object.assign(job, update, {
+          status: 'running',
+          updatedAt: new Date().toISOString()
+        });
+      });
       job.status = 'completed';
       job.progress = 100;
       job.message = 'Analyse et planning terminés';
+      job.detail = 'Le plan professionnel est prêt.';
+      job.stage = 'completed';
+      job.completedDays = job.totalDays;
+      job.provider = result?.provider || job.provider;
+      job.model = result?.model || job.model;
       job.result = result;
       job.updatedAt = new Date().toISOString();
     } catch (error) {
       job.status = 'failed';
       job.progress = 100;
       job.message = 'Échec de l’analyse';
+      job.detail = error?.message || String(error);
+      job.stage = 'failed';
       job.error = error?.message || String(error);
       job.updatedAt = new Date().toISOString();
     }
@@ -1354,6 +1471,12 @@ app.get('/api/editorial/pro-plan/:jobId', async (req, res) => {
     status: job.status,
     progress: job.progress,
     message: job.message,
+    detail: job.detail,
+    stage: job.stage,
+    provider: job.provider,
+    model: job.model,
+    completedDays: job.completedDays,
+    totalDays: job.totalDays,
     error: job.error,
     result: job.status === 'completed' ? job.result : undefined,
     updatedAt: job.updatedAt
@@ -1586,7 +1709,7 @@ app.use((req, res, next) => {
     res.setHeader('Surrogate-Control', 'no-store');
     res.setHeader('Pragma', 'no-cache');
     res.setHeader('Expires', '0');
-    res.setHeader('X-Nidal-Build', '20260925-36');
+    res.setHeader('X-Nidal-Build', '20260925-37');
   }
   next();
 });
