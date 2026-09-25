@@ -13,7 +13,7 @@ const memory = {
 
 const ZERO_KPI_TARGETS = {
   'nidal-junior': {
-    followers: { current: 0, target: 5000, eta: '2026-12-31', note: 'Communauté Instagram & Facebook Nidal Junior' },
+    followers: { current: 0, target: 5000, eta: '2026-12-31', note: 'Abonnés Instagram Nidal Junior uniquement' },
     views: { current: 0, target: 50000, eta: '2026-11-30', note: 'Cumul des vues Reels, Stories et vidéos Nounou' },
     comments: { current: 0, target: 1000, eta: '2026-11-30', note: 'Réponses aux quiz, histoires et publications' },
     conversions: { current: 0, target: 120, eta: '2026-10-31', note: 'Demandes de visite, appels et inscriptions maternelle' },
@@ -21,7 +21,7 @@ const ZERO_KPI_TARGETS = {
     interactions: { current: 0, target: 4000, eta: '2026-11-30', note: 'Likes, commentaires, partages et enregistrements' }
   },
   'nidal': {
-    followers: { current: 0, target: 12000, eta: '2026-12-31', note: 'Communauté officielle Groupe Scolaire Nidal' },
+    followers: { current: 0, target: 12000, eta: '2026-12-31', note: 'Abonnés Instagram Groupe Scolaire Nidal uniquement' },
     views: { current: 0, target: 100000, eta: '2026-12-15', note: 'Vues cumulées des capsules pédagogiques et Reels' },
     comments: { current: 0, target: 2000, eta: '2026-12-15', note: 'Échanges avec les parents et élèves' },
     conversions: { current: 0, target: 250, eta: '2026-11-15', note: 'Prises de RDV, formulaires gsnidal.ma et inscriptions' },
@@ -297,7 +297,7 @@ if (!memory.kpiTargets) memory.kpiTargets = new Map();
 
 const DEFAULT_BRAND_KPI_TARGETS = {
   'nidal-junior': {
-    followers: { current: 2450, target: 5000, eta: '2026-12-31', note: 'Communauté Instagram & Facebook Nidal Junior' },
+    followers: { current: 2450, target: 5000, eta: '2026-12-31', note: 'Abonnés Instagram Nidal Junior uniquement' },
     views: { current: 18500, target: 50000, eta: '2026-11-30', note: 'Cumul des vues Reels, Stories et vidéos Nounou' },
     comments: { current: 320, target: 1000, eta: '2026-11-30', note: 'Réponses aux quiz, histoires et publications' },
     conversions: { current: 42, target: 120, eta: '2026-10-31', note: 'Demandes de visite, appels et inscriptions maternelle' },
@@ -310,7 +310,7 @@ const DEFAULT_BRAND_KPI_TARGETS = {
     facebookComments: { current: 0, target: 0, eta: '', note: 'Commentaires Facebook analysés' }
   },
   'nidal': {
-    followers: { current: 6800, target: 12000, eta: '2026-12-31', note: 'Communauté officielle Groupe Scolaire Nidal' },
+    followers: { current: 6800, target: 12000, eta: '2026-12-31', note: 'Abonnés Instagram Groupe Scolaire Nidal uniquement' },
     views: { current: 45000, target: 100000, eta: '2026-12-15', note: 'Vues cumulées des capsules pédagogiques et Reels' },
     comments: { current: 640, target: 2000, eta: '2026-12-15', note: 'Échanges avec les parents et élèves' },
     conversions: { current: 85, target: 250, eta: '2026-11-15', note: 'Prises de RDV, formulaires gsnidal.ma et inscriptions' },
