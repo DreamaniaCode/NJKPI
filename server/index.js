@@ -755,6 +755,44 @@ app.get('/api/editorial/providers', (_req, res) => {
   });
 });
 
+app.post('/api/editorial/provider-test', async (req, res) => {
+  const startedAt = Date.now();
+  const aiConfig = req.body?.aiConfig || {};
+
+  try {
+    const result = await generateEditorialOutput({
+      agentKey: 'studio-junior',
+      brand: 'nidal-junior',
+      briefData: {
+        topic: 'Test technique API',
+        brief: 'Réponds exactement par OK, sans autre texte.',
+        format: 'test',
+        platform: 'NJKPI',
+        objective: 'Vérifier la connectivité API',
+        language: 'Français'
+      },
+      context: '',
+      aiConfig: { ...aiConfig, testMode: true }
+    });
+
+    res.json({
+      ok: true,
+      provider: result.provider,
+      model: result.model,
+      latencyMs: Date.now() - startedAt,
+      output: String(result.output || '').slice(0, 120)
+    });
+  } catch (error) {
+    res.status(502).json({
+      ok: false,
+      provider: aiConfig.provider || getAiProvider(),
+      model: aiConfig.model || null,
+      latencyMs: Date.now() - startedAt,
+      error: error?.message || String(error)
+    });
+  }
+});
+
 app.get('/api/editorial/generations', async (req, res, next) => {
   try {
     const list = await listEditorialGenerations(req.query.agent, req.query.brand);
