@@ -15,7 +15,12 @@ const NidalStore = (() => {
       comments: { current: 320, target: 1000, eta: '2026-11-30', label: 'Commentaires & Échanges', unit: 'commentaires', note: 'Réponses aux quiz, histoires et publications' },
       conversions: { current: 42, target: 120, eta: '2026-10-31', label: 'Conversions & Inscriptions', unit: 'inscriptions', note: 'Demandes de visite, appels et inscriptions maternelle' },
       reach: { current: 12400, target: 35000, eta: '2026-11-30', label: 'Portée globale (Reach)', unit: 'comptes', note: 'Familles touchées sur la période' },
-      interactions: { current: 1450, target: 4000, eta: '2026-11-30', label: 'Interactions totales', unit: 'interactions', note: 'Likes, commentaires, partages et enregistrements' }
+      interactions: { current: 1450, target: 4000, eta: '2026-11-30', label: 'Interactions totales', unit: 'interactions', note: 'Likes, commentaires, partages et enregistrements' },
+      facebookFollowers: { current: 0, target: 0, eta: '', label: 'Followers Facebook', unit: 'abonnés', note: 'Valeur actuelle synchronisée automatiquement depuis la Page Facebook' },
+      facebookReach: { current: 0, target: 0, eta: '', label: 'Reach Facebook', unit: 'comptes', note: 'Portée des publications Facebook analysées par Meta' },
+      facebookViews: { current: 0, target: 0, eta: '', label: 'Vues Facebook', unit: 'vues', note: 'Vues des publications Facebook analysées par Meta' },
+      facebookInteractions: { current: 0, target: 0, eta: '', label: 'Interactions Facebook', unit: 'interactions', note: 'Réactions + commentaires + partages Facebook' },
+      facebookComments: { current: 0, target: 0, eta: '', label: 'Commentaires Facebook', unit: 'commentaires', note: 'Commentaires sur les publications Facebook analysées' }
     },
     'nidal': {
       followers: { current: 6800, target: 12000, eta: '2026-12-31', label: 'Followers (Abonnés)', unit: 'abonnés', note: 'Communauté officielle Groupe Scolaire Nidal' },
@@ -23,7 +28,12 @@ const NidalStore = (() => {
       comments: { current: 640, target: 2000, eta: '2026-12-15', label: 'Commentaires & Échanges', unit: 'commentaires', note: 'Interactions parents et élèves' },
       conversions: { current: 85, target: 250, eta: '2026-11-15', label: 'Conversions & Inscriptions', unit: 'inscriptions', note: 'Prises de RDV, formulaires gsnidal.ma et inscriptions' },
       reach: { current: 28000, target: 75000, eta: '2026-12-15', label: 'Portée globale (Reach)', unit: 'comptes', note: 'Audience globale touchée' },
-      interactions: { current: 3200, target: 8000, eta: '2026-12-15', note: 'Total réactions, commentaires, partages et favoris' }
+      interactions: { current: 3200, target: 8000, eta: '2026-12-15', note: 'Total réactions, commentaires, partages et favoris' },
+      facebookFollowers: { current: 0, target: 0, eta: '', label: 'Followers Facebook', unit: 'abonnés', note: 'Valeur actuelle synchronisée automatiquement depuis la Page Facebook' },
+      facebookReach: { current: 0, target: 0, eta: '', label: 'Reach Facebook', unit: 'comptes', note: 'Portée des publications Facebook analysées par Meta' },
+      facebookViews: { current: 0, target: 0, eta: '', label: 'Vues Facebook', unit: 'vues', note: 'Vues des publications Facebook analysées par Meta' },
+      facebookInteractions: { current: 0, target: 0, eta: '', label: 'Interactions Facebook', unit: 'interactions', note: 'Réactions + commentaires + partages Facebook' },
+      facebookComments: { current: 0, target: 0, eta: '', label: 'Commentaires Facebook', unit: 'commentaires', note: 'Commentaires sur les publications Facebook analysées' }
     }
   };
 
@@ -276,6 +286,28 @@ const NidalStore = (() => {
       merged.followers = { ...(merged.followers || fallback.followers), current: Number(liveMeta.instagram.followers), source: 'meta-api', syncedAt: liveMeta.syncedAt || liveMeta.cachedAt || null };
     }
 
+    if (liveMeta?.facebook?.source === 'meta-api') {
+      const fb = liveMeta.facebook;
+      const fbInsights = fb.insights || {};
+      const syncedAt = liveMeta.syncedAt || liveMeta.cachedAt || null;
+
+      if (Number.isFinite(Number(fb.followers))) {
+        merged.facebookFollowers = { ...(merged.facebookFollowers || fallback.facebookFollowers), current: Number(fb.followers), source: 'meta-api', syncedAt };
+      }
+      if (Number.isFinite(Number(fbInsights.reach))) {
+        merged.facebookReach = { ...(merged.facebookReach || fallback.facebookReach), current: Number(fbInsights.reach), source: 'meta-api', syncedAt };
+      }
+      if (Number.isFinite(Number(fbInsights.views))) {
+        merged.facebookViews = { ...(merged.facebookViews || fallback.facebookViews), current: Number(fbInsights.views), source: 'meta-api', syncedAt };
+      }
+      if (Number.isFinite(Number(fbInsights.interactions))) {
+        merged.facebookInteractions = { ...(merged.facebookInteractions || fallback.facebookInteractions), current: Number(fbInsights.interactions), source: 'meta-api', syncedAt };
+      }
+      if (Number.isFinite(Number(fbInsights.comments))) {
+        merged.facebookComments = { ...(merged.facebookComments || fallback.facebookComments), current: Number(fbInsights.comments), source: 'meta-api', syncedAt };
+      }
+    }
+
     // Calculate actual aggregates from contents
     const contents = getAll(slug);
     const sumViews = contents.reduce((sum, c) => sum + (_number(c.resultats?.vues) || 0), 0);
@@ -310,6 +342,11 @@ const NidalStore = (() => {
       conversions: enrich('conversions', merged.conversions || fallback.conversions),
       reach: enrich('reach', merged.reach || fallback.reach),
       interactions: enrich('interactions', merged.interactions || fallback.interactions),
+      facebookFollowers: enrich('facebookFollowers', merged.facebookFollowers || fallback.facebookFollowers),
+      facebookReach: enrich('facebookReach', merged.facebookReach || fallback.facebookReach),
+      facebookViews: enrich('facebookViews', merged.facebookViews || fallback.facebookViews),
+      facebookInteractions: enrich('facebookInteractions', merged.facebookInteractions || fallback.facebookInteractions),
+      facebookComments: enrich('facebookComments', merged.facebookComments || fallback.facebookComments),
       contentTotals: {
         views: sumViews,
         comments: sumComments,
