@@ -1336,7 +1336,7 @@ app.use((req, res, next) => {
     res.setHeader('Surrogate-Control', 'no-store');
     res.setHeader('Pragma', 'no-cache');
     res.setHeader('Expires', '0');
-    res.setHeader('X-Nidal-Build', '20260925-13');
+    res.setHeader('X-Nidal-Build', '20260925-22');
   }
   next();
 });
