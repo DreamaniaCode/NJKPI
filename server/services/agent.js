@@ -880,6 +880,51 @@ export function shouldAutoSave(brief = '') {
   return /\b(crée|cree|créer|creer|ajoute|ajouter|planifie|planifier|enregistre|enregistrer)\b/i.test(normalized);
 }
 
+function buildFallbackImagePrompt(title, agentKey = 'studio-junior') {
+  const source = String(title || 'Nidal');
+  const seed = [...source].reduce((sum, char) => sum + char.charCodeAt(0), 0);
+
+  const juniorScenes = [
+    'a hands-on discovery table with colorful learning materials and child-safe science objects',
+    'a cozy storytelling corner with floor cushions, picture books and soft window light',
+    'a creative art workshop with paper, paint, clay and children actively making something',
+    'a sunny school garden exploration with magnifying glasses, plants and nature details',
+    'a playful movement activity in a bright multipurpose room with hoops and balance games'
+  ];
+  const nidalScenes = [
+    'a collaborative project table where students actively solve a practical challenge',
+    'a modern science laboratory during a supervised hands-on experiment',
+    'a bright library study scene with students researching and discussing together',
+    'an outdoor school courtyard activity focused on teamwork and student leadership',
+    'a technology-rich learning space with students presenting a digital project'
+  ];
+  const shots = [
+    'wide environmental editorial shot',
+    'medium candid documentary shot',
+    'over-the-shoulder composition',
+    'slight top-down storytelling composition',
+    'low-angle dynamic editorial composition'
+  ];
+  const lights = [
+    'warm morning sunlight',
+    'soft diffused daylight',
+    'golden late-afternoon light',
+    'clean bright natural window light',
+    'balanced cinematic indoor daylight'
+  ];
+
+  const scenes = agentKey === 'studio-junior' ? juniorScenes : nidalScenes;
+  const scene = scenes[seed % scenes.length];
+  const shot = shots[(seed * 3) % shots.length];
+  const light = lights[(seed * 5 + 1) % lights.length];
+
+  if (agentKey === 'studio-junior') {
+    return `Nidal Junior visual specifically illustrating "${source}", ${scene}, Nounou used only if relevant to the subject, children shown naturally and respectfully, ${shot}, ${light}, rich contextual props tied to the topic, royal blue #1746d1, magenta #d91b5c and yellow #ffc928 accents, polished educational editorial photography / premium 3D hybrid aesthetic, realistic depth, 8k, portrait --ar 4:5`;
+  }
+
+  return `Groupe Scolaire Nidal visual specifically illustrating "${source}", ${scene}, authentic Moroccan school environment, students and teacher engaged in a concrete action tied to the topic, ${shot}, ${light}, contextual props that directly communicate the post idea, royal blue #1746d1, yellow #ffc928 and magenta #d91b5c accents, Canon EOS R5 editorial photography, realistic depth of field, 8k, portrait --ar 4:5`;
+}
+
 export function parseStructuredEditorial(text, agentKey = 'studio-junior', defaultBrand = 'nidal-junior') {
   if (!text) return null;
 
@@ -930,10 +975,7 @@ export function parseStructuredEditorial(text, agentKey = 'studio-junior', defau
     || find(/(?:^|\n)(?:Prompt image IA|Prompt image|Prompt Midjourney \/ DALL-E|Image prompt)\s*:\s*(.+)/i)
     || find(/(?:^|\n)Idée visuelle\s*:\s*(.+)/i);
 
-  const defaultPromptImage = agentKey === 'studio-junior'
-    ? `Modern bright kindergarten classroom in Morocco, Nounou the cheerful 5-year-old boy mascot illustrating "${titre}", warm sunlight, playful educational atmosphere, royal blue #1746d1, magenta #d91b5c and sunny yellow #ffc928 palette, high-end 3D/photorealistic editorial style, 8k resolution, portrait --ar 4:5`
-    : `Modern prestigious private school campus in Morocco, "${titre}", smiling students and inspiring teacher in a bright sunlit classroom, royal blue #1746d1, warm gold #ffc928 and magenta #d91b5c color accents, Canon EOS R5 50mm f/1.8 editorial photography, cinematic natural lighting, 8k, portrait --ar 4:5`;
-
+  const defaultPromptImage = buildFallbackImagePrompt(titre, agentKey);
   const promptImage = promptImageBlock || defaultPromptImage;
 
   const auteur = find(/(?:^|\n)(?:Auteur|Responsable)\s*:\s*(.+)/i) || 'Équipe Nidal';
