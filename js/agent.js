@@ -304,6 +304,46 @@ const AgentView = (() => {
         </div>
       </section>
 
+      <section class="pro-strategy-panel">
+        <div class="pro-strategy-panel__copy">
+          <span class="section-kicker">Agent Social Media Senior</span>
+          <h2>Plan professionnel basé sur vos vraies données</h2>
+          <p>
+            L'agent analyse les publications collectées, les formats utilisés, les meilleurs contenus,
+            les KPI, l'audience et les campagnes disponibles. Il détecte ce qui manque puis construit
+            un plan opérationnel Posts + Carrousels + Reels + Stories + Vidéos.
+          </p>
+        </div>
+        <div class="pro-strategy-panel__controls">
+          <label>
+            Horizon
+            <select id="pro-plan-days" class="form-control">
+              <option value="7">7 jours</option>
+              <option value="14">14 jours</option>
+              <option value="30" selected>30 jours</option>
+            </select>
+          </label>
+          <label>
+            Priorité
+            <select id="pro-plan-objective" class="form-control">
+              <option value="croissance, engagement et inscriptions">Croissance + engagement + inscriptions</option>
+              <option value="inscriptions et génération de leads">Inscriptions / leads</option>
+              <option value="notoriété et visibilité locale">Notoriété locale</option>
+              <option value="engagement et communauté">Engagement communauté</option>
+              <option value="valorisation pédagogique et confiance des parents">Confiance / pédagogie</option>
+            </select>
+          </label>
+          <button type="button" class="btn btn--primary" id="btn-pro-plan">✨ Analyser & créer le plan</button>
+        </div>
+        <div class="pro-strategy-panel__features">
+          <span>✓ Audit des contenus</span>
+          <span>✓ Détection des manques</span>
+          <span>✓ Mix formats</span>
+          <span>✓ Planning exécutable</span>
+          <span>✓ KPI à suivre</span>
+        </div>
+      </section>
+
       <section class="agent-layout">
         <!-- Formulaire de brief -->
         <form class="agent-brief agent-brief--simple" id="editorial-form">
@@ -890,6 +930,11 @@ const AgentView = (() => {
       };
     });
 
+    const btnProPlan = document.getElementById('btn-pro-plan');
+    if (btnProPlan) {
+      btnProPlan.onclick = _onGenerateProfessionalPlan;
+    }
+
     // Form submit
     const form = document.getElementById('editorial-form');
     if (form) {
@@ -1036,6 +1081,47 @@ const AgentView = (() => {
       '',
       ...subjects.map((subject, index) => `${index + 1}. ${subject}`)
     ].join('\n');
+  }
+
+  async function _onGenerateProfessionalPlan() {
+    const button = document.getElementById('btn-pro-plan');
+    if (!button) return;
+
+    const days = Number(document.getElementById('pro-plan-days')?.value || 30);
+    const objective = document.getElementById('pro-plan-objective')?.value || 'croissance, engagement et inscriptions';
+    const brand = getActiveBrand();
+    const aiConfig = getAiConfig();
+
+    const original = button.textContent;
+    button.disabled = true;
+    button.textContent = 'Analyse des données en cours…';
+
+    try {
+      const response = await NidalAPI.generateProfessionalPlan({
+        brand,
+        days,
+        objective,
+        aiConfig
+      });
+
+      const agentKey = brand === 'nidal' ? 'planning-nidal' : 'studio-junior';
+      _activeAgentKey = agentKey;
+      const loaded = _formatLoadedGen(response);
+      loaded.output = response.output || '';
+      loaded.structuredData = response.structuredData || response.structured_data || {};
+      loaded.dataAudit = response.dataAudit || null;
+
+      _state[agentKey].currentGeneration = loaded;
+      _state[agentKey].activeTab = 'output';
+      _state[agentKey].history.unshift(response);
+
+      render();
+      showToast(`Plan professionnel de ${days} jours créé à partir des données NJKPI.`, 'success');
+    } catch (error) {
+      button.disabled = false;
+      button.textContent = original;
+      showToast('Création du plan impossible : ' + error.message, 'error');
+    }
   }
 
   async function _onGenerate(e) {
