@@ -195,35 +195,56 @@ const NidalStore = (() => {
     );
   }
 
-  async function syncRemote() {
+  async function syncRemote(options = {}) {
     if (!NidalAPI.isOnline()) return false;
-    const brand = getActiveBrand();
+
+    const includeMeta = options.includeMeta !== false;
+    const brands = ['nidal', 'nidal-junior'];
+
     try {
-      const [remoteContents, remoteTargets, liveMeta] = await Promise.all([
-        NidalAPI.listContents(brand).catch(() => []),
-        NidalAPI.getKpiTargets(brand).catch(() => null),
-        NidalAPI.getSocialLive(brand).catch(() => null)
-      ]);
-      const isCleared = localStorage.getItem('nidal-no-seed') === 'true';
-      if (remoteContents && remoteContents.length) {
-        if (isCleared && remoteContents.some(r => r.data?.titre?.includes('Nounou') || r.data?.titre?.includes('livre des histoires'))) {
-          // Serveur encore sur démo alors que client est réinitialisé
-          NidalAPI.request('/api/data/reset', { method: 'DELETE' }).catch(() => {});
-        } else if (!isCleared || !remoteContents.some(r => r.data?.titre?.includes('Nounou'))) {
-          const mapped = remoteContents.map(record => _normalize({ ...(record.data || {}), id: record.id, brand: record.brand_slug, finalUrl: record.final_url, externalMediaId: record.external_media_id, syncStatus: record.sync_status, lastSyncedAt: record.last_synced_at }));
-          _data.contents = [..._data.contents.filter(item => item.brand !== brand), ...mapped];
+      const remoteByBrand = await Promise.all(brands.map(async brand => {
+        const [remoteContents, remoteTargets, liveMeta] = await Promise.all([
+          NidalAPI.listContents(brand),
+          NidalAPI.getKpiTargets(brand).catch(() => null),
+          includeMeta ? NidalAPI.getSocialLive(brand).catch(() => null) : Promise.resolve(null)
+        ]);
+        return { brand, remoteContents: remoteContents || [], remoteTargets, liveMeta };
+      }));
+
+      // PostgreSQL devient la source de vérité dès que le backend est en ligne.
+      // On remplace les copies locales par la base, au lieu de repousser vers le
+      // serveur les données obsolètes d'un autre téléphone/navigateur.
+      for (const { brand, remoteContents, remoteTargets, liveMeta } of remoteByBrand) {
+        const mapped = remoteContents.map(record => _normalize({
+          ...(record.data || {}),
+          id: record.id,
+          brand: record.brand_slug,
+          finalUrl: record.final_url,
+          externalMediaId: record.external_media_id,
+          syncStatus: record.sync_status,
+          lastSyncedAt: record.last_synced_at
+        }));
+
+        _data.contents = [
+          ..._data.contents.filter(item => item.brand !== brand),
+          ...mapped
+        ];
+
+        if (remoteTargets?.targets) {
+          if (!_data.kpiTargets) _data.kpiTargets = {};
+          _data.kpiTargets[brand] = {
+            ...(_data.kpiTargets[brand] || {}),
+            ...(remoteTargets.targets || {})
+          };
         }
-      } else if (!isCleared && getAll(brand).length > 0) {
-        await Promise.all(getAll(brand).map(item => NidalAPI.upsertContent({ ...item, brand, data: item })));
+
+        if (liveMeta?.ok) {
+          if (!_data.socialProfiles) _data.socialProfiles = {};
+          _data.socialProfiles[brand] = liveMeta;
+        }
       }
-      if (remoteTargets?.targets) {
-        if (!_data.kpiTargets) _data.kpiTargets = {};
-        _data.kpiTargets[brand] = { ...(_data.kpiTargets[brand] || {}), ...(remoteTargets.targets || {}) };
-      }
-      if (liveMeta?.ok) {
-        if (!_data.socialProfiles) _data.socialProfiles = {};
-        _data.socialProfiles[brand] = liveMeta;
-      }
+
+      _data.remoteSyncedAt = new Date().toISOString();
       _save();
       return true;
     } catch (error) {
@@ -245,6 +266,10 @@ const NidalStore = (() => {
       console.warn('Synchronisation Meta live différée:', error.message);
       return null;
     }
+  }
+
+  function getRemoteSyncedAt() {
+    return _data?.remoteSyncedAt || null;
   }
 
   function getSocialLive(brand = getActiveBrand()) {
