@@ -97,9 +97,10 @@ export const SUPPORTED_AI_PROVIDERS = [
     description: 'Workers AI via endpoint OpenAI-compatible',
     defaultModel: '@cf/qwen/qwen3.8-27b',
     models: [
-      { id: '@cf/qwen/qwen3.8-27b', name: 'Qwen 3.8 27B (Recommandé)', recommended: true },
+      { id: '@cf/qwen/qwen3.8-27b', name: 'Qwen 3.8 27B (qualité, raisonnement low)', recommended: true },
+      { id: '@cf/meta/llama-3.3-70b-instruct-fp8-fast', name: 'Llama 3.3 70B Fast (secours rapide)' },
+      { id: '@cf/meta/llama-4-scout-17b-16e-instruct', name: 'Llama 4 Scout (secours long contexte)' },
       { id: '@cf/zai-org/glm-5.2', name: 'GLM 5.2' },
-      { id: '@cf/meta/llama-4-scout-17b-16e-instruct', name: 'Llama 4 Scout' },
       { id: 'custom', name: 'Autre modèle Workers AI' }
     ],
     allowCustomModel: true
@@ -944,27 +945,110 @@ export async function generateEditorialOutput({
   // 5. CLOUDFLARE WORKERS AI (OpenAI-compatible)
   if (provider === 'cloudflare') {
     const accountId = await resolveCloudflareAccountId(apiKey);
-    const model = (aiConfig.model || process.env.CLOUDFLARE_MODEL || '@cf/qwen/qwen3.8-27b').trim();
+    const requestedModel = (aiConfig.model || process.env.CLOUDFLARE_MODEL || '@cf/qwen/qwen3.8-27b').trim();
     const baseUrl = `https://api.cloudflare.com/client/v4/accounts/${encodeURIComponent(accountId)}/ai/v1`;
-    const response = await aiFetch(`${baseUrl}/chat/completions`, {
-      method: 'POST',
-      headers: {
-        Authorization: `Bearer ${apiKey}`,
-        'Content-Type': 'application/json'
-      },
-      body: JSON.stringify({
-        model,
+
+    const cloudflareFallbackModels = [
+      '@cf/meta/llama-3.3-70b-instruct-fp8-fast',
+      '@cf/meta/llama-4-scout-17b-16e-instruct'
+    ];
+
+    const transientCloudflareError = (status, message = '') =>
+      [408, 429, 500, 502, 503, 504].includes(Number(status))
+      || /request timeout|timed?\s*out|timeout|high demand|overload|temporar|capacity|unavailable|resource exhausted/i
+        .test(String(message));
+
+    async function callCloudflare(selectedModel, attemptTimeoutMs = requestTimeoutMs) {
+      const body = {
+        model: selectedModel,
         messages: [
           { role: 'system', content: systemInstructions },
           { role: 'user', content: userPrompt }
         ],
-        temperature: 0.7
-      })
-    });
-    const payload = await response.json();
-    if (!response.ok) throw new Error(payload.errors?.[0]?.message || payload.error?.message || `Cloudflare Workers AI ${response.status}`);
-    const output = payload.choices?.[0]?.message?.content || payload.result?.choices?.[0]?.message?.content;
-    if (!output) throw new Error('Réponse Cloudflare Workers AI vide');
+        temperature: 0.55,
+        max_completion_tokens: isProfessionalPlan ? 5000 : 1800
+      };
+
+      // Qwen 3.8 utilise xhigh par défaut sur Workers AI. Pour le planning,
+      // forcer low évite de perdre le budget de requête en raisonnement interne.
+      if (selectedModel === '@cf/qwen/qwen3.8-27b') {
+        body.reasoning_effort = 'low';
+      }
+
+      const response = await aiFetch(`${baseUrl}/chat/completions`, {
+        method: 'POST',
+        headers: {
+          Authorization: `Bearer ${apiKey}`,
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify(body)
+      }, attemptTimeoutMs);
+
+      const payload = await response.json().catch(() => ({}));
+      return { response, payload };
+    }
+
+    const candidates = [requestedModel];
+    if (isProfessionalPlan && !isProviderTest) {
+      for (const fallbackModel of cloudflareFallbackModels) {
+        if (!candidates.includes(fallbackModel)) candidates.push(fallbackModel);
+      }
+    }
+
+    let response = null;
+    let payload = {};
+    let output = '';
+    let model = requestedModel;
+    let lastError = '';
+
+    for (let index = 0; index < candidates.length; index++) {
+      model = candidates[index];
+
+      try {
+        const attemptTimeoutMs = isProfessionalPlan && index === 0
+          ? Math.min(requestTimeoutMs, 45000)
+          : requestTimeoutMs;
+
+        ({ response, payload } = await callCloudflare(model, attemptTimeoutMs));
+      } catch (error) {
+        lastError = error?.message || String(error);
+        const transientNetworkFailure = error?.code === 'AI_REQUEST_TIMEOUT'
+          || ['UND_ERR_CONNECT_TIMEOUT', 'ETIMEDOUT', 'ENETUNREACH', 'EAI_AGAIN', 'ECONNRESET']
+            .includes(error?.cause?.code || error?.code || '');
+
+        if (!isProviderTest && isProfessionalPlan && transientNetworkFailure && index < candidates.length - 1) {
+          console.warn(`Cloudflare ${model} timeout réseau; essai ${candidates[index + 1]}`);
+          continue;
+        }
+        throw error;
+      }
+
+      output = payload.choices?.[0]?.message?.content
+        || payload.result?.choices?.[0]?.message?.content
+        || '';
+
+      if (response.ok && output) break;
+
+      lastError = payload.errors?.[0]?.message
+        || payload.error?.message
+        || payload.message
+        || `Cloudflare Workers AI ${response.status}`;
+
+      if (!isProviderTest
+        && isProfessionalPlan
+        && transientCloudflareError(response.status, lastError)
+        && index < candidates.length - 1) {
+        console.warn(`Cloudflare ${model} indisponible (${lastError}); essai ${candidates[index + 1]}`);
+        continue;
+      }
+
+      break;
+    }
+
+    if (!response?.ok || !output) {
+      throw new Error(lastError || 'Réponse Cloudflare Workers AI vide');
+    }
+
     return {
       output,
       structuredData: parseStructuredEditorial(output, agentKey, targetBrand),
