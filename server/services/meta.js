@@ -41,22 +41,54 @@ async function graphPost(path, params = {}, accessToken = process.env.META_ACCES
 const PAGE_TOKEN_CACHE = new Map();
 
 async function resolvePageAccessToken(brand) {
-  const configured = brandEnv('META_PAGE_ACCESS_TOKEN', brand);
-  if (configured) return configured;
-
   const pageId = brandEnv('META_PAGE_ID', brand);
   if (!pageId) throw new Error(`META_PAGE_ID non configuré pour ${brand}`);
 
   const cached = PAGE_TOKEN_CACHE.get(pageId);
   if (cached) return cached;
 
-  const payload = await graph('me/accounts', {
-    fields: 'id,name,access_token',
-    limit: 100
-  });
+  const configured = brandEnv('META_PAGE_ACCESS_TOKEN', brand);
+  if (configured) {
+    try {
+      const identity = await graph('me', { fields: 'id,name' }, configured);
+      if (String(identity?.id) === String(pageId)) {
+        PAGE_TOKEN_CACHE.set(pageId, configured);
+        return configured;
+      }
+      console.warn(`[Meta] META_PAGE_ACCESS_TOKEN_${brand === 'nidal-junior' ? 'NIDAL_JUNIOR' : 'NIDAL'} n'est pas un token de la Page ${pageId}; tentative via /me/accounts.`);
+    } catch (error) {
+      console.warn('[Meta] Page token configuré invalide, tentative via /me/accounts:', error.message);
+    }
+  }
+
+  let payload;
+  try {
+    payload = await graph('me/accounts', {
+      fields: 'id,name,access_token',
+      limit: 100
+    });
+  } catch (error) {
+    throw new Error(
+      `Impossible d'obtenir le Page Access Token Facebook pour la Page ${pageId}. ` +
+      `Le token configuré doit être un vrai Page Access Token de cette Page avec pages_manage_posts. Détail: ${error.message}`
+    );
+  }
+
   const page = (payload.data || []).find(item => String(item.id) === String(pageId));
   if (!page?.access_token) {
-    throw new Error(`Aucun Page Access Token disponible pour la Page ${pageId}. Vérifiez pages_show_list/pages_read_engagement et les rôles de la Page.`);
+    throw new Error(
+      `Aucun Page Access Token trouvé pour la Page ${pageId}. ` +
+      'Vérifiez pages_show_list, pages_read_engagement, pages_manage_posts et que le compte admin gère bien cette Page.'
+    );
+  }
+
+  try {
+    const identity = await graph('me', { fields: 'id,name' }, page.access_token);
+    if (String(identity?.id) !== String(pageId)) {
+      throw new Error(`le token obtenu correspond à ${identity?.id || 'un autre objet'}`);
+    }
+  } catch (error) {
+    throw new Error(`Page Access Token Facebook non valide pour ${pageId}: ${error.message}`);
   }
 
   PAGE_TOKEN_CACHE.set(pageId, page.access_token);
@@ -638,17 +670,26 @@ async function publishFacebookPost(brand, job) {
   };
 }
 
-async function waitForInstagramContainer(containerId, maxAttempts = 15) {
+async function waitForInstagramContainer(containerId, maxAttempts = 20) {
   for (let attempt = 1; attempt <= maxAttempts; attempt++) {
-    const status = await graph(containerId, { fields: 'status_code' });
+    const status = await graph(containerId, { fields: 'status_code,status' });
     const code = String(status.status_code || '').toUpperCase();
-    if (!code || code === 'FINISHED') return status;
+
+    if (code === 'FINISHED') return status;
+
     if (code === 'ERROR' || code === 'EXPIRED') {
-      throw new Error(`Traitement Instagram du média en échec (statut: ${code}).`);
+      throw new Error(
+        `Instagram n'a pas pu préparer le média (statut: ${code}${status.status ? ` — ${status.status}` : ''}). ` +
+        'Vérifiez que le fichier est publiquement accessible et, pour une image, utilisez de préférence un JPEG.'
+      );
     }
+
+    // Certains conteneurs peuvent ne pas exposer immédiatement status_code.
+    if (!code && attempt >= 3) return status;
     await new Promise(resolve => setTimeout(resolve, 3000));
   }
-  throw new Error('Instagram traite encore la vidéo. Réessayez dans une minute.');
+
+  throw new Error('Instagram n’a pas terminé le traitement du média après 60 secondes.');
 }
 
 async function publishInstagramPost(brand, job) {
@@ -660,6 +701,19 @@ async function publishInstagramPost(brand, job) {
   const createParams = { caption: job.message || '' };
   const isVideo = mediaType === 'video' || mediaType === 'reel';
 
+  if (!isVideo) {
+    try {
+      const pathname = new URL(job.media_url).pathname.toLowerCase();
+      if (/\.(png|webp|gif)$/i.test(pathname)) {
+        throw new Error(
+          'Instagram: cette image est en PNG/WEBP/GIF. Utilisez un fichier JPEG/JPG pour la publication API.'
+        );
+      }
+    } catch (error) {
+      if (String(error.message || '').startsWith('Instagram:')) throw error;
+    }
+  }
+
   if (isVideo) {
     createParams.media_type = 'REELS';
     createParams.video_url = job.media_url;
@@ -670,7 +724,7 @@ async function publishInstagramPost(brand, job) {
   const container = await graphPost(`${igUserId}/media`, createParams);
   if (!container?.id) throw new Error('Meta n’a pas retourné de conteneur Instagram.');
 
-  if (isVideo) await waitForInstagramContainer(container.id);
+  await waitForInstagramContainer(container.id);
 
   const published = await graphPost(`${igUserId}/media_publish`, {
     creation_id: container.id
