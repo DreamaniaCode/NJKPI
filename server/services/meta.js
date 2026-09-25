@@ -92,9 +92,21 @@ async function resolvePageAccessToken(brand) {
       limit: 100
     });
   } catch (error) {
+    let permissionDetail = '';
+    try {
+      const perms = await graph('me/permissions', {}, process.env.META_ACCESS_TOKEN);
+      const granted = (perms.data || []).filter(item => item.status === 'granted').map(item => item.permission);
+      const required = ['pages_show_list', 'pages_read_engagement', 'pages_manage_posts'];
+      const missing = required.filter(permission => !granted.includes(permission));
+      permissionDetail = missing.length
+        ? ` Permissions manquantes sur META_ACCESS_TOKEN: ${missing.join(', ')}.`
+        : ` Permissions page principales détectées; vérifiez que ce compte admin gère bien la Page ${pageId}.`;
+    } catch {}
+
     throw new Error(
-      `Impossible d'obtenir le Page Access Token Facebook pour la Page ${pageId}. ` +
-      `Le token configuré doit être un vrai Page Access Token de cette Page avec pages_manage_posts. Détail: ${error.message}`
+      `Impossible d'obtenir le Page Access Token Facebook pour la Page ${pageId}.` +
+      permissionDetail +
+      ` Le token utilisateur doit autoriser pages_show_list, pages_read_engagement et pages_manage_posts, puis /me/accounts doit retourner cette Page. Détail Meta: ${error.message}`
     );
   }
 
@@ -122,6 +134,45 @@ async function resolvePageAccessToken(brand) {
 async function pageGraph(brand, path, params = {}) {
   const pageToken = await resolvePageAccessToken(brand);
   return graph(path, params, pageToken);
+}
+
+export async function diagnoseMetaAccess(brand) {
+  const pageId = brandEnv('META_PAGE_ID', brand);
+  const result = {
+    brand,
+    pageId,
+    userTokenConfigured: Boolean(process.env.META_ACCESS_TOKEN),
+    pageTokenConfigured: Boolean(brandEnv('META_PAGE_ACCESS_TOKEN', brand)),
+    userPermissions: [],
+    missingUserPermissions: [],
+    pageTokenValid: false,
+    pageIdentity: null,
+    errors: []
+  };
+
+  if (process.env.META_ACCESS_TOKEN) {
+    try {
+      const perms = await graph('me/permissions', {}, process.env.META_ACCESS_TOKEN);
+      result.userPermissions = (perms.data || [])
+        .filter(item => item.status === 'granted')
+        .map(item => item.permission);
+      const required = ['pages_show_list', 'pages_read_engagement', 'pages_manage_posts'];
+      result.missingUserPermissions = required.filter(permission => !result.userPermissions.includes(permission));
+    } catch (error) {
+      result.errors.push(`user permissions: ${error.message}`);
+    }
+  }
+
+  try {
+    const token = await resolvePageAccessToken(brand);
+    const identity = await graph('me', { fields: 'id,name' }, token);
+    result.pageIdentity = identity;
+    result.pageTokenValid = String(identity?.id) === String(pageId);
+  } catch (error) {
+    result.errors.push(error.message);
+  }
+
+  return result;
 }
 
 export function metaConfigured(brand) {
