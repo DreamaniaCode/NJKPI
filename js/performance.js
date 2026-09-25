@@ -2,6 +2,42 @@
  * Performance des publications et suivi des objectifs stratégiques (Followers, Vues, Commentaires, Conversions & ETA).
  */
 const PerformanceView = (() => {
+  let _refreshing = false;
+  let _lastAutoRefreshAt = 0;
+
+  async function _refreshLiveKpis({ silent = false } = {}) {
+    if (_refreshing || !NidalAPI.isOnline()) return;
+    _refreshing = true;
+    _lastAutoRefreshAt = Date.now();
+
+    try {
+      const brand = getActiveBrand();
+
+      const [bulk] = await Promise.all([
+        NidalAPI.request('/api/contents/sync-all', {
+          method: 'POST',
+          body: JSON.stringify({ brand })
+        }).catch(error => ({ ok: false, error: error.message })),
+        NidalStore.syncMetaLive(brand, true).catch(() => null)
+      ]);
+
+      await NidalStore.syncRemote({ includeMeta: false });
+      render();
+
+      if (!silent) {
+        if (bulk?.ok) {
+          showToast(`KPI actualisés : ${bulk.updated || 0} contenu(s) synchronisé(s) avec Meta.`, bulk.failed ? 'info' : 'success');
+        } else {
+          showToast('Actualisation partielle : ' + (bulk?.error || 'certains contenus ne sont pas synchronisables'), 'info');
+        }
+      }
+    } catch (error) {
+      if (!silent) showToast('Actualisation KPI impossible : ' + error.message, 'error');
+    } finally {
+      _refreshing = false;
+    }
+  }
+
   function render() {
     const view = document.getElementById('view-performance');
     if (!view) return;
@@ -19,6 +55,7 @@ const PerformanceView = (() => {
           <p class="view__subtitle">Suivi des objectifs stratégiques et des échéances cibles (ETA) pour ${escapeHtml(brandLabel)}</p>
         </div>
         <div class="header-actions">
+          <button class="btn btn--secondary btn--sm" id="btn-refresh-all-kpi">↻ Actualiser tous les KPI</button>
           <button class="btn btn--secondary btn--sm" id="btn-perf-export-csv">Exporter CSV</button>
           <button class="btn btn--primary btn--sm" id="btn-open-targets-modal">🎯 Fixer les objectifs & ETA</button>
         </div>
@@ -106,6 +143,10 @@ const PerformanceView = (() => {
     `;
 
     _bindEvents();
+
+    if (NidalAPI.isOnline() && !_refreshing && Date.now() - _lastAutoRefreshAt > 60000) {
+      _refreshLiveKpis({ silent: true });
+    }
   }
 
   function _renderGoalCard(icon, title, metric = {}, color, unit, platform = '') {
@@ -128,7 +169,7 @@ const PerformanceView = (() => {
           <div class="kpi-goal-card__title">
             <span class="icon">${icon}</span>
             <span>${escapeHtml(title)}</span>
-            ${metric.source === 'meta-api' ? '<small class="kpi-live-badge">META LIVE</small>' : ''}
+            ${metric.source === 'meta-api' ? '<small class="kpi-live-badge">META LIVE</small>' : (metric.source === 'content-sync' ? '<small class="kpi-live-badge">SYNC POSTS</small>' : '')}
           </div>
           <button class="btn btn--icon btn--sm" data-edit-kpi="${metric.key || ''}" title="Modifier cet objectif" style="font-size:11px;">✏️</button>
         </div>
@@ -219,6 +260,15 @@ const PerformanceView = (() => {
   }
 
   function _bindEvents() {
+    const btnRefreshAll = document.getElementById('btn-refresh-all-kpi');
+    if (btnRefreshAll) {
+      btnRefreshAll.onclick = async () => {
+        btnRefreshAll.disabled = true;
+        btnRefreshAll.textContent = 'Actualisation…';
+        await _refreshLiveKpis({ silent: false });
+      };
+    }
+
     const btnTargets = document.getElementById('btn-open-targets-modal');
     const btnTargetsText = document.getElementById('btn-open-targets-text');
     if (btnTargets) btnTargets.onclick = openKpiTargetsModal;
