@@ -2624,3 +2624,30 @@ textarea.form-control { resize: vertical; }
   .agent-form-actions { grid-template-columns: 1fr; }
   .agent-task-progress__head { align-items: flex-start; }
 }
+
+
+/* ── AI provider connectivity diagnostics ─────────────────────── */
+.ai-provider-test-result {
+  margin: 0 18px 12px;
+  padding: 10px 12px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--surface);
+  color: var(--muted);
+  font-size: 10.5px;
+  line-height: 1.5;
+}
+
+.ai-provider-test-result--success {
+  border-color: #a7f3d0;
+  background: #f0fdf4;
+  color: #047857;
+  font-weight: 750;
+}
+
+.ai-provider-test-result--error {
+  border-color: #fecaca;
+  background: #fff7f7;
+  color: #b91c1c;
+  font-weight: 700;
+}
