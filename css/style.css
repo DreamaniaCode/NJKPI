@@ -2419,3 +2419,91 @@ textarea.form-control { resize: vertical; }
     width: 100%;
   }
 }
+
+
+/* ── Editable AI workspace ────────────────────────────────────── */
+.generated-edit-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  margin: 12px 0 10px;
+  padding: 9px 11px;
+  border-radius: 8px;
+  border: 1px solid #dce7fb;
+  background: #f7faff;
+  color: #31558c;
+  font-size: 9.5px;
+  font-weight: 750;
+}
+
+.generated-edit-status {
+  white-space: nowrap;
+  color: #0f8871;
+  font-size: 8.5px;
+}
+
+.generated-title-field {
+  margin-bottom: 10px;
+}
+
+.post-caption-box--editable,
+.image-prompt-box--editable {
+  width: 100%;
+  resize: vertical;
+  cursor: text;
+}
+
+.post-caption-box--editable {
+  min-height: 280px;
+}
+
+.image-prompt-box--editable {
+  min-height: 170px;
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 10.5px;
+  line-height: 1.65;
+}
+
+.generated-tags-edit {
+  margin-top: 6px;
+  font-size: 10.5px;
+}
+
+[data-plan-edit] {
+  outline: none;
+  cursor: text;
+  transition: box-shadow .15s ease, background .15s ease;
+}
+
+[data-plan-edit]:hover {
+  background: rgba(23, 70, 209, .035);
+}
+
+[data-plan-edit]:focus {
+  border-radius: 5px;
+  box-shadow: 0 0 0 2px rgba(23, 70, 209, .16);
+  background: #fff;
+}
+
+[data-plan-edit].is-edited {
+  box-shadow: inset 3px 0 0 #31b9cc;
+}
+
+.strategy-day-card__head h3[contenteditable="true"]::after {
+  content: "  ✎";
+  color: var(--muted);
+  font-size: 10px;
+  font-weight: 600;
+}
+
+@media (max-width: 640px) {
+  .generated-edit-head {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+
+  .post-caption-box--editable {
+    min-height: 230px;
+  }
+}
