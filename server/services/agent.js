@@ -11,17 +11,11 @@ export const SUPPORTED_AI_PROVIDERS = [
   {
     id: 'openrouter',
     name: 'OpenRouter',
-    description: 'Plateforme multi-modèles (Llama 3.3, Gemini 2.0, DeepSeek R1, Claude, GPT...)',
-    defaultModel: 'meta-llama/llama-3.3-70b-instruct',
+    description: 'Routeur multi-modèles. Le mode openrouter/free choisit automatiquement un modèle gratuit disponible.',
+    defaultModel: 'openrouter/free',
     models: [
-      { id: 'meta-llama/llama-3.3-70b-instruct', name: 'Llama 3.3 70B Instruct (Recommandé)', recommended: true },
-      { id: 'google/gemini-2.0-flash-exp:free', name: 'Gemini 2.0 Flash (Gratuit)', free: true },
-      { id: 'deepseek/deepseek-r1:free', name: 'DeepSeek R1 Raisonnement (Gratuit)', free: true },
-      { id: 'deepseek/deepseek-chat', name: 'DeepSeek Chat V3 (Économique & rapide)' },
-      { id: 'qwen/qwen-2.5-72b-instruct:free', name: 'Qwen 2.5 72B Instruct (Gratuit)', free: true },
-      { id: 'anthropic/claude-3.5-sonnet', name: 'Claude 3.5 Sonnet (Qualité supérieure)' },
-      { id: 'openai/gpt-4o-mini', name: 'OpenAI GPT-4o Mini' },
-      { id: 'mistralai/mistral-large-2411', name: 'Mistral Large 2411 (Français parfait)' }
+      { id: 'openrouter/free', name: 'OpenRouter Free Router (Recommandé)', recommended: true, free: true },
+      { id: 'custom', name: 'Modèle OpenRouter personnalisé' }
     ],
     allowCustomModel: true
   },
@@ -43,8 +37,8 @@ export const SUPPORTED_AI_PROVIDERS = [
     description: 'API officielle Google Gemini',
     defaultModel: 'gemini-3.8-flash',
     models: [
-      { id: 'gemini-3.8-flash', name: 'Gemini 2.5 Flash (Rapide & recommandé)', recommended: true },
-      { id: 'gemini-3.8-flash', name: 'Gemini 3.8 Flash (Recommandé)', recommended: true }
+      { id: 'gemini-3.8-flash', name: 'Gemini 3.8 Flash (GA, recommandé)', recommended: true },
+      { id: 'custom', name: 'Modèle Gemini personnalisé / plus récent' }
     ],
     allowCustomModel: true
   },
@@ -79,6 +73,32 @@ export const SUPPORTED_AI_PROVIDERS = [
     models: [
       { id: 'deepseek-chat', name: 'DeepSeek Chat (V3)', recommended: true },
       { id: 'deepseek-reasoner', name: 'DeepSeek Reasoner (R1)' }
+    ],
+    allowCustomModel: true
+  },
+  {
+    id: 'alibaba',
+    name: 'Alibaba Cloud Model Studio',
+    description: 'API OpenAI-compatible Qwen via Alibaba Cloud Model Studio',
+    defaultModel: 'qwen3.8-flash',
+    models: [
+      { id: 'qwen3.8-flash', name: 'Qwen 3.8 Flash (Rapide, recommandé)', recommended: true },
+      { id: 'qwen3.8-max', name: 'Qwen 3.8 Max (Qualité supérieure)' },
+      { id: 'qwen3.7-plus', name: 'Qwen 3.7 Plus' },
+      { id: 'custom', name: 'Autre modèle Model Studio' }
+    ],
+    allowCustomModel: true
+  },
+  {
+    id: 'cloudflare',
+    name: 'Cloudflare Workers AI',
+    description: 'Workers AI via endpoint OpenAI-compatible',
+    defaultModel: '@cf/qwen/qwen3.8-27b',
+    models: [
+      { id: '@cf/qwen/qwen3.8-27b', name: 'Qwen 3.8 27B (Recommandé)', recommended: true },
+      { id: '@cf/zai-org/glm-5.2', name: 'GLM 5.2' },
+      { id: '@cf/meta/llama-4-scout-17b-16e-instruct', name: 'Llama 4 Scout' },
+      { id: 'custom', name: 'Autre modèle Workers AI' }
     ],
     allowCustomModel: true
   },
@@ -444,7 +464,9 @@ export function agentConfigured(aiConfig = {}) {
     process.env.GEMINI_API_KEY ||
     process.env.ANTHROPIC_API_KEY ||
     process.env.GROQ_API_KEY ||
-    process.env.DEEPSEEK_API_KEY
+    process.env.DEEPSEEK_API_KEY ||
+    process.env.ALIBABA_API_KEY ||
+    (process.env.CLOUDFLARE_API_TOKEN && process.env.CLOUDFLARE_ACCOUNT_ID)
   );
 }
 
@@ -456,6 +478,8 @@ export function getAiProvider(aiConfig = {}) {
   if (process.env.ANTHROPIC_API_KEY) return 'anthropic';
   if (process.env.GROQ_API_KEY) return 'groq';
   if (process.env.DEEPSEEK_API_KEY) return 'deepseek';
+  if (process.env.ALIBABA_API_KEY) return 'alibaba';
+  if (process.env.CLOUDFLARE_API_TOKEN && process.env.CLOUDFLARE_ACCOUNT_ID) return 'cloudflare';
   return 'demo';
 }
 
@@ -487,6 +511,8 @@ export async function generateEditorialOutput({
     else if (provider === 'anthropic') apiKey = (process.env.ANTHROPIC_API_KEY || '').trim();
     else if (provider === 'groq') apiKey = (process.env.GROQ_API_KEY || '').trim();
     else if (provider === 'deepseek') apiKey = (process.env.DEEPSEEK_API_KEY || '').trim();
+    else if (provider === 'alibaba') apiKey = (process.env.ALIBABA_API_KEY || '').trim();
+    else if (provider === 'cloudflare') apiKey = (process.env.CLOUDFLARE_API_TOKEN || '').trim();
   }
 
   const isDemo = provider === 'demo' || !apiKey || process.env.DEMO_MODE === 'true';
@@ -515,10 +541,8 @@ export async function generateEditorialOutput({
 
   // 1. OPENROUTER
   if (provider === 'openrouter') {
-    let model = (aiConfig.model || process.env.OPENROUTER_MODEL || 'meta-llama/llama-3.3-70b-instruct').trim();
-    if (model === 'meta-llama/llama-3.3-70b-instruct:free') {
-      model = 'meta-llama/llama-3.3-70b-instruct';
-    }
+    let model = (aiConfig.model || process.env.OPENROUTER_MODEL || 'openrouter/free').trim();
+    if (!model || model === 'free') model = 'openrouter/free';
 
     async function callOpenRouter(selectedModel) {
       const res = await fetch(OPENROUTER_URL, {
@@ -690,6 +714,81 @@ export async function generateEditorialOutput({
       qualityCheck: parseQualityCheck(output),
       model,
       provider: 'gemini',
+      isDemo: false,
+      agentKey
+    };
+  }
+
+  // 4. ALIBABA CLOUD MODEL STUDIO (OpenAI-compatible)
+  if (provider === 'alibaba') {
+    const model = (aiConfig.model || process.env.ALIBABA_MODEL || 'qwen3.8-flash').trim();
+    const baseUrl = String(
+      process.env.ALIBABA_BASE_URL ||
+      'https://dashscope-intl.aliyuncs.com/compatible-mode/v1'
+    ).replace(/\/$/, '');
+    const response = await fetch(`${baseUrl}/chat/completions`, {
+      method: 'POST',
+      headers: {
+        Authorization: `Bearer ${apiKey}`,
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({
+        model,
+        messages: [
+          { role: 'system', content: systemInstructions },
+          { role: 'user', content: userPrompt }
+        ],
+        temperature: 0.7
+      })
+    });
+    const payload = await response.json();
+    if (!response.ok) throw new Error(payload.error?.message || payload.message || `Alibaba Model Studio API ${response.status}`);
+    const output = payload.choices?.[0]?.message?.content;
+    if (!output) throw new Error('Réponse Alibaba Model Studio vide');
+    return {
+      output,
+      structuredData: parseStructuredEditorial(output, agentKey, targetBrand),
+      storyboard: parseStoryboard(output),
+      qualityCheck: parseQualityCheck(output),
+      model,
+      provider: 'alibaba',
+      isDemo: false,
+      agentKey
+    };
+  }
+
+  // 5. CLOUDFLARE WORKERS AI (OpenAI-compatible)
+  if (provider === 'cloudflare') {
+    const accountId = String(process.env.CLOUDFLARE_ACCOUNT_ID || '').trim();
+    if (!accountId) throw new Error('CLOUDFLARE_ACCOUNT_ID non configuré');
+    const model = (aiConfig.model || process.env.CLOUDFLARE_MODEL || '@cf/qwen/qwen3.8-27b').trim();
+    const baseUrl = `https://api.cloudflare.com/client/v4/accounts/${encodeURIComponent(accountId)}/ai/v1`;
+    const response = await fetch(`${baseUrl}/chat/completions`, {
+      method: 'POST',
+      headers: {
+        Authorization: `Bearer ${apiKey}`,
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({
+        model,
+        messages: [
+          { role: 'system', content: systemInstructions },
+          { role: 'user', content: userPrompt }
+        ],
+        temperature: 0.7
+      })
+    });
+    const payload = await response.json();
+    if (!response.ok) throw new Error(payload.errors?.[0]?.message || payload.error?.message || `Cloudflare Workers AI ${response.status}`);
+    const output = payload.choices?.[0]?.message?.content || payload.result?.choices?.[0]?.message?.content;
+    if (!output) throw new Error('Réponse Cloudflare Workers AI vide');
+    return {
+      output,
+      structuredData: parseStructuredEditorial(output, agentKey, targetBrand),
+      storyboard: parseStoryboard(output),
+      qualityCheck: parseQualityCheck(output),
+      model,
+      provider: 'cloudflare',
       isDemo: false,
       agentKey
     };
