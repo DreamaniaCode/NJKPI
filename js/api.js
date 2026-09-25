@@ -180,7 +180,26 @@ const NidalAPI = (() => {
   const listEditorialAgents = () => request('/api/editorial/agents');
   const listEditorialProviders = () => request('/api/editorial/providers');
   const listEditorialGenerations = (agent = '', brand = '') => request(`/api/editorial/generations?agent=${encodeURIComponent(agent)}&brand=${encodeURIComponent(brand)}`);
-  const generateProfessionalPlan = body => request('/api/editorial/pro-plan', { method: 'POST', body: JSON.stringify(body) });
+  async function generateProfessionalPlan(body) {
+    const started = await request('/api/editorial/pro-plan', {
+      method: 'POST',
+      body: JSON.stringify(body)
+    });
+
+    // Compatibilité avec une ancienne version serveur qui renvoyait directement le résultat.
+    if (!started?.jobId) return started;
+
+    const deadline = Date.now() + 12 * 60 * 1000;
+    while (Date.now() < deadline) {
+      await new Promise(resolve => setTimeout(resolve, 2000));
+      const job = await request('/api/editorial/pro-plan/' + encodeURIComponent(started.jobId));
+
+      if (job.status === 'completed') return job.result;
+      if (job.status === 'failed') throw new Error(job.error || 'Échec de l’analyse professionnelle');
+    }
+
+    throw new Error('L’analyse continue trop longtemps. Le job a dépassé 12 minutes.');
+  }
   const generateEditorial = body => request('/api/editorial/generate', { method: 'POST', body: JSON.stringify(body) });
   const saveToPlanning = body => request('/api/editorial/save-to-planning', { method: 'POST', body: JSON.stringify(body) });
   const transferEditorial = body => request('/api/editorial/transfer', { method: 'POST', body: JSON.stringify(body) });
