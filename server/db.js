@@ -131,6 +131,63 @@ async function repairLegacyContentsSchema() {
     }
   }
 
+  // Réparer tous les anciens CHECK constraints de colonnes texte (type, statut, etc.),
+  // même lorsqu'un ancien DEFAULT invalide existe déjà.
+  const legacyChecks = await pool.query(`
+    SELECT c.conname,
+           pg_get_constraintdef(c.oid) AS definition,
+           a.attname AS column_name,
+           cols.data_type
+    FROM pg_constraint c
+    JOIN LATERAL unnest(c.conkey) AS k(attnum) ON TRUE
+    JOIN pg_attribute a
+      ON a.attrelid = c.conrelid
+     AND a.attnum = k.attnum
+    JOIN information_schema.columns cols
+      ON cols.table_schema = 'public'
+     AND cols.table_name = 'contents'
+     AND cols.column_name = a.attname
+    WHERE c.conrelid = 'contents'::regclass
+      AND c.contype = 'c'
+  `);
+
+  const preferredLegacyValues = {
+    statut: 'brouillon',
+    status: 'brouillon',
+    type: 'post',
+    format: 'post',
+    validation: 'a-valider',
+    plateforme: 'instagram-facebook',
+    niveau: 'tous'
+  };
+
+  for (const check of legacyChecks.rows) {
+    if (!['text','character varying','character'].includes(check.data_type)) continue;
+
+    const allowed = [...String(check.definition || '').matchAll(/'([^']+)'/g)]
+      .map(match => match[1])
+      .filter(value => value && value.toLowerCase() !== 'text');
+    if (!allowed.length) continue;
+
+    const preferred = preferredLegacyValues[check.column_name];
+    const chosen = preferred && allowed.includes(preferred) ? preferred : allowed[0];
+    const safeColumn = '"' + String(check.column_name).replace(/"/g, '""') + '"';
+    const safeValue = "'" + String(chosen).replace(/'/g, "''") + "'";
+
+    await pool.query(`ALTER TABLE contents ALTER COLUMN ${safeColumn} SET DEFAULT ${safeValue}`);
+
+    // Ne corriger que les valeurs vides/nulles, jamais une valeur métier déjà valide.
+    await pool.query(`
+      UPDATE contents
+      SET ${safeColumn} = ${safeValue}
+      WHERE ${safeColumn} IS NULL OR ${safeColumn}::text = ''
+    `).catch(error => {
+      console.warn(`Migration legacy ${check.column_name} partielle:`, error.message);
+    });
+
+    console.log(`Migration legacy contents: ${check.column_name} par défaut = ${chosen} (${check.conname})`);
+  }
+
   const legacyStatusColumn = await pool.query(`
     SELECT 1
     FROM information_schema.columns
