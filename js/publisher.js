@@ -222,8 +222,13 @@ const PublisherView = (() => {
 
       try {
         const job = await NidalAPI.createPublishJob(body);
-        if (mode === 'now') await NidalAPI.runPublishJob(job.id);
-        showToast(mode === 'schedule' ? 'Publication programmée.' : 'Publication envoyée à Meta.', 'success');
+        if (mode === 'now') {
+          const result = await NidalAPI.runPublishJob(job.id);
+          if (result.status !== 'published') {
+            throw new Error(result.error || `Publication Meta incomplète (statut: ${result.status || 'inconnu'}).`);
+          }
+        }
+        showToast(mode === 'schedule' ? 'Publication programmée.' : 'Publication confirmée par Meta.', 'success');
         _jobs = [];
         await _load();
         render();
@@ -244,8 +249,11 @@ const PublisherView = (() => {
     document.querySelectorAll('[data-run-job]').forEach(btn => {
       btn.addEventListener('click', async () => {
         try {
-          await NidalAPI.runPublishJob(btn.dataset.runJob);
-          showToast('Publication envoyée à Meta.', 'success');
+          const result = await NidalAPI.runPublishJob(btn.dataset.runJob);
+          if (result.status !== 'published') {
+            throw new Error(result.error || `Publication Meta incomplète (statut: ${result.status || 'inconnu'}).`);
+          }
+          showToast('Publication confirmée par Meta.', 'success');
           await _load();
           render();
         } catch (error) {
