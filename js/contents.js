@@ -651,27 +651,46 @@ const ContentsView = (() => {
             statut: mode === 'now' ? 'en-production' : values.statut
           });
 
+          const initialSync = await NidalStore.waitForSync(created.id);
+          if (!initialSync.ok) {
+            buttons.forEach(btn => btn.disabled = false);
+            button.textContent = original;
+            showToast(
+              'Le contenu reste visible localement, mais PostgreSQL ne l’a pas enregistré. Corrigez l’erreur de base avant de continuer. Détail : ' +
+              (initialSync.error?.message || 'synchronisation non confirmée'),
+              'error',
+              8000
+            );
+            return;
+          }
+
           try {
             if (mode === 'now') {
               await _queueContentPublication(values, 'now');
               NidalStore.update(created.id, { statut: 'publie' });
+              const finalSync = await NidalStore.waitForSync(created.id);
+              if (!finalSync.ok) throw new Error('Publication Meta réussie mais statut PostgreSQL non enregistré : ' + (finalSync.error?.message || 'erreur inconnue'));
             } else if (mode === 'schedule') {
               await _queueContentPublication(values, 'schedule');
               NidalStore.update(created.id, { statut: 'planifie' });
+              const finalSync = await NidalStore.waitForSync(created.id);
+              if (!finalSync.ok) throw new Error('Programmation créée mais statut PostgreSQL non enregistré : ' + (finalSync.error?.message || 'erreur inconnue'));
             }
 
             closeModal();
             showToast(
-              mode === 'now' ? 'Contenu créé et envoyé à Meta.' :
-              mode === 'schedule' ? 'Contenu créé et publication programmée.' :
-              'Contenu enregistré.',
-              'success'
+              mode === 'now' ? 'Succès : contenu enregistré dans PostgreSQL et publication confirmée par Meta.' :
+              mode === 'schedule' ? 'Succès : contenu enregistré dans PostgreSQL et publication programmée.' :
+              'Succès : contenu enregistré dans PostgreSQL.',
+              'success',
+              6000
             );
           } catch (error) {
             NidalStore.update(created.id, { statut: 'planifie', notes: [values.notes, 'Publication Meta à vérifier : ' + error.message].filter(Boolean).join('\n') });
+            await NidalStore.waitForSync(created.id);
             buttons.forEach(btn => btn.disabled = false);
             button.textContent = original;
-            showToast('Contenu enregistré, mais publication Meta non terminée : ' + error.message, 'error');
+            showToast('Publication Meta non terminée : ' + error.message, 'error', 8000);
           }
         };
 
@@ -712,10 +731,20 @@ const ContentsView = (() => {
 
             // Toujours sauvegarder les modifications du contenu existant avant l'action Meta.
             NidalStore.update(id, values);
+            const initialSync = await NidalStore.waitForSync(id);
+            if (!initialSync.ok) {
+              showToast(
+                'Les modifications sont conservées localement, mais PostgreSQL ne les a pas enregistrées. Détail : ' +
+                (initialSync.error?.message || 'synchronisation non confirmée'),
+                'error',
+                8000
+              );
+              return;
+            }
 
             if (mode === 'save') {
               closeModal();
-              showToast('Modifications enregistrées', 'success');
+              showToast('Succès : modifications enregistrées dans PostgreSQL.', 'success', 5500);
               return;
             }
 
@@ -741,15 +770,19 @@ const ContentsView = (() => {
                   finalUrl,
                   publishedAt: new Date().toISOString()
                 });
+                const finalSync = await NidalStore.waitForSync(id);
+                if (!finalSync.ok) throw new Error('Meta a publié, mais PostgreSQL n’a pas enregistré le statut final : ' + (finalSync.error?.message || 'erreur inconnue'));
                 closeModal();
-                showToast('Publication confirmée par Meta.', 'success');
+                showToast('Succès : publication confirmée par Meta et statut enregistré dans PostgreSQL.', 'success', 6000);
               } else {
                 NidalStore.update(id, {
                   ...values,
                   statut: 'planifie'
                 });
+                const finalSync = await NidalStore.waitForSync(id);
+                if (!finalSync.ok) throw new Error('Programmation créée, mais PostgreSQL n’a pas enregistré le statut : ' + (finalSync.error?.message || 'erreur inconnue'));
                 closeModal();
-                showToast('Publication programmée.', 'success');
+                showToast('Succès : publication programmée et enregistrée dans PostgreSQL.', 'success', 6000);
               }
             } catch (error) {
               NidalStore.update(id, {
