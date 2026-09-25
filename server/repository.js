@@ -302,7 +302,12 @@ const DEFAULT_BRAND_KPI_TARGETS = {
     comments: { current: 320, target: 1000, eta: '2026-11-30', note: 'Réponses aux quiz, histoires et publications' },
     conversions: { current: 42, target: 120, eta: '2026-10-31', note: 'Demandes de visite, appels et inscriptions maternelle' },
     reach: { current: 12400, target: 35000, eta: '2026-11-30', note: 'Familles touchées sur la période' },
-    interactions: { current: 1450, target: 4000, eta: '2026-11-30', note: 'Likes, commentaires, partages et enregistrements' }
+    interactions: { current: 1450, target: 4000, eta: '2026-11-30', note: 'Likes, commentaires, partages et enregistrements' },
+    facebookFollowers: { current: 0, target: 0, eta: '', note: 'Followers Facebook synchronisés depuis Meta' },
+    facebookReach: { current: 0, target: 0, eta: '', note: 'Reach des publications Facebook analysées' },
+    facebookViews: { current: 0, target: 0, eta: '', note: 'Vues des publications Facebook analysées' },
+    facebookInteractions: { current: 0, target: 0, eta: '', note: 'Interactions Facebook analysées' },
+    facebookComments: { current: 0, target: 0, eta: '', note: 'Commentaires Facebook analysés' }
   },
   'nidal': {
     followers: { current: 6800, target: 12000, eta: '2026-12-31', note: 'Communauté officielle Groupe Scolaire Nidal' },
@@ -310,7 +315,12 @@ const DEFAULT_BRAND_KPI_TARGETS = {
     comments: { current: 640, target: 2000, eta: '2026-12-15', note: 'Échanges avec les parents et élèves' },
     conversions: { current: 85, target: 250, eta: '2026-11-15', note: 'Prises de RDV, formulaires gsnidal.ma et inscriptions' },
     reach: { current: 28000, target: 75000, eta: '2026-12-15', note: 'Portée globale sur les réseaux sociaux' },
-    interactions: { current: 3200, target: 8000, eta: '2026-12-15', note: 'Total réactions, commentaires, partages et favoris' }
+    interactions: { current: 3200, target: 8000, eta: '2026-12-15', note: 'Total réactions, commentaires, partages et favoris' },
+    facebookFollowers: { current: 0, target: 0, eta: '', note: 'Followers Facebook synchronisés depuis Meta' },
+    facebookReach: { current: 0, target: 0, eta: '', note: 'Reach des publications Facebook analysées' },
+    facebookViews: { current: 0, target: 0, eta: '', note: 'Vues des publications Facebook analysées' },
+    facebookInteractions: { current: 0, target: 0, eta: '', note: 'Interactions Facebook analysées' },
+    facebookComments: { current: 0, target: 0, eta: '', note: 'Commentaires Facebook analysés' }
   }
 };
 
