@@ -281,6 +281,7 @@ export async function syncSocialProfiles({ brand, instagramUrl = '', facebookUrl
 }
 
 import { scrapeSocialPost, scrapeSocialProfile } from './public-scraper.js';
+import { ensureInstagramCompatibleMediaUrl } from './media.js';
 
 export async function syncContentFromUrl({
   brand,
@@ -802,24 +803,17 @@ async function publishInstagramPost(brand, job) {
   const createParams = { caption: job.message || '' };
   const isVideo = mediaType === 'video' || mediaType === 'reel';
 
+  let publishMediaUrl = job.media_url;
   if (!isVideo) {
-    try {
-      const pathname = new URL(job.media_url).pathname.toLowerCase();
-      if (/\.(png|webp|gif)$/i.test(pathname)) {
-        throw new Error(
-          'Instagram: cette image est en PNG/WEBP/GIF. Utilisez un fichier JPEG/JPG pour la publication API.'
-        );
-      }
-    } catch (error) {
-      if (String(error.message || '').startsWith('Instagram:')) throw error;
-    }
+    const prepared = await ensureInstagramCompatibleMediaUrl(job.media_url, mediaType);
+    publishMediaUrl = prepared.url || job.media_url;
   }
 
   if (isVideo) {
     createParams.media_type = 'REELS';
-    createParams.video_url = job.media_url;
+    createParams.video_url = publishMediaUrl;
   } else {
-    createParams.image_url = job.media_url;
+    createParams.image_url = publishMediaUrl;
   }
 
   const container = await graphPost(`${igUserId}/media`, createParams, publishToken);
