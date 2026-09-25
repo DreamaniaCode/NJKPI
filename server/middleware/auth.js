@@ -132,7 +132,7 @@ export async function initAuth() {
   const hashedPass = hashPassword(adminPass);
   const resetDefaultAdmin = process.env.RESET_DEFAULT_ADMIN === 'true';
 
-  if (hasDatabase() && isDbConnected()) {
+  if (hasDatabase && isDbConnected()) {
     try {
       await query(`
         CREATE TABLE IF NOT EXISTS users (
@@ -284,7 +284,7 @@ export function authorize(...roles) {
 export async function loginUser(username, password) {
   let user = null;
   
-  if (hasDatabase() && isDbConnected()) {
+  if (hasDatabase && isDbConnected()) {
     try {
       const res = await query('SELECT * FROM users WHERE username = $1', [username]);
       if (res.rows.length > 0) {
@@ -306,7 +306,7 @@ export async function loginUser(username, password) {
     const token = generateToken(user);
     
     // Mettre à jour last_login
-    if (hasDatabase() && isDbConnected()) {
+    if (hasDatabase && isDbConnected()) {
       try {
         await query('UPDATE users SET last_login = NOW() WHERE id = $1', [user.id]);
       } catch (err) {
@@ -329,7 +329,7 @@ export async function loginUser(username, password) {
  * Liste tous les utilisateurs (sans les mots de passe).
  */
 export async function listUsers() {
-  if (hasDatabase() && isDbConnected()) {
+  if (hasDatabase && isDbConnected()) {
     try {
       const res = await query('SELECT id, username, email, role, display_name, created_at, last_login FROM users ORDER BY username ASC');
       return res.rows;
@@ -347,7 +347,7 @@ export async function listUsers() {
 export async function createUser({ username, password, email, role = 'viewer', display_name }) {
   const hashedPass = hashPassword(password);
   
-  if (hasDatabase() && isDbConnected()) {
+  if (hasDatabase && isDbConnected()) {
     try {
       const res = await query(
         `INSERT INTO users (username, email, password_hash, role, display_name)
@@ -390,7 +390,7 @@ export async function updateUserRole(userId, newRole) {
     throw new Error('Rôle invalide');
   }
 
-  if (hasDatabase() && isDbConnected()) {
+  if (hasDatabase && isDbConnected()) {
     try {
       await query('UPDATE users SET role = $1 WHERE id = $2', [newRole, userId]);
       return true;
