@@ -38,6 +38,8 @@ export const SUPPORTED_AI_PROVIDERS = [
     defaultModel: 'gemini-3.8-flash',
     models: [
       { id: 'gemini-3.8-flash', name: 'Gemini 3.8 Flash (GA, recommandé)', recommended: true },
+      { id: 'gemini-3.7-flash', name: 'Gemini 3.7 Flash (fallback qualité)' },
+      { id: 'gemini-3.5-flash-lite', name: 'Gemini 3.5 Flash-Lite (fallback rapide)' },
       { id: 'custom', name: 'Modèle Gemini personnalisé / plus récent' }
     ],
     allowCustomModel: true
@@ -761,7 +763,8 @@ export async function generateEditorialOutput({
 
   // 3. GOOGLE GEMINI — Interactions API
   if (provider === 'gemini') {
-    let model = (aiConfig.model || process.env.GEMINI_MODEL || 'gemini-3.8-flash').trim();
+    const requestedModel = (aiConfig.model || process.env.GEMINI_MODEL || 'gemini-3.8-flash').trim();
+    let model = requestedModel;
 
     async function callGemini(selectedModel) {
       const geminiUrl = 'https://generativelanguage.googleapis.com/v1beta/interactions';
@@ -787,29 +790,73 @@ export async function generateEditorialOutput({
       return { response, payload };
     }
 
-    let { response, payload } = await callGemini(model);
-    let output = extractGeminiInteractionText(payload);
+    const transientGeminiError = (status, message = '') =>
+      [429, 500, 502, 503, 504].includes(Number(status))
+      || /high demand|overload|temporar|try again later|resource exhausted|rate.?limit|capacity|unavailable/i.test(String(message));
 
-    if (!response.ok || !output) {
-      const geminiError = payload.error?.message
+    const candidates = [requestedModel];
+    let response = null;
+    let payload = {};
+    let output = '';
+    let lastGeminiError = '';
+
+    for (let index = 0; index < candidates.length; index++) {
+      model = candidates[index];
+      ({ response, payload } = await callGemini(model));
+      output = extractGeminiInteractionText(payload);
+
+      if (response.ok && output) break;
+
+      lastGeminiError = payload.error?.message
         || payload.errors?.[0]?.message
         || (!response.ok ? `Google Gemini Interactions API ${response.status}` : 'Réponse Gemini vide');
 
-      const suggested = geminiError.match(/use\s+models\/([A-Za-z0-9._-]+)/i)?.[1]
-        || geminiError.match(/models\/([A-Za-z0-9._-]+)\s+for the latest/i)?.[1]
+      const suggested = lastGeminiError.match(/use\s+models\/([A-Za-z0-9._-]+)/i)?.[1]
+        || lastGeminiError.match(/models\/([A-Za-z0-9._-]+)\s+for the latest/i)?.[1]
         || null;
 
-      if (suggested && suggested !== model) {
-        model = suggested;
-        const retry = await callGemini(model);
-        response = retry.response;
-        payload = retry.payload;
-        output = extractGeminiInteractionText(payload);
+      if (suggested && !candidates.includes(suggested)) {
+        candidates.push(suggested);
       }
 
-      if (!response.ok || !output) {
-        throw new Error(geminiError);
+      // Les erreurs de capacité sont temporaires : ne jamais faire échouer une
+      // génération complète si un autre modèle Gemini officiel peut répondre.
+      if (!isProviderTest && transientGeminiError(response.status, lastGeminiError)) {
+        for (const fallbackModel of ['gemini-3.5-flash-lite', 'gemini-3.7-flash']) {
+          if (!candidates.includes(fallbackModel)) candidates.push(fallbackModel);
+        }
+        continue;
       }
+
+      // Pour un test fournisseur, on teste volontairement le modèle choisi.
+      // Pour les autres erreurs non temporaires, ne pas masquer le vrai message.
+      if (isProviderTest || !suggested) break;
+    }
+
+    if (!response?.ok || !output) {
+      // Dernier filet de sécurité : si une clé OpenRouter est configurée côté
+      // serveur, basculer automatiquement au lieu de perdre tout le travail.
+      const canFallbackToOpenRouter = !isProviderTest
+        && !aiConfig.disableFallback
+        && Boolean(process.env.OPENROUTER_API_KEY);
+
+      if (canFallbackToOpenRouter && transientGeminiError(response?.status, lastGeminiError)) {
+        console.warn(`Gemini indisponible (${lastGeminiError}). Bascule automatique vers OpenRouter.`);
+        return generateEditorialOutput({
+          agentKey,
+          brand: targetBrand,
+          briefData,
+          context,
+          aiConfig: {
+            provider: 'openrouter',
+            model: process.env.OPENROUTER_MODEL || 'openrouter/free',
+            apiKey: '',
+            disableFallback: true
+          }
+        });
+      }
+
+      throw new Error(lastGeminiError || 'Réponse Gemini vide');
     }
 
     return {
