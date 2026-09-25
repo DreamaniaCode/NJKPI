@@ -42,6 +42,13 @@ app.use('/api/uploads', express.raw({
   limit: process.env.MEDIA_UPLOAD_LIMIT || '50mb'
 }));
 app.use(express.json({ limit: '2mb' }));
+app.use('/api', (_req, res, next) => {
+  res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate, proxy-revalidate');
+  res.setHeader('Pragma', 'no-cache');
+  res.setHeader('Expires', '0');
+  res.setHeader('Surrogate-Control', 'no-store');
+  next();
+});
 app.use((req, res, next) => {
   const allowed = process.env.CORS_ORIGIN;
   if (allowed) {
