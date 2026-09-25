@@ -100,9 +100,15 @@ const AgentView = (() => {
       const raw = localStorage.getItem(AI_CONFIG_KEY);
       if (raw) {
         const parsed = JSON.parse(raw);
+        const provider = parsed.provider || 'gemini';
+        let model = parsed.model || 'gemini-3.8-flash';
+        if (provider === 'gemini' && /^gemini-2\./i.test(model)) {
+          model = 'gemini-3.8-flash';
+          localStorage.setItem(AI_CONFIG_KEY, JSON.stringify({ ...parsed, provider, model }));
+        }
         return {
-          provider: parsed.provider || 'gemini',
-          model: parsed.model || 'gemini-2.5-flash',
+          provider,
+          model,
           customModel: parsed.customModel || '',
           apiKey: parsed.apiKey || ''
         };
@@ -110,7 +116,7 @@ const AgentView = (() => {
     } catch {}
     return {
       provider: 'gemini',
-      model: 'gemini-2.5-flash',
+      model: 'gemini-3.8-flash',
       customModel: '',
       apiKey: ''
     };
@@ -455,6 +461,7 @@ const AgentView = (() => {
           <!-- Barre d'onglets du résultat -->
           <div class="agent-tabs">
             <button class="agent-tab-btn ${currentAgent.activeTab === 'output' ? 'active' : ''}" data-tab="output">📱 Post & Prompt Image</button>
+            ${gen?.structuredData?.strategyPlan || gen?.dataAudit ? `<button class="agent-tab-btn ${currentAgent.activeTab === 'analysis' ? 'active' : ''}" data-tab="analysis">📊 Analyse & Plan</button>` : ''}
             <button class="agent-tab-btn ${currentAgent.activeTab === 'image' ? 'active' : ''}" data-tab="image">🎨 Prompt Image IA</button>
             <button class="agent-tab-btn ${currentAgent.activeTab === 'metadata' ? 'active' : ''}" data-tab="metadata">📋 Fiche planning</button>
             <button class="agent-tab-btn ${currentAgent.activeTab === 'storyboard' ? 'active' : ''}" data-tab="storyboard">
@@ -647,6 +654,54 @@ const AgentView = (() => {
     const { postText, imagePrompt, tags } = _extractPostAndPrompt(gen, _activeAgentKey);
     const isJunior = _activeAgentKey === 'studio-junior';
 
+    if (agent.activeTab === 'analysis') {
+      const audit = gen.dataAudit || data.dataAudit || {};
+      const inv = audit.contentInventory || {};
+      const formats = inv.formats || {};
+      const ig = audit.social?.instagram || null;
+      const fb = audit.social?.facebook || null;
+
+      return `
+        <div class="strategy-analysis-view">
+          <div class="strategy-analysis-hero">
+            <span class="section-kicker">Diagnostic NJKPI</span>
+            <h3>Analyse des données & plan de travail</h3>
+            <p>Cette synthèse utilise les données réellement disponibles dans NJKPI. Les données absentes restent indiquées comme indisponibles.</p>
+          </div>
+
+          <div class="strategy-audit-grid">
+            <div class="strategy-audit-card"><small>Contenus</small><strong>${formatNumber(inv.total || 0)}</strong><span>${formatNumber(inv.published || 0)} publiés</span></div>
+            <div class="strategy-audit-card"><small>Posts</small><strong>${formatNumber(formats.post || 0)}</strong><span>dans l'inventaire</span></div>
+            <div class="strategy-audit-card"><small>Reels</small><strong>${formatNumber(formats.reel || 0)}</strong><span>dans l'inventaire</span></div>
+            <div class="strategy-audit-card"><small>Stories</small><strong>${formatNumber(formats.story || 0)}</strong><span>dans l'inventaire</span></div>
+            <div class="strategy-audit-card"><small>Vidéos</small><strong>${formatNumber(formats.video || 0)}</strong><span>dans l'inventaire</span></div>
+            <div class="strategy-audit-card"><small>Carrousels</small><strong>${formatNumber(formats.carrousel || 0)}</strong><span>dans l'inventaire</span></div>
+          </div>
+
+          <div class="strategy-social-grid">
+            <div class="strategy-social-card">
+              <strong>Instagram</strong>
+              <div>Followers : <b>${ig?.followers ?? '—'}</b></div>
+              <div>Reach : <b>${ig?.reach ?? '—'}</b></div>
+              <div>Comptes engagés : <b>${ig?.accountsEngaged ?? '—'}</b></div>
+            </div>
+            <div class="strategy-social-card">
+              <strong>Facebook</strong>
+              <div>Followers : <b>${fb?.followers ?? '—'}</b></div>
+              <div>Reach : <b>${fb?.reach ?? '—'}</b></div>
+              <div>Interactions : <b>${fb?.interactions ?? '—'}</b></div>
+            </div>
+          </div>
+
+          <div class="strategy-plan-output">
+            <div class="strategy-plan-output__head">
+              <div><span class="section-kicker">Recommandation de l'agent</span><h3>Plan opérationnel complet</h3></div>
+              <button class="btn btn--primary btn--sm" id="btn-copy-all" type="button">📋 Copier le plan</button>
+            </div>
+            <pre>${escapeHtml(gen.output || '')}</pre>
+          </div>
+        </div>`;
+    }
     // 1. ONGLET PRINCIPAL : POST PRÊT À PUBLIER & PROMPT IMAGE IA
     if (agent.activeTab === 'output') {
       const fullCopyPayload = `${postText}\n\n${tags.join(' ')}`;
@@ -1112,7 +1167,7 @@ const AgentView = (() => {
       loaded.dataAudit = response.dataAudit || null;
 
       _state[agentKey].currentGeneration = loaded;
-      _state[agentKey].activeTab = 'output';
+      _state[agentKey].activeTab = 'analysis';
       _state[agentKey].history.unshift(response);
 
       render();
