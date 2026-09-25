@@ -8,64 +8,51 @@ const AgentView = (() => {
     {
       id: 'openrouter',
       name: 'OpenRouter',
-      description: 'Multi-modèles (Llama 3.3, Gemini 2.0, DeepSeek R1, Claude, GPT...)',
-      defaultModel: 'meta-llama/llama-3.3-70b-instruct',
+      description: 'Routeur multi-modèles avec sélection gratuite automatique',
+      defaultModel: 'openrouter/free',
       models: [
-        { id: 'meta-llama/llama-3.3-70b-instruct', name: 'Llama 3.3 70B Instruct (Recommandé)', recommended: true },
-        { id: 'google/gemini-2.0-flash-exp:free', name: 'Gemini 2.0 Flash (Gratuit)', free: true },
-        { id: 'deepseek/deepseek-r1:free', name: 'DeepSeek R1 Raisonnement (Gratuit)', free: true },
-        { id: 'deepseek/deepseek-chat', name: 'DeepSeek Chat V3 (Économique & rapide)' },
-        { id: 'qwen/qwen-2.5-72b-instruct:free', name: 'Qwen 2.5 72B Instruct (Gratuit)', free: true },
-        { id: 'anthropic/claude-3.5-sonnet', name: 'Claude 3.5 Sonnet (Qualité supérieure)' },
-        { id: 'openai/gpt-4o-mini', name: 'OpenAI GPT-4o Mini' },
-        { id: 'mistralai/mistral-large-2411', name: 'Mistral Large 2411 (Français parfait)' }
+        { id: 'openrouter/free', name: 'OpenRouter Free Router', recommended: true, free: true }
       ],
       allowCustomModel: true
     },
     {
       id: 'openai',
       name: 'OpenAI',
-      description: 'API officielle OpenAI (GPT-4o, GPT-4o-mini, o3-mini)',
+      description: 'API officielle OpenAI',
       defaultModel: 'gpt-4o-mini',
       models: [
-        { id: 'gpt-4o-mini', name: 'GPT-4o Mini (Rapide et économique)', recommended: true },
-        { id: 'gpt-4o', name: 'GPT-4o (Modèle phare multimodal)' },
-        { id: 'o3-mini', name: 'o3-mini (Raisonnement avancé)' }
+        { id: 'gpt-4o-mini', name: 'GPT-4o Mini', recommended: true },
+        { id: 'gpt-4o', name: 'GPT-4o' }
       ],
       allowCustomModel: true
     },
     {
       id: 'gemini',
       name: 'Google Gemini',
-      description: 'API officielle Google Gemini (Gemini 2.5 Flash, 2.5 Pro)',
-      defaultModel: 'gemini-2.5-flash',
+      description: 'API officielle Google Gemini',
+      defaultModel: 'gemini-3.8-flash',
       models: [
-        { id: 'gemini-2.0-flash', name: 'Gemini 2.0 Flash (Très rapide & récent)', recommended: true },
-        { id: 'gemini-1.5-flash', name: 'Gemini 1.5 Flash (Équilibré)' },
-        { id: 'gemini-1.5-pro', name: 'Gemini 1.5 Pro (Haute réflexion)' }
+        { id: 'gemini-3.8-flash', name: 'Gemini 3.8 Flash (GA)', recommended: true }
       ],
       allowCustomModel: true
     },
     {
       id: 'anthropic',
       name: 'Anthropic Claude',
-      description: 'API officielle Anthropic Claude',
+      description: 'API officielle Anthropic',
       defaultModel: 'claude-3-5-sonnet-20241022',
       models: [
-        { id: 'claude-3-5-sonnet-20241022', name: 'Claude 3.5 Sonnet (Le plus créatif & soigné)', recommended: true },
-        { id: 'claude-3-5-haiku-20241022', name: 'Claude 3.5 Haiku (Ultra-rapide)' }
+        { id: 'claude-3-5-sonnet-20241022', name: 'Claude Sonnet' }
       ],
       allowCustomModel: true
     },
     {
       id: 'groq',
       name: 'Groq',
-      description: 'Inférence ultra-rapide (LPU)',
+      description: 'Inférence rapide',
       defaultModel: 'llama-3.3-70b-versatile',
       models: [
-        { id: 'llama-3.3-70b-versatile', name: 'Llama 3.3 70B Versatile', recommended: true },
-        { id: 'llama-3.1-8b-instant', name: 'Llama 3.1 8B Instant (Instantané)' },
-        { id: 'mixtral-8x7b-32768', name: 'Mixtral 8x7B 32k' }
+        { id: 'llama-3.3-70b-versatile', name: 'Llama 3.3 70B', recommended: true }
       ],
       allowCustomModel: true
     },
@@ -75,19 +62,41 @@ const AgentView = (() => {
       description: 'API officielle DeepSeek',
       defaultModel: 'deepseek-chat',
       models: [
-        { id: 'deepseek-chat', name: 'DeepSeek Chat (V3)', recommended: true },
-        { id: 'deepseek-reasoner', name: 'DeepSeek Reasoner (R1)' }
+        { id: 'deepseek-chat', name: 'DeepSeek Chat', recommended: true },
+        { id: 'deepseek-reasoner', name: 'DeepSeek Reasoner' }
+      ],
+      allowCustomModel: true
+    },
+    {
+      id: 'alibaba',
+      name: 'Alibaba Cloud Model Studio',
+      description: 'Qwen via API OpenAI-compatible',
+      defaultModel: 'qwen3.8-flash',
+      models: [
+        { id: 'qwen3.8-flash', name: 'Qwen 3.8 Flash', recommended: true },
+        { id: 'qwen3.8-max', name: 'Qwen 3.8 Max' },
+        { id: 'qwen3.7-plus', name: 'Qwen 3.7 Plus' }
+      ],
+      allowCustomModel: true
+    },
+    {
+      id: 'cloudflare',
+      name: 'Cloudflare Workers AI',
+      description: 'Workers AI OpenAI-compatible',
+      defaultModel: '@cf/qwen/qwen3.8-27b',
+      models: [
+        { id: '@cf/qwen/qwen3.8-27b', name: 'Qwen 3.8 27B', recommended: true },
+        { id: '@cf/zai-org/glm-5.2', name: 'GLM 5.2' },
+        { id: '@cf/meta/llama-4-scout-17b-16e-instruct', name: 'Llama 4 Scout' }
       ],
       allowCustomModel: true
     },
     {
       id: 'demo',
       name: 'Mode Démonstration',
-      description: 'Générateur interne basé sur des archétypes stricts par format (aucune clé requise)',
+      description: 'Générateur interne sans clé API',
       defaultModel: 'demo-template',
-      models: [
-        { id: 'demo-template', name: 'Modèles internes Nidal par format', recommended: true }
-      ],
+      models: [{ id: 'demo-template', name: 'Modèles internes Nidal', recommended: true }],
       allowCustomModel: false
     }
   ];
@@ -1261,7 +1270,7 @@ const AgentView = (() => {
 
     const aiConfig = getAiConfig();
     let currentProviderId = aiConfig.provider || 'openrouter';
-    let currentModel = aiConfig.model || 'meta-llama/llama-3.3-70b-instruct';
+    let currentModel = aiConfig.model || 'gemini-3.8-flash';
     let customModel = aiConfig.customModel || '';
     let apiKey = aiConfig.apiKey || '';
 
@@ -1387,7 +1396,7 @@ const AgentView = (() => {
       if (saveBtn) {
         saveBtn.onclick = () => {
           const selectedProv = document.getElementById('ai-select-provider')?.value || 'openrouter';
-          const selectedMod = document.getElementById('ai-select-model')?.value || 'meta-llama/llama-3.3-70b-instruct';
+          const selectedMod = document.getElementById('ai-select-model')?.value || 'gemini-3.8-flash';
           const customModInput = document.getElementById('ai-input-custom-model')?.value?.trim() || '';
           const keyVal = document.getElementById('ai-input-api-key')?.value?.trim() || '';
 
