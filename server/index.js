@@ -1155,6 +1155,19 @@ Réponse concise mais profonde, sans JSON.
       aiConfig
     });
 
+    // Si Gemini 3.8 est saturé et que l'étape diagnostic a réussi via un
+    // modèle de secours, conserver ce modèle pour tous les lots suivants.
+    // Même logique si la génération a dû basculer vers OpenRouter côté serveur.
+    const effectivePlanAiConfig = {
+      ...aiConfig,
+      provider: analysisGenerated.provider || aiConfig.provider,
+      model: analysisGenerated.model || aiConfig.model,
+      apiKey: analysisGenerated.provider && aiConfig.provider
+        && analysisGenerated.provider !== aiConfig.provider
+        ? ''
+        : (aiConfig.apiKey || '')
+    };
+
     // Étape 2 : produire le calendrier par petits lots.
     // Un seul appel pour 30 captions + scripts + prompts dépassait souvent 150 s.
     const planItems = [];
@@ -1194,7 +1207,7 @@ JSON valide, sans commentaire avant ou après.
           notes
         },
         context: `${dataContextText}\n\n=== DIAGNOSTIC STRATÉGIQUE ===\n${analysisGenerated.output.slice(0, 12000)}`,
-        aiConfig
+        aiConfig: effectivePlanAiConfig
       });
 
       const batchItems = extractProfessionalPlanItems(batchGenerated.output);
