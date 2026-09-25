@@ -955,7 +955,7 @@ export async function generateEditorialOutput({
 
     const transientCloudflareError = (status, message = '') =>
       [408, 429, 500, 502, 503, 504].includes(Number(status))
-      || /request timeout|timed?\s*out|timeout|high demand|overload|temporar|capacity|unavailable|resource exhausted/i
+      || /request timeout|timed?\s*out|timeout|high demand|overload|temporar|capacity|unavailable|resource exhausted|context length|too many tokens|maximum context/i
         .test(String(message));
 
     async function callCloudflare(selectedModel, attemptTimeoutMs = requestTimeoutMs) {
@@ -988,9 +988,21 @@ export async function generateEditorialOutput({
       return { response, payload };
     }
 
-    const candidates = [requestedModel];
+    // Pour les plans longs, Qwen 3.8 a montré des timeouts d'inférence côté
+    // Cloudflare. Démarrer directement par le modèle Fast évite d'attendre une
+    // tentative connue comme lente. Le choix utilisateur reste inchangé pour
+    // les générations normales.
+    const candidates = isProfessionalPlan
+      && !isProviderTest
+      && requestedModel === '@cf/qwen/qwen3.8-27b'
+      ? ['@cf/meta/llama-3.3-70b-instruct-fp8-fast']
+      : [requestedModel];
+
     if (isProfessionalPlan && !isProviderTest) {
-      for (const fallbackModel of cloudflareFallbackModels) {
+      for (const fallbackModel of [
+        '@cf/meta/llama-4-scout-17b-16e-instruct',
+        '@cf/qwen/qwen3.8-27b'
+      ]) {
         if (!candidates.includes(fallbackModel)) candidates.push(fallbackModel);
       }
     }
