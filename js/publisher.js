@@ -171,14 +171,22 @@ const PublisherView = (() => {
         try {
           const uploaded = await NidalAPI.uploadMedia(file);
           mediaUrlInput.value = uploaded.url || '';
-          if (mediaStatus) mediaStatus.textContent = `${file.name} · prêt`;
+          if (mediaStatus) mediaStatus.textContent = uploaded.convertedForMeta
+            ? `${file.name} · converti automatiquement en JPG · prêt`
+            : `${file.name} · prêt`;
           if (mediaPreview) {
-            mediaPreview.innerHTML = file.type.startsWith('video/')
+            const finalMime = uploaded.mime || file.type;
+            mediaPreview.innerHTML = finalMime.startsWith('video/')
               ? `<video src="${escapeHtml(uploaded.url)}" controls preload="metadata"></video>`
               : `<img src="${escapeHtml(uploaded.url)}" alt="Aperçu du média">`;
           }
-          document.getElementById('publisher-media-type').value = file.type.startsWith('video/') ? 'reel' : 'image';
-          showToast('Média envoyé et prêt pour publication.', 'success');
+          document.getElementById('publisher-media-type').value = (uploaded.mime || file.type).startsWith('video/') ? 'reel' : 'image';
+          showToast(
+            uploaded.convertedForMeta
+              ? 'Image convertie automatiquement en JPG et prête pour Facebook + Instagram.'
+              : 'Média envoyé et prêt pour publication.',
+            'success'
+          );
         } catch (error) {
           if (mediaStatus) mediaStatus.textContent = 'Échec du téléversement';
           showToast('Upload impossible : ' + error.message, 'error');
@@ -203,12 +211,20 @@ const PublisherView = (() => {
         return showToast('Choisissez une photo ou vidéo pour Instagram.', 'error');
       }
 
+      const mediaType = document.getElementById('publisher-media-type')?.value || 'text';
+      let preparedMediaUrl = mediaUrl;
+      if (platforms.includes('instagram') && preparedMediaUrl && mediaType === 'image') {
+        const prepared = await NidalAPI.ensureInstagramCompatibleImage(preparedMediaUrl, mediaType);
+        preparedMediaUrl = prepared.url || preparedMediaUrl;
+        if (prepared.converted && mediaUrlInput) mediaUrlInput.value = preparedMediaUrl;
+      }
+
       const body = {
         brand: getActiveBrand(),
         message: document.getElementById('publisher-message')?.value || '',
-        mediaUrl,
+        mediaUrl: preparedMediaUrl,
         linkUrl: document.getElementById('publisher-link-url')?.value || '',
-        mediaType: document.getElementById('publisher-media-type')?.value || 'text',
+        mediaType,
         platforms,
         scheduledAt: mode === 'schedule' ? new Date(scheduledRaw).toISOString() : new Date().toISOString(),
         automationMode: mode === 'schedule' ? 'scheduled' : 'manual'
