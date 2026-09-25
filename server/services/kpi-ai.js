@@ -94,11 +94,23 @@ export function buildKpiContext({
     ? Number(instagramProfile.followers)
     : null;
 
+  const facebookLive = facebookProfile?.source === 'meta-api' ? {
+    facebookFollowers: facebookProfile.followers,
+    facebookReach: facebookProfile.insights?.reach,
+    facebookViews: facebookProfile.insights?.views,
+    facebookInteractions: facebookProfile.insights?.interactions,
+    facebookComments: facebookProfile.insights?.comments
+  } : {};
+
   const targets = Object.entries(targetsRecord?.targets || {})
     .map(([name, raw]) => {
-      const effective = name === 'followers' && liveFollowers !== null
-        ? { ...raw, current: liveFollowers }
-        : raw;
+      let effective = raw;
+      if (name === 'followers' && liveFollowers !== null) {
+        effective = { ...raw, current: liveFollowers };
+      } else if (Object.prototype.hasOwnProperty.call(facebookLive, name)) {
+        const liveValue = Number(facebookLive[name]);
+        if (Number.isFinite(liveValue)) effective = { ...raw, current: liveValue };
+      }
       return normalizeTarget(name, effective, now);
     });
 
@@ -178,6 +190,12 @@ export function buildKpiContext({
         username: facebookProfile.username || null,
         name: facebookProfile.name || null,
         followers: facebookProfile.followers ?? null,
+        reach: facebookProfile.insights?.reach ?? null,
+        views: facebookProfile.insights?.views ?? null,
+        interactions: facebookProfile.insights?.interactions ?? null,
+        comments: facebookProfile.insights?.comments ?? null,
+        shares: facebookProfile.insights?.shares ?? null,
+        analyzedPosts: facebookProfile.insights?.analyzedPosts ?? null,
         syncedAt: facebookRecord?.synced_at || facebookRecord?.syncedAt || null
       } : null
     },
@@ -232,7 +250,7 @@ export function formatKpiContext(context = {}) {
       ? `- Instagram @${socialInstagram.username || 'inconnu'} : ${socialInstagram.followers ?? 'n/a'} abonnés, ${socialInstagram.profileViews ?? 'n/a'} visites profil, reach ${socialInstagram.reach ?? 'n/a'}, ${socialInstagram.mediaCount ?? 'n/a'} médias`
       : '- Instagram : non synchronisé.',
     socialFacebook
-      ? `- Facebook ${socialFacebook.name || socialFacebook.username || 'Page'} : ${socialFacebook.followers ?? 'n/a'} abonnés`
+      ? `- Facebook ${socialFacebook.name || socialFacebook.username || 'Page'} : ${socialFacebook.followers ?? 'n/a'} abonnés, reach ${socialFacebook.reach ?? 'n/a'}, vues ${socialFacebook.views ?? 'n/a'}, interactions ${socialFacebook.interactions ?? 'n/a'}, commentaires ${socialFacebook.comments ?? 'n/a'} sur ${socialFacebook.analyzedPosts ?? 'n/a'} posts analysés`
       : '- Facebook : non synchronisé.',
     '',
     'AGRÉGATS DES CONTENUS RÉELS',
