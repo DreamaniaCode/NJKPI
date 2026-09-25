@@ -1986,3 +1986,96 @@ textarea.form-control { resize: vertical; }
     width: 100%;
   }
 }
+
+
+/* ── Professional strategy planner ─────────────────────────────── */
+.pro-strategy-panel {
+  margin: 0 0 22px;
+  padding: 20px;
+  border: 1px solid #cfe0ff;
+  border-radius: 16px;
+  background:
+    radial-gradient(circle at top right, rgba(23,70,209,.09), transparent 32%),
+    linear-gradient(180deg, #f8fbff 0%, #ffffff 100%);
+  box-shadow: 0 8px 30px rgba(18, 49, 115, .06);
+}
+
+.pro-strategy-panel__copy {
+  max-width: 820px;
+}
+
+.pro-strategy-panel__copy h2 {
+  margin: 4px 0 7px;
+  font-size: 20px;
+  color: var(--ink);
+}
+
+.pro-strategy-panel__copy p {
+  margin: 0;
+  color: var(--muted);
+  font-size: 11px;
+  line-height: 1.65;
+}
+
+.pro-strategy-panel__controls {
+  display: grid;
+  grid-template-columns: 150px minmax(260px, 1fr) auto;
+  gap: 12px;
+  align-items: end;
+  margin-top: 17px;
+}
+
+.pro-strategy-panel__controls label {
+  display: grid;
+  gap: 5px;
+  color: var(--ink);
+  font-size: 10px;
+  font-weight: 800;
+}
+
+.pro-strategy-panel__controls .btn {
+  min-height: 42px;
+  white-space: nowrap;
+}
+
+.pro-strategy-panel__features {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 13px;
+}
+
+.pro-strategy-panel__features span {
+  padding: 5px 8px;
+  border: 1px solid #dce7fb;
+  border-radius: 999px;
+  background: #fff;
+  color: #31558c;
+  font-size: 9px;
+  font-weight: 750;
+}
+
+@media (max-width: 900px) {
+  .pro-strategy-panel__controls {
+    grid-template-columns: 1fr 1fr;
+  }
+
+  .pro-strategy-panel__controls .btn {
+    grid-column: 1 / -1;
+  }
+}
+
+@media (max-width: 640px) {
+  .pro-strategy-panel {
+    padding: 15px;
+  }
+
+  .pro-strategy-panel__controls {
+    grid-template-columns: 1fr;
+  }
+
+  .pro-strategy-panel__controls .btn {
+    grid-column: auto;
+    width: 100%;
+  }
+}
