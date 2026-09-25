@@ -527,7 +527,7 @@ async function resolveCloudflareAccountId(apiToken) {
   );
 }
 
-async function fetchAiWithTimeout(url, options = {}, timeoutMs = Number(process.env.AI_REQUEST_TIMEOUT_MS || 45000)) {
+async function fetchAiWithTimeout(url, options = {}, timeoutMs = Number(process.env.AI_REQUEST_TIMEOUT_MS || 75000)) {
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), Math.max(5000, timeoutMs));
 
@@ -580,6 +580,19 @@ export async function generateEditorialOutput({
   // Construction du prompt utilisateur avec règles strictes par format
   const userPrompt = buildUserPrompt(briefData, context);
 
+  // Les plans stratégiques sont beaucoup plus lourds qu'un post simple :
+  // analyse de données + calendrier multi-jours + captions/scripts + JSON structuré.
+  // Le précédent plafond universel de 45 s faisait donc échouer tous les providers.
+  const isProfessionalPlan = /planning stratégique|plan social media professionnel/i.test(
+    String(briefData?.format || '') + ' ' + String(briefData?.topic || '')
+  );
+  const requestTimeoutMs = isProfessionalPlan
+    ? Number(process.env.AI_PLAN_TIMEOUT_MS || 150000)
+    : Number(process.env.AI_REQUEST_TIMEOUT_MS || 75000);
+
+  const aiFetch = (url, options = {}, timeoutMs) =>
+    fetchAiWithTimeout(url, options, timeoutMs ?? requestTimeoutMs);
+
   if (isDemo) {
     const demoText = agentKey === 'planning-nidal'
       ? demoPlanningNidal(briefData, targetBrand)
@@ -605,7 +618,7 @@ export async function generateEditorialOutput({
     if (!model || model === 'free') model = 'openrouter/free';
 
     async function callOpenRouter(selectedModel) {
-      const res = await fetchAiWithTimeout(OPENROUTER_URL, {
+      const res = await aiFetch(OPENROUTER_URL, {
         method: 'POST',
         headers: {
           'Authorization': `Bearer ${apiKey}`,
@@ -669,7 +682,7 @@ export async function generateEditorialOutput({
   // 2. OPENAI
   if (provider === 'openai') {
     const model = (aiConfig.model || process.env.OPENAI_MODEL || 'gpt-4o-mini').trim();
-    const response = await fetchAiWithTimeout(OPENAI_URL, {
+    const response = await aiFetch(OPENAI_URL, {
       method: 'POST',
       headers: {
         Authorization: `Bearer ${apiKey}`,
@@ -707,7 +720,7 @@ export async function generateEditorialOutput({
 
     async function callGemini(selectedModel) {
       const geminiUrl = `https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(selectedModel)}:generateContent?key=${encodeURIComponent(apiKey)}`;
-      const response = await fetchAiWithTimeout(geminiUrl, {
+      const response = await aiFetch(geminiUrl, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -786,7 +799,7 @@ export async function generateEditorialOutput({
       process.env.ALIBABA_BASE_URL ||
       'https://dashscope-intl.aliyuncs.com/compatible-mode/v1'
     ).replace(/\/$/, '');
-    const response = await fetchAiWithTimeout(`${baseUrl}/chat/completions`, {
+    const response = await aiFetch(`${baseUrl}/chat/completions`, {
       method: 'POST',
       headers: {
         Authorization: `Bearer ${apiKey}`,
@@ -822,7 +835,7 @@ export async function generateEditorialOutput({
     const accountId = await resolveCloudflareAccountId(apiKey);
     const model = (aiConfig.model || process.env.CLOUDFLARE_MODEL || '@cf/qwen/qwen3.8-27b').trim();
     const baseUrl = `https://api.cloudflare.com/client/v4/accounts/${encodeURIComponent(accountId)}/ai/v1`;
-    const response = await fetchAiWithTimeout(`${baseUrl}/chat/completions`, {
+    const response = await aiFetch(`${baseUrl}/chat/completions`, {
       method: 'POST',
       headers: {
         Authorization: `Bearer ${apiKey}`,
@@ -856,7 +869,7 @@ export async function generateEditorialOutput({
   // 4. ANTHROPIC CLAUDE
   if (provider === 'anthropic') {
     const model = (aiConfig.model || 'claude-3-5-sonnet-20241022').trim();
-    const response = await fetchAiWithTimeout(ANTHROPIC_URL, {
+    const response = await aiFetch(ANTHROPIC_URL, {
       method: 'POST',
       headers: {
         'x-api-key': apiKey,
@@ -891,7 +904,7 @@ export async function generateEditorialOutput({
   // 5. GROQ
   if (provider === 'groq') {
     const model = (aiConfig.model || 'llama-3.3-70b-versatile').trim();
-    const response = await fetchAiWithTimeout(GROQ_URL, {
+    const response = await aiFetch(GROQ_URL, {
       method: 'POST',
       headers: {
         Authorization: `Bearer ${apiKey}`,
@@ -926,7 +939,7 @@ export async function generateEditorialOutput({
   // 6. DEEPSEEK
   if (provider === 'deepseek') {
     const model = (aiConfig.model || 'deepseek-chat').trim();
-    const response = await fetchAiWithTimeout(DEEPSEEK_URL, {
+    const response = await aiFetch(DEEPSEEK_URL, {
       method: 'POST',
       headers: {
         Authorization: `Bearer ${apiKey}`,
