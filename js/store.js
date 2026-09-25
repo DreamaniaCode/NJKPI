@@ -349,6 +349,25 @@ const NidalStore = (() => {
     const sumReach = contents.reduce((sum, c) => sum + (_number(c.resultats?.portee) || 0), 0);
     const sumInteractions = contents.reduce((sum, c) => sum + (getInteractions(c) || 0), 0);
 
+    const hasViews = contents.some(c => _number(c.resultats?.vues) !== null);
+    const hasComments = contents.some(c => _number(c.resultats?.commentaires) !== null);
+    const hasConversions = contents.some(c => _number(c.resultats?.conversions) !== null);
+    const hasReach = contents.some(c => _number(c.resultats?.portee) !== null);
+    const hasInteractions = contents.some(c => getInteractions(c) !== null);
+    const latestContentSync = contents
+      .map(c => c.lastSyncedAt || c.data?.lastSyncedAt || null)
+      .filter(Boolean)
+      .sort()
+      .at(-1) || null;
+
+    // Les valeurs ACTUELLES des KPI de performance doivent venir des contenus
+    // réellement synchronisés, jamais des valeurs d'exemple ou d'un ancien appareil.
+    if (hasViews) merged.views = { ...(merged.views || fallback.views), current: sumViews, source: 'content-sync', syncedAt: latestContentSync };
+    if (hasComments) merged.comments = { ...(merged.comments || fallback.comments), current: sumComments, source: 'content-sync', syncedAt: latestContentSync };
+    if (hasConversions) merged.conversions = { ...(merged.conversions || fallback.conversions), current: sumConversions, source: 'content-sync', syncedAt: latestContentSync };
+    if (hasReach) merged.reach = { ...(merged.reach || fallback.reach), current: sumReach, source: 'content-sync', syncedAt: latestContentSync };
+    if (hasInteractions) merged.interactions = { ...(merged.interactions || fallback.interactions), current: sumInteractions, source: 'content-sync', syncedAt: latestContentSync };
+
     const enrich = (key, metric) => {
       const cur = _number(metric.current) ?? 0;
       const tgt = _number(metric.target) ?? 1;
