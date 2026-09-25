@@ -536,9 +536,15 @@ async function fetchAiWithTimeout(url, options = {}, timeoutMs = Number(process.
   } catch (error) {
     if (error?.name === 'AbortError') {
       throw new Error(
-        `Le fournisseur IA n'a pas répondu dans les ${Math.round(timeoutMs / 1000)} secondes. ` +
-        'La tâche d’analyse reste protégée du timeout HTTP grâce au mode arrière-plan. Essayez un modèle plus rapide si cela se reproduit.'
+        `Le serveur n'a reçu aucune réponse HTTP du fournisseur IA dans les ${Math.round(timeoutMs / 1000)} secondes. ` +
+        'Vérifiez la connectivité sortante HTTPS/DNS du conteneur Coolify. La tâche reste protégée par le mode arrière-plan.'
       );
+    }
+
+    const networkCode = error?.cause?.code || error?.code || '';
+    const networkMessage = error?.cause?.message || error?.message || String(error);
+    if (networkCode) {
+      throw new Error(`Connexion réseau vers le fournisseur IA impossible (${networkCode}) : ${networkMessage}`);
     }
     throw error;
   } finally {
@@ -600,10 +606,20 @@ export async function generateEditorialOutput({
     else if (provider === 'cloudflare') apiKey = (process.env.CLOUDFLARE_API_TOKEN || '').trim();
   }
 
-  const isDemo = provider === 'demo' || !apiKey || process.env.DEMO_MODE === 'true';
+  const isProviderTest = aiConfig?.testMode === true;
+  if (isProviderTest && provider !== 'demo' && !apiKey) {
+    throw new Error(`Clé API absente pour le fournisseur ${provider}.`);
+  }
 
-  // Construction du prompt utilisateur avec règles strictes par format
-  const userPrompt = buildUserPrompt(briefData, context);
+  const isDemo = provider === 'demo'
+    || (!apiKey && !isProviderTest)
+    || (process.env.DEMO_MODE === 'true' && !isProviderTest);
+
+  // Le diagnostic fournisseur doit rester un vrai ping IA minimal : ne pas envoyer
+  // les milliers de tokens des prompts de marque pendant un simple test réseau.
+  const userPrompt = isProviderTest
+    ? 'Réponds exactement par OK, sans autre texte.'
+    : buildUserPrompt(briefData, context);
 
   // Les plans stratégiques sont beaucoup plus lourds qu'un post simple :
   // analyse de données + calendrier multi-jours + captions/scripts + JSON structuré.
@@ -611,7 +627,6 @@ export async function generateEditorialOutput({
   const isProfessionalPlan = /planning stratégique|plan social media professionnel/i.test(
     String(briefData?.format || '') + ' ' + String(briefData?.topic || '')
   );
-  const isProviderTest = aiConfig?.testMode === true;
   const requestTimeoutMs = isProviderTest
     ? 20000
     : isProfessionalPlan
@@ -638,7 +653,9 @@ export async function generateEditorialOutput({
     };
   }
 
-  const systemInstructions = agent.prompt;
+  const systemInstructions = isProviderTest
+    ? 'Test technique de connectivité. Réponds uniquement par OK.'
+    : agent.prompt;
 
   // 1. OPENROUTER
   if (provider === 'openrouter') {
