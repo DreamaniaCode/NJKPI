@@ -78,8 +78,10 @@ export async function listContents(brand) {
     const result = await query('SELECT id, brand_slug, data, final_url, external_media_id, platform, sync_status, last_synced_at, created_at, updated_at FROM contents WHERE ($1::text IS NULL OR brand_slug = $1) ORDER BY COALESCE(NULLIF(data->>\'datePublication\', \'\')::date, DATE \'9999-12-31\'), updated_at DESC', [brand || null]);
     return result.rows;
   } catch (error) {
-    console.warn('Fallback memoire listContents:', error.message);
-    return [...memory.contents.values()].filter(item => !brand || item.brand_slug === brand);
+    // Si DATABASE_URL existe, retourner la mémoire masque une panne PostgreSQL
+    // et donne des données différentes selon l'appareil / le conteneur.
+    console.error('PostgreSQL listContents indisponible:', error.message);
+    throw new Error(`Base PostgreSQL indisponible: ${error.message}`);
   }
 }
 
@@ -120,8 +122,8 @@ export async function upsertContent(content) {
     );
     return result.rows[0];
   } catch (error) {
-    console.warn('Fallback memoire upsertContent:', error.message);
-    return record;
+    console.error('PostgreSQL upsertContent indisponible:', error.message);
+    throw new Error(`Enregistrement PostgreSQL impossible: ${error.message}`);
   }
 }
 
@@ -132,8 +134,8 @@ export async function deleteContent(id) {
     const result = await query('DELETE FROM contents WHERE id = $1', [id]);
     return result.rowCount > 0;
   } catch (error) {
-    console.warn('Fallback memoire deleteContent:', error.message);
-    return true;
+    console.error('PostgreSQL deleteContent indisponible:', error.message);
+    throw new Error(`Suppression PostgreSQL impossible: ${error.message}`);
   }
 }
 
