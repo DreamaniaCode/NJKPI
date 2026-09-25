@@ -7,6 +7,85 @@ const AgentView = (() => {
   })();
 
   const AI_CONFIG_KEY = 'nidal_ai_settings';
+  const BRIEF_DRAFT_KEY = 'nidal_agent_brief_drafts';
+
+  function _loadBriefDrafts() {
+    try {
+      return JSON.parse(localStorage.getItem(BRIEF_DRAFT_KEY) || '{}') || {};
+    } catch {
+      return {};
+    }
+  }
+
+  function _persistBriefDraft(agentKey, brief) {
+    const drafts = _loadBriefDrafts();
+    drafts[agentKey] = { ...(brief || {}), savedAt: new Date().toISOString() };
+    localStorage.setItem(BRIEF_DRAFT_KEY, JSON.stringify(drafts));
+  }
+
+  function _setAgentProgress({ visible = true, percent = 0, title = '', detail = '', state = 'running' } = {}) {
+    const box = document.getElementById('agent-task-progress');
+    if (!box) return;
+    box.hidden = !visible;
+    box.dataset.state = state;
+    const pct = Math.max(0, Math.min(100, Number(percent) || 0));
+    const bar = document.getElementById('agent-task-progress-bar');
+    const pctEl = document.getElementById('agent-task-progress-percent');
+    const titleEl = document.getElementById('agent-task-progress-title');
+    const detailEl = document.getElementById('agent-task-progress-detail');
+    if (bar) bar.style.width = pct + '%';
+    if (pctEl) pctEl.textContent = pct + '%';
+    if (titleEl) titleEl.textContent = title;
+    if (detailEl) detailEl.textContent = detail;
+  }
+
+  function _startAgentProgress(kind = 'content', days = 30) {
+    const planSteps = [
+      [8, 'Préparation de l’analyse', 'Chargement des contenus, KPI et données disponibles…'],
+      [20, 'Analyse des contenus publiés', 'Formats, fréquence, sujets et performances sont comparés.'],
+      [34, 'Analyse des KPI sociaux', 'Instagram et Facebook sont étudiés séparément.'],
+      [48, 'Analyse Audience & Conversions', 'Segmentation, signaux de conversion et données disponibles sont croisés.'],
+      [62, 'Analyse Meta Ads', 'Dépenses, reach, impressions, clics, CTR, CPC et actions sont examinés.'],
+      [74, 'Détection des manques', 'L’agent identifie les trous éditoriaux et les priorités.'],
+      [86, 'Construction du planning', `Création d’un calendrier précis sur ${days} jours.`],
+      [94, 'Rédaction des livrables', 'Captions, scripts vidéo, prompts visuels, CTA et KPI sont finalisés.']
+    ];
+    const contentSteps = [
+      [12, 'Lecture du brief', 'Le sujet, le format et la plateforme sont vérifiés.'],
+      [35, 'Recherche de l’angle éditorial', 'L’agent structure le message et le hook.'],
+      [58, 'Rédaction du contenu', 'Caption, CTA et hashtags sont préparés.'],
+      [78, 'Création du visuel / script', 'Prompt image ou script vidéo détaillé en cours.'],
+      [92, 'Contrôle final', 'Cohérence, marque et qualité du contenu sont vérifiées.']
+    ];
+    const steps = kind === 'plan' ? planSteps : contentSteps;
+    let index = 0;
+    _setAgentProgress({
+      visible: true,
+      percent: steps[0][0],
+      title: steps[0][1],
+      detail: steps[0][2],
+      state: 'running'
+    });
+    const timer = window.setInterval(() => {
+      if (index < steps.length - 1) index += 1;
+      const step = steps[index];
+      _setAgentProgress({ visible: true, percent: step[0], title: step[1], detail: step[2], state: 'running' });
+    }, kind === 'plan' ? 2600 : 1800);
+
+    return {
+      success(message = 'Terminé avec succès') {
+        window.clearInterval(timer);
+        _setAgentProgress({ visible: true, percent: 100, title: '✓ ' + message, detail: 'Le résultat est prêt ci-dessous.', state: 'success' });
+      },
+      error(message = 'Une erreur est survenue') {
+        window.clearInterval(timer);
+        _setAgentProgress({ visible: true, percent: 100, title: 'Échec de l’opération', detail: message, state: 'error' });
+      },
+      stop() {
+        window.clearInterval(timer);
+      }
+    };
+  }
 
   function _selectAgent(agentKey, { renderNow = true } = {}) {
     if (!['studio-junior', 'planning-nidal'].includes(agentKey)) return;
@@ -205,6 +284,13 @@ const AgentView = (() => {
     }
   };
 
+  {
+    const drafts = _loadBriefDrafts();
+    for (const key of ['studio-junior', 'planning-nidal']) {
+      if (drafts[key]) _state[key].brief = { ..._state[key].brief, ...drafts[key] };
+    }
+  }
+
   let _initialized = false;
 
   async function initData() {
@@ -389,6 +475,19 @@ const AgentView = (() => {
         </div>
       </section>
 
+      <section class="agent-task-progress" id="agent-task-progress" data-state="running" hidden aria-live="polite">
+        <div class="agent-task-progress__head">
+          <div>
+            <span class="section-kicker">Traitement IA en cours</span>
+            <strong id="agent-task-progress-title">Préparation…</strong>
+          </div>
+          <b id="agent-task-progress-percent">0%</b>
+        </div>
+        <div class="agent-task-progress__track"><i id="agent-task-progress-bar"></i></div>
+        <p id="agent-task-progress-detail">Veuillez patienter pendant l’analyse.</p>
+        <small>Vous pouvez laisser cette page ouverte : le résultat apparaîtra automatiquement dès qu’il sera prêt.</small>
+      </section>
+
       <section class="agent-layout">
         <!-- Formulaire de brief -->
         <form class="agent-brief agent-brief--simple" id="editorial-form">
@@ -474,9 +573,14 @@ const AgentView = (() => {
             </div>
           </details>
 
-          <button class="btn btn--primary btn--block agent-generate-btn" type="submit" ${online ? '' : 'disabled'}>
-            ${online ? '✨ Générer le contenu' : 'Connecter le serveur pour générer'}
-          </button>
+          <div class="agent-form-actions">
+            <button class="btn btn--secondary" type="button" id="btn-save-brief-draft">
+              💾 Sauvegarder le brouillon
+            </button>
+            <button class="btn btn--primary agent-generate-btn" type="submit" ${online ? '' : 'disabled'}>
+              ${online ? '✨ Générer le contenu' : 'Connecter le serveur pour générer'}
+            </button>
+          </div>
         </form>
         <!-- Sortie et propositions -->
         <section class="agent-output">
@@ -488,7 +592,7 @@ const AgentView = (() => {
             </div>
             <div>
               <button class="btn btn--secondary btn--sm" id="btn-copy-all" ${gen ? '' : 'disabled'}>Copier tout</button>
-              <button class="btn btn--secondary btn--sm" id="btn-save-draft" ${gen ? '' : 'disabled'}>💾 Brouillon</button>
+              <button class="btn btn--secondary btn--sm" id="btn-save-draft" ${gen ? '' : 'disabled'}>💾 Enregistrer brouillon</button>
               <button class="btn btn--primary btn--sm" id="btn-save-planning" ${gen ? '' : 'disabled'}>📅 Au planning</button>
               <button class="btn btn--outline btn--sm" id="btn-transfer-agent" ${gen ? '' : 'disabled'}>
                 ${isJunior ? '➡️ Vers Planning GS' : '➡️ Vers Studio Junior'}
@@ -1120,10 +1224,21 @@ const AgentView = (() => {
             ..._state[_activeAgentKey].brief,
             ..._readFormInputs()
           };
+          _persistBriefDraft(_activeAgentKey, _state[_activeAgentKey].brief);
         } catch {}
       };
       form.addEventListener('input', persistBrief);
       form.addEventListener('change', persistBrief);
+    }
+
+    const btnSaveBriefDraft = document.getElementById('btn-save-brief-draft');
+    if (btnSaveBriefDraft) {
+      btnSaveBriefDraft.onclick = () => {
+        const inputs = _readFormInputs();
+        _state[_activeAgentKey].brief = { ..._state[_activeAgentKey].brief, ...inputs };
+        _persistBriefDraft(_activeAgentKey, _state[_activeAgentKey].brief);
+        showToast('Brouillon sauvegardé. Vous pourrez reprendre ce brief plus tard, même après avoir quitté la page.', 'success', 5500);
+      };
     }
 
     // Actions
@@ -1354,6 +1469,8 @@ const AgentView = (() => {
     const original = button.textContent;
     button.disabled = true;
     button.textContent = 'Analyse des données en cours…';
+    const progress = _startAgentProgress('plan', days);
+    showToast('Analyse lancée. NJKPI examine maintenant vos contenus, KPI, Audience, Conversions et Meta Ads.', 'info', 6000);
 
     try {
       const response = await NidalAPI.generateProfessionalPlan({
@@ -1375,12 +1492,14 @@ const AgentView = (() => {
       _state[agentKey].activeTab = 'analysis';
       _state[agentKey].history.unshift(response);
 
+      progress.success('Analyse terminée');
       render();
-      showToast(`Plan professionnel de ${days} jours créé à partir des données NJKPI.`, 'success');
+      showToast(`Analyse terminée : plan professionnel de ${days} jours créé avec les données NJKPI. Vous pouvez maintenant relire, modifier puis valider les contenus.`, 'success', 6500);
     } catch (error) {
+      progress.error(error.message);
       button.disabled = false;
       button.textContent = original;
-      showToast('Création du plan impossible : ' + error.message, 'error');
+      showToast('Création du plan impossible : ' + error.message, 'error', 7500);
     }
   }
 
@@ -1395,6 +1514,8 @@ const AgentView = (() => {
     btn.textContent = 'Création en cours par l’agent...';
 
     const aiConfig = getAiConfig();
+    const progress = _startAgentProgress('content');
+    showToast('Création lancée. L’agent prépare le contenu, le visuel ou le script demandé.', 'info', 5000);
 
     try {
       const response = await NidalAPI.generateEditorial({
@@ -1411,16 +1532,20 @@ const AgentView = (() => {
       _state[_activeAgentKey].showRevision = false;
       _state[_activeAgentKey].history.unshift(response);
 
+      progress.success('Contenu généré');
       if (response.savedContent) {
         NidalStore.create(response.savedContent.data || response.savedContent);
-        showToast('Proposition créée et enregistrée automatiquement dans l’application !', 'success');
+        showToast('Contenu créé avec succès et enregistré automatiquement. Vous pouvez maintenant le modifier, l’enregistrer en brouillon ou l’ajouter au planning.', 'success', 6500);
       } else {
-        showToast(response.isDemo ? 'Proposition de démonstration préparée' : 'Proposition officielle générée', 'success');
+        showToast(response.isDemo
+          ? 'Proposition de démonstration prête. Vous pouvez maintenant la modifier.'
+          : 'Contenu généré avec succès. Relisez-le, modifiez-le si nécessaire puis enregistrez-le en brouillon ou au planning.', 'success', 6500);
       }
 
       render();
     } catch (err) {
-      showToast(err.message, 'error');
+      progress.error(err.message);
+      showToast('Génération impossible : ' + err.message, 'error', 7500);
       btn.disabled = false;
       btn.textContent = 'Générer avec l’Agent';
     }
@@ -1667,7 +1792,7 @@ const AgentView = (() => {
     const saved = result?.content?.data || result?.content || structured;
     if (result?.content) NidalStore.create(saved);
     item._savedContentId = result?.content?.id || saved.id || true;
-    if (!silent) showToast(`« ${structured.titre} » ajouté au planning et validé.`, 'success');
+    if (!silent) showToast(`Succès : « ${structured.titre} » est validé et ajouté au planning.`, 'success', 5500);
     return item._savedContentId;
   }
 
@@ -1718,7 +1843,13 @@ const AgentView = (() => {
       }
 
       gen.status = status;
-      showToast(status === 'planifie' ? 'Contenu ajouté au planning !' : 'Contenu enregistré comme brouillon !', 'success');
+      showToast(
+        status === 'planifie'
+          ? 'Succès : le contenu a été ajouté au planning. Vous pouvez maintenant choisir sa date, le programmer ou le publier.'
+          : 'Succès : le brouillon a été sauvegardé dans la base et reste disponible pour modification.',
+        'success',
+        6000
+      );
       render();
     } catch (err) {
       showToast(err.message, 'error');
