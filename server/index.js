@@ -897,6 +897,16 @@ async function buildProfessionalPlan(body = {}, onProgress = () => {}) {
     const horizon = [7, 14, 30].includes(Number(days)) ? Number(days) : 30;
     const planAiConfig = { ...aiConfig, planMode: true };
 
+    // Le plan Cloudflare utilise réellement Llama Fast en première intention :
+    // refléter ce choix dans le job et dans les lots suivants, au lieu d'afficher
+    // Qwen alors qu'il n'est pas envoyé en premier.
+    if (
+      String(planAiConfig.provider || '').toLowerCase() === 'cloudflare'
+      && String(planAiConfig.model || '') === '@cf/qwen/qwen3.8-27b'
+    ) {
+      planAiConfig.model = '@cf/meta/llama-3.3-70b-instruct-fp8-fast';
+    }
+
     reportProgress(
       10,
       'Collecte des données NJKPI',
