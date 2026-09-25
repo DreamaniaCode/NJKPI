@@ -14,7 +14,7 @@ import {
   saveAudienceSnapshot, listAudienceSnapshots,
   savePublishJob, listPublishJobs, listDuePublishJobs
 } from './repository.js';
-import { metaConfigured, syncContentFromUrl, syncAds, syncSocialProfiles, syncAudienceConversions, publishSocialJob } from './services/meta.js';
+import { metaConfigured, syncContentFromUrl, syncAds, syncSocialProfiles, syncAudienceConversions, publishSocialJob, diagnoseMetaAccess } from './services/meta.js';
 import { normalizeUploadedMedia } from './services/media.js';
 import { getMetaLiveCache, setMetaLiveCache, isMetaLiveCacheFresh } from './services/meta-live.js';
 import { getAudienceCache, setAudienceCache, isAudienceCacheFresh } from './services/audience-cache.js';
@@ -595,6 +595,13 @@ app.get('/api/audience-conversions', async (req, res, next) => {
     await saveAudienceSnapshot(brand, payload);
     const cached = setAudienceCache(brand, payload);
     res.json({ ok: true, cached: false, ...cached });
+  } catch (error) { next(error); }
+});
+
+app.get('/api/meta/diagnostics', async (req, res, next) => {
+  try {
+    const brand = req.query.brand === 'nidal' ? 'nidal' : 'nidal-junior';
+    res.json(await diagnoseMetaAccess(brand));
   } catch (error) { next(error); }
 });
 
