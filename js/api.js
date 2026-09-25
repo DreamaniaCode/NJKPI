@@ -47,19 +47,59 @@ const NidalAPI = (() => {
     return payload;
   }
 
+  async function _convertStillImageToJpeg(file) {
+    const type = String(file?.type || '').toLowerCase();
+    if (!['image/png', 'image/webp', 'image/gif'].includes(type)) return file;
+
+    let bitmap;
+    try {
+      bitmap = await createImageBitmap(file);
+    } catch {
+      throw new Error('Cette image ne peut pas être convertie automatiquement. Utilisez JPG/JPEG.');
+    }
+
+    const maxSide = 4096;
+    const scale = Math.min(1, maxSide / Math.max(bitmap.width, bitmap.height));
+    const width = Math.max(1, Math.round(bitmap.width * scale));
+    const height = Math.max(1, Math.round(bitmap.height * scale));
+    const canvas = document.createElement('canvas');
+    canvas.width = width;
+    canvas.height = height;
+    const ctx = canvas.getContext('2d');
+    if (!ctx) throw new Error('Conversion image indisponible dans ce navigateur.');
+
+    // JPEG ne gère pas la transparence : fond blanc neutre.
+    ctx.fillStyle = '#ffffff';
+    ctx.fillRect(0, 0, width, height);
+    ctx.drawImage(bitmap, 0, 0, width, height);
+    bitmap.close?.();
+
+    const blob = await new Promise((resolve, reject) => {
+      canvas.toBlob(result => result ? resolve(result) : reject(new Error('Conversion JPEG impossible.')), 'image/jpeg', 0.92);
+    });
+
+    const baseName = String(file.name || 'image').replace(/\.[^.]+$/, '');
+    return new File([blob], `${baseName}.jpg`, { type: 'image/jpeg', lastModified: Date.now() });
+  }
+
   async function uploadMedia(file) {
     if (!file) throw new Error('Sélectionnez un fichier.');
+
+    const originalType = String(file.type || '').toLowerCase();
+    const normalizedFile = await _convertStillImageToJpeg(file);
+    const wasConverted = normalizedFile !== file;
+
     const config = getConfig();
     const headers = {
-      'Content-Type': file.type || 'application/octet-stream',
-      'X-File-Name': encodeURIComponent(file.name || 'media')
+      'Content-Type': normalizedFile.type || 'application/octet-stream',
+      'X-File-Name': encodeURIComponent(normalizedFile.name || 'media')
     };
     Object.assign(headers, getAuthHeaders());
 
     const response = await fetch(`${config.baseUrl}/api/uploads`, {
       method: 'POST',
       headers,
-      body: file
+      body: normalizedFile
     });
     const text = await response.text();
     let payload;
@@ -73,7 +113,38 @@ const NidalAPI = (() => {
       }
       throw new Error(payload.error || `Upload ${response.status}`);
     }
-    return payload;
+    return {
+      ...payload,
+      convertedForMeta: wasConverted,
+      originalMime: originalType || null,
+      mime: payload.mime || normalizedFile.type
+    };
+  }
+
+  async function ensureInstagramCompatibleImage(mediaUrl, mediaType = 'image') {
+    const type = String(mediaType || '').toLowerCase();
+    if (!mediaUrl || type === 'video' || type === 'reel') return { url: mediaUrl, converted: false };
+
+    let parsed;
+    try { parsed = new URL(mediaUrl, window.location.origin); }
+    catch { return { url: mediaUrl, converted: false }; }
+
+    if (/\.(jpe?g)$/i.test(parsed.pathname)) return { url: mediaUrl, converted: false };
+    if (!/\.(png|webp|gif)$/i.test(parsed.pathname)) return { url: mediaUrl, converted: false };
+
+    // Conversion automatique des anciens médias NJKPI déjà uploadés.
+    // Pour une URL externe sans CORS, on demande simplement un nouvel upload.
+    try {
+      const response = await fetch(parsed.toString(), { credentials: parsed.origin === window.location.origin ? 'same-origin' : 'omit' });
+      if (!response.ok) throw new Error(`HTTP ${response.status}`);
+      const blob = await response.blob();
+      const originalName = parsed.pathname.split('/').pop() || 'image';
+      const file = new File([blob], originalName, { type: blob.type || 'image/png' });
+      const uploaded = await uploadMedia(file);
+      return { url: uploaded.url || mediaUrl, converted: Boolean(uploaded.convertedForMeta), upload: uploaded };
+    } catch {
+      throw new Error('Instagram exige une image JPG/JPEG. Réuploadez cette image avec le bouton Photo / vidéo : NJKPI la convertira automatiquement.');
+    }
   }
 
   async function init() {
@@ -110,7 +181,7 @@ const NidalAPI = (() => {
   const deleteEditorialGeneration = id => request(`/api/editorial/generations/${encodeURIComponent(id)}?confirm=true`, { method: 'DELETE' });
 
   return {
-    init, isOnline, getHealth, getConfig, saveConfig, request, uploadMedia,
+    init, isOnline, getHealth, getConfig, saveConfig, request, uploadMedia, ensureInstagramCompatibleImage,
     listContents, upsertContent, deleteContent, syncContent,
     generate, listAds, syncAds, getKpiTargets, saveKpiTargets, getSocialProfiles, getSocialLive, getAudienceConversions, getAudienceHistory,
     listPublishJobs, createPublishJob, runPublishJob,
