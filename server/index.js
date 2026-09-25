@@ -1327,6 +1327,15 @@ app.delete('/api/editorial/generations/:id', async (req, res, next) => {
   } catch (error) { next(error); }
 });
 
+// Une route /api inconnue ne doit jamais tomber sur index.html : le client
+// attend du JSON et doit recevoir une erreur exploitable, même pendant un déploiement.
+app.use('/api', (req, res) => {
+  res.status(404).json({
+    error: `Route API introuvable: ${req.method} ${req.originalUrl}`,
+    code: 'API_ROUTE_NOT_FOUND'
+  });
+});
+
 app.use((req, res, next) => {
   if (/^\/(?:server\/|package\.json$|Dockerfile$|\.env)/.test(req.path)) return res.sendStatus(404);
   if (req.path.endsWith('.html') || req.path.endsWith('.js') || req.path.endsWith('.css') || req.path === '/') {
