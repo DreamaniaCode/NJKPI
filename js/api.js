@@ -39,12 +39,53 @@ const NidalAPI = (() => {
     const config = getConfig();
     const headers = { 'Content-Type': 'application/json', ...(options.headers || {}) };
     if (auth) Object.assign(headers, getAuthHeaders());
-    const response = await fetch(`${config.baseUrl}${path}`, { cache: 'no-store', ...options, headers });
-    const text = await response.text();
-    let payload;
-    try { payload = text ? JSON.parse(text) : {}; } catch { throw new Error('Le serveur API ne renvoie pas du JSON'); }
-    if (!response.ok) throw new Error(payload.error || `API ${response.status}`);
-    return payload;
+
+    const isAiRequest = /^\/api\/(?:editorial|agent)\//.test(path);
+    const attempts = isAiRequest ? 2 : 1;
+    let lastError = null;
+
+    for (let attempt = 1; attempt <= attempts; attempt++) {
+      try {
+        const response = await fetch(`${config.baseUrl}${path}`, { cache: 'no-store', ...options, headers });
+        const text = await response.text();
+        let payload = null;
+
+        try {
+          payload = text ? JSON.parse(text) : {};
+        } catch {
+          const contentType = String(response.headers.get('content-type') || '');
+          const preview = String(text || '').replace(/\s+/g, ' ').slice(0, 180);
+          const proxyLike = [502, 503, 504].includes(response.status) || /text\/html/i.test(contentType);
+
+          if (proxyLike && attempt < attempts) {
+            await new Promise(resolve => setTimeout(resolve, 1200));
+            continue;
+          }
+
+          const hint = proxyLike
+            ? `Le proxy/serveur a répondu HTTP ${response.status} avec une page HTML au lieu de JSON. Cela arrive souvent lors d'un timeout ou d'un redémarrage du conteneur.`
+            : `Réponse API non JSON (HTTP ${response.status}, ${contentType || 'type inconnu'}).`;
+
+          throw new Error(preview ? `${hint} Début de réponse : ${preview}` : hint);
+        }
+
+        if (!response.ok) {
+          const message = payload?.error || payload?.message || `API ${response.status}`;
+          if ([502, 503, 504].includes(response.status) && attempt < attempts) {
+            await new Promise(resolve => setTimeout(resolve, 1200));
+            continue;
+          }
+          throw new Error(message);
+        }
+
+        return payload;
+      } catch (error) {
+        lastError = error;
+        if (attempt >= attempts) throw error;
+      }
+    }
+
+    throw lastError || new Error('Erreur API inconnue');
   }
 
 
