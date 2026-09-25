@@ -16,7 +16,8 @@ const AgentView = (() => {
     percent: 0,
     title: '',
     detail: '',
-    state: 'idle'
+    state: 'idle',
+    kind: ''
   };
 
   function _loadBriefDrafts() {
@@ -71,7 +72,8 @@ const AgentView = (() => {
         percent: 5,
         title: 'Initialisation de l’analyse',
         detail: `Préparation du plan professionnel sur ${days} jours…`,
-        state: 'running'
+        state: 'running',
+        kind: 'plan'
       });
 
       return {
@@ -131,7 +133,8 @@ const AgentView = (() => {
       percent: contentSteps[0][0],
       title: contentSteps[0][1],
       detail: contentSteps[0][2],
-      state: 'running'
+      state: 'running',
+      kind: 'content'
     });
     const timer = window.setInterval(() => {
       if (index < contentSteps.length - 1) index += 1;
@@ -773,6 +776,16 @@ const AgentView = (() => {
 
     _bindEvents();
     _setAgentProgress(_taskProgressState);
+
+    // Si la vue a été reconstruite pendant un plan en cours, le nouveau bouton
+    // doit rester verrouillé et refléter l'étape réelle du job.
+    if (_taskProgressState.kind === 'plan' && _taskProgressState.state === 'running') {
+      const livePlanButton = document.getElementById('btn-pro-plan');
+      if (livePlanButton) {
+        livePlanButton.disabled = true;
+        livePlanButton.textContent = _taskProgressState.title || 'Analyse en cours…';
+      }
+    }
   }
 
   function _formatOptionsHtml(agentKey, selected) {
