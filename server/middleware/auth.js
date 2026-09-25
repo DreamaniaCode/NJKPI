@@ -376,41 +376,95 @@ export async function listUsers() {
  * Crée un nouvel utilisateur.
  */
 export async function createUser({ username, password, email, role = 'viewer', display_name }) {
+  const normalizedUsername = String(username || '').trim();
+  const normalizedEmail = String(email || '').trim() || null;
+  const normalizedDisplayName = String(display_name || '').trim() || null;
+
+  if (!normalizedUsername || !password) {
+    const error = new Error('Nom d’utilisateur et mot de passe requis');
+    error.statusCode = 400;
+    throw error;
+  }
+
+  if (!['admin', 'editor', 'viewer'].includes(role)) {
+    const error = new Error('Rôle utilisateur invalide');
+    error.statusCode = 400;
+    throw error;
+  }
+
   const hashedPass = hashPassword(password);
-  
+
   if (hasDatabase && isDbConnected()) {
     try {
+      const existingUsername = await query(
+        'SELECT id FROM users WHERE LOWER(username)=LOWER($1) LIMIT 1',
+        [normalizedUsername]
+      );
+      if (existingUsername.rows.length) {
+        const error = new Error('Ce nom d’utilisateur existe déjà');
+        error.statusCode = 409;
+        throw error;
+      }
+
+      if (normalizedEmail) {
+        const existingEmail = await query(
+          'SELECT id FROM users WHERE LOWER(email)=LOWER($1) LIMIT 1',
+          [normalizedEmail]
+        );
+        if (existingEmail.rows.length) {
+          const error = new Error('Cette adresse email est déjà utilisée');
+          error.statusCode = 409;
+          throw error;
+        }
+      }
+
       const res = await query(
         `INSERT INTO users (username, email, password_hash, role, display_name)
          VALUES ($1, $2, $3, $4, $5)
          RETURNING id, username, email, role, display_name, created_at, last_login`,
-        [username, email, hashedPass, role, display_name]
+        [normalizedUsername, normalizedEmail, hashedPass, role, normalizedDisplayName]
       );
       return res.rows[0];
     } catch (err) {
+      if (err?.statusCode) throw err;
+      if (err?.code === '23505') {
+        const error = new Error('Nom d’utilisateur ou email déjà utilisé');
+        error.statusCode = 409;
+        throw error;
+      }
       console.error('[Auth] Erreur lors de la création de l\'utilisateur :', err);
-      throw new Error('Impossible de créer l\'utilisateur');
+      const error = new Error('Impossible de créer l’utilisateur : erreur base de données');
+      error.statusCode = 500;
+      throw error;
     }
-  } else {
-    // Fallback
-    const existing = memoryUsers.find(u => u.username === username);
-    if (existing) throw new Error('Un utilisateur avec ce nom existe déjà');
-    
-    const newUser = {
-      id: memoryUserIdCounter++,
-      username,
-      email,
-      password_hash: hashedPass,
-      role,
-      display_name,
-      created_at: new Date(),
-      last_login: null
-    };
-    
-    memoryUsers.push(newUser);
-    const { password_hash, ...userWithoutPassword } = newUser;
-    return userWithoutPassword;
   }
+
+  const existing = memoryUsers.find(u => String(u.username).toLowerCase() === normalizedUsername.toLowerCase());
+  if (existing) {
+    const error = new Error('Ce nom d’utilisateur existe déjà');
+    error.statusCode = 409;
+    throw error;
+  }
+  if (normalizedEmail && memoryUsers.some(u => String(u.email || '').toLowerCase() === normalizedEmail.toLowerCase())) {
+    const error = new Error('Cette adresse email est déjà utilisée');
+    error.statusCode = 409;
+    throw error;
+  }
+
+  const newUser = {
+    id: memoryUserIdCounter++,
+    username: normalizedUsername,
+    email: normalizedEmail,
+    password_hash: hashedPass,
+    role,
+    display_name: normalizedDisplayName,
+    created_at: new Date(),
+    last_login: null
+  };
+
+  memoryUsers.push(newUser);
+  const { password_hash, ...userWithoutPassword } = newUser;
+  return userWithoutPassword;
 }
 
 /**
