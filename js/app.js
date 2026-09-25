@@ -35,6 +35,11 @@ const App = (() => {
     // 3. Synchronisation avec le serveur en arrière-plan (non-bloquante)
     try {
       await NidalAPI.init();
+      if (!NidalAPI.isPersistentOnline?.()) {
+        const health = NidalAPI.getHealth?.();
+        const detail = health?.database?.error ? ` — ${health.database.error}` : '';
+        showToast('Base PostgreSQL non connectée : la synchronisation entre appareils est impossible' + detail, 'error');
+      }
       await NidalStore.syncRemote();
       _startRemoteSyncPolling();
       _startMetaLivePolling();
@@ -55,7 +60,7 @@ const App = (() => {
 
     _remoteSyncTimer = window.setInterval(() => {
       refresh().catch(error => console.warn('Sync multi-appareils:', error.message));
-    }, 30000);
+    }, 10000);
 
     window.addEventListener('focus', () => {
       refresh().catch(() => {});
