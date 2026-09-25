@@ -537,7 +537,7 @@ async function fetchAiWithTimeout(url, options = {}, timeoutMs = Number(process.
     if (error?.name === 'AbortError') {
       throw new Error(
         `Le fournisseur IA n'a pas répondu dans les ${Math.round(timeoutMs / 1000)} secondes. ` +
-        'La requête a été arrêtée avant le timeout du proxy. Réessayez ou choisissez un autre modèle/fournisseur.'
+        'La tâche d’analyse reste protégée du timeout HTTP grâce au mode arrière-plan. Essayez un modèle plus rapide si cela se reproduit.'
       );
     }
     throw error;
@@ -587,8 +587,8 @@ export async function generateEditorialOutput({
     String(briefData?.format || '') + ' ' + String(briefData?.topic || '')
   );
   const requestTimeoutMs = isProfessionalPlan
-    ? Number(process.env.AI_PLAN_TIMEOUT_MS || 150000)
-    : Number(process.env.AI_REQUEST_TIMEOUT_MS || 75000);
+    ? Math.max(150000, Number(process.env.AI_PLAN_TIMEOUT_MS || 0))
+    : Math.max(75000, Number(process.env.AI_REQUEST_TIMEOUT_MS || 0));
 
   const aiFetch = (url, options = {}, timeoutMs) =>
     fetchAiWithTimeout(url, options, timeoutMs ?? requestTimeoutMs);
