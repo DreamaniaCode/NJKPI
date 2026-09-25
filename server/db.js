@@ -59,6 +59,39 @@ async function repairLegacyContentsSchema() {
     console.warn('Migration brand_slug NOT NULL différée:', error.message);
   }
 
+  // Les toutes premières versions de NJKPI avaient d'autres colonnes
+  // obligatoires (ex. titre) qui ne font plus partie du schéma JSON actuel.
+  // Si elles subsistent sans DEFAULT, PostgreSQL refuse les nouveaux INSERT.
+  const legacyRequired = await pool.query(`
+    SELECT column_name, data_type, udt_name
+    FROM information_schema.columns
+    WHERE table_schema='public'
+      AND table_name='contents'
+      AND is_nullable='NO'
+      AND column_default IS NULL
+      AND column_name NOT IN ('id','brand_slug')
+  `);
+
+  for (const column of legacyRequired.rows) {
+    const name = column.column_name;
+    // Les colonnes du schéma actuel sont alimentées explicitement.
+    if (['data','sync_status','created_at','updated_at'].includes(name)) continue;
+
+    let defaultSql = null;
+    if (['text','character varying','character'].includes(column.data_type)) defaultSql = "''";
+    else if (column.data_type === 'boolean') defaultSql = 'FALSE';
+    else if (['smallint','integer','bigint','numeric','real','double precision'].includes(column.data_type)) defaultSql = '0';
+    else if (column.data_type === 'json' || column.data_type === 'jsonb') defaultSql = "'{}'";
+    else if (column.data_type.includes('timestamp')) defaultSql = 'NOW()';
+    else if (column.data_type === 'date') defaultSql = 'CURRENT_DATE';
+
+    if (defaultSql) {
+      const safeName = '"' + String(name).replace(/"/g, '""') + '"';
+      await pool.query(`ALTER TABLE contents ALTER COLUMN ${safeName} SET DEFAULT ${defaultSql}`);
+      console.log(`Migration legacy contents: DEFAULT ajouté à ${name}`);
+    }
+  }
+
   await pool.query("CREATE INDEX IF NOT EXISTS contents_brand_idx ON contents (brand_slug, updated_at DESC)");
 }
 
