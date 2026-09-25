@@ -537,10 +537,13 @@ async function fetchAiWithTimeout(url, options = {}, timeoutMs = Number(process.
     return await fetch(url, { ...options, signal: controller.signal });
   } catch (error) {
     if (error?.name === 'AbortError') {
-      throw new Error(
-        `Le serveur n'a reçu aucune réponse HTTP du fournisseur IA dans les ${Math.round(timeoutMs / 1000)} secondes. ` +
-        'Vérifiez la connectivité sortante HTTPS/DNS du conteneur Coolify. La tâche reste protégée par le mode arrière-plan.'
+      const timeoutError = new Error(
+        `Le fournisseur IA n'a renvoyé aucun en-tête HTTP dans les ${Math.round(timeoutMs / 1000)} secondes.`
       );
+      timeoutError.code = 'AI_REQUEST_TIMEOUT';
+      timeoutError.timeoutMs = timeoutMs;
+      timeoutError.url = url;
+      throw timeoutError;
     }
 
     const networkCode = error?.cause?.code || error?.code || '';
@@ -626,9 +629,11 @@ export async function generateEditorialOutput({
   // Les plans stratégiques sont beaucoup plus lourds qu'un post simple :
   // analyse de données + calendrier multi-jours + captions/scripts + JSON structuré.
   // Le précédent plafond universel de 45 s faisait donc échouer tous les providers.
-  const isProfessionalPlan = /planning stratégique|plan social media professionnel/i.test(
-    String(briefData?.format || '') + ' ' + String(briefData?.topic || '')
-  );
+  const isProfessionalPlan = aiConfig?.planMode === true
+    || agentKey === 'planning-nidal'
+    || /analyse stratégique|planning stratégique|plan social media professionnel/i.test(
+      String(briefData?.format || '') + ' ' + String(briefData?.topic || '')
+    );
   const requestTimeoutMs = isProviderTest
     ? 20000
     : isProfessionalPlan
@@ -766,7 +771,7 @@ export async function generateEditorialOutput({
     const requestedModel = (aiConfig.model || process.env.GEMINI_MODEL || 'gemini-3.8-flash').trim();
     let model = requestedModel;
 
-    async function callGemini(selectedModel) {
+    async function callGemini(selectedModel, attemptTimeoutMs = requestTimeoutMs) {
       const geminiUrl = 'https://generativelanguage.googleapis.com/v1beta/interactions';
       const response = await aiFetch(geminiUrl, {
         method: 'POST',
@@ -784,7 +789,7 @@ export async function generateEditorialOutput({
             thinking_level: 'low'
           }
         })
-      });
+      }, attemptTimeoutMs);
 
       const payload = await response.json().catch(() => ({}));
       return { response, payload };
@@ -802,8 +807,34 @@ export async function generateEditorialOutput({
 
     for (let index = 0; index < candidates.length; index++) {
       model = candidates[index];
-      ({ response, payload } = await callGemini(model));
-      output = extractGeminiInteractionText(payload);
+
+      try {
+        // Le modèle principal 3.8 ne doit pas immobiliser tout un plan lorsqu'il
+        // est saturé. Les modèles de secours conservent le budget complet du plan.
+        const attemptTimeoutMs = !isProviderTest
+          && model === 'gemini-3.8-flash'
+          && candidates.length === 1
+          ? Math.min(requestTimeoutMs, isProfessionalPlan ? 45000 : 60000)
+          : requestTimeoutMs;
+
+        ({ response, payload } = await callGemini(model, attemptTimeoutMs));
+        output = extractGeminiInteractionText(payload);
+      } catch (error) {
+        const transientNetworkFailure = error?.code === 'AI_REQUEST_TIMEOUT'
+          || ['UND_ERR_CONNECT_TIMEOUT', 'ETIMEDOUT', 'ENETUNREACH', 'EAI_AGAIN', 'ECONNRESET']
+            .includes(error?.cause?.code || error?.code || '');
+
+        lastGeminiError = error?.message || String(error);
+
+        if (!isProviderTest && transientNetworkFailure) {
+          for (const fallbackModel of ['gemini-3.5-flash-lite', 'gemini-3.7-flash']) {
+            if (!candidates.includes(fallbackModel)) candidates.push(fallbackModel);
+          }
+          continue;
+        }
+
+        throw error;
+      }
 
       if (response.ok && output) break;
 
@@ -851,7 +882,8 @@ export async function generateEditorialOutput({
             provider: 'openrouter',
             model: process.env.OPENROUTER_MODEL || 'openrouter/free',
             apiKey: '',
-            disableFallback: true
+            disableFallback: true,
+            planMode: isProfessionalPlan
           }
         });
       }
