@@ -39,7 +39,7 @@ const NidalAPI = (() => {
     const config = getConfig();
     const headers = { 'Content-Type': 'application/json', ...(options.headers || {}) };
     if (auth) Object.assign(headers, getAuthHeaders());
-    const response = await fetch(`${config.baseUrl}${path}`, { ...options, headers });
+    const response = await fetch(`${config.baseUrl}${path}`, { cache: 'no-store', ...options, headers });
     const text = await response.text();
     let payload;
     try { payload = text ? JSON.parse(text) : {}; } catch { throw new Error('Le serveur API ne renvoie pas du JSON'); }
@@ -117,6 +117,7 @@ const NidalAPI = (() => {
   }
 
   const isOnline = () => _online;
+  const isPersistentOnline = () => Boolean(_online && _health?.database?.connected);
   const getHealth = () => _health;
   const listContents = brand => request(`/api/contents?brand=${encodeURIComponent(brand)}`);
   const upsertContent = content => request('/api/contents', { method: 'POST', body: JSON.stringify(content) });
@@ -144,7 +145,7 @@ const NidalAPI = (() => {
   const deleteEditorialGeneration = id => request(`/api/editorial/generations/${encodeURIComponent(id)}?confirm=true`, { method: 'DELETE' });
 
   return {
-    init, isOnline, getHealth, getConfig, saveConfig, request, uploadMedia, ensureInstagramCompatibleImage,
+    init, isOnline, isPersistentOnline, getHealth, getConfig, saveConfig, request, uploadMedia, ensureInstagramCompatibleImage,
     listContents, upsertContent, deleteContent, syncContent,
     generate, listAds, syncAds, getKpiTargets, saveKpiTargets, getSocialProfiles, getSocialLive, getAudienceConversions, getAudienceHistory,
     listPublishJobs, createPublishJob, runPublishJob,
