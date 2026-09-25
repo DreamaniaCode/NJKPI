@@ -1,8 +1,27 @@
 /** Studio éditorial Nidal : Studio Nidal Junior (Nounou) & Planning GS Nidal */
 const AgentView = (() => {
-  let _activeAgentKey = 'studio-junior';
+  const ACTIVE_AGENT_KEY = 'nidal_active_agent';
+  let _activeAgentKey = (() => {
+    const saved = localStorage.getItem(ACTIVE_AGENT_KEY);
+    return ['studio-junior', 'planning-nidal'].includes(saved) ? saved : 'studio-junior';
+  })();
 
   const AI_CONFIG_KEY = 'nidal_ai_settings';
+
+  function _selectAgent(agentKey, { renderNow = true } = {}) {
+    if (!['studio-junior', 'planning-nidal'].includes(agentKey)) return;
+    _activeAgentKey = agentKey;
+    localStorage.setItem(ACTIVE_AGENT_KEY, agentKey);
+
+    const brand = agentKey === 'planning-nidal' ? 'nidal' : 'nidal-junior';
+    if (typeof setActiveBrand === 'function' && getActiveBrand() !== brand) {
+      setActiveBrand(brand);
+      const switcher = document.getElementById('brand-switch');
+      if (switcher) switcher.value = brand;
+    }
+
+    if (renderNow) render();
+  }
 
   const DEFAULT_PROVIDERS = [
     {
@@ -192,7 +211,11 @@ const AgentView = (() => {
     if (_initialized) return;
     try {
       const brand = getActiveBrand();
-      _activeAgentKey = brand === 'nidal' ? 'planning-nidal' : 'studio-junior';
+      const savedAgent = localStorage.getItem(ACTIVE_AGENT_KEY);
+      if (!['studio-junior', 'planning-nidal'].includes(savedAgent)) {
+        _activeAgentKey = brand === 'nidal' ? 'planning-nidal' : 'studio-junior';
+        localStorage.setItem(ACTIVE_AGENT_KEY, _activeAgentKey);
+      }
 
       if (NidalAPI.isOnline()) {
         const [genJunior, genPlanning, provData] = await Promise.all([
@@ -1056,18 +1079,8 @@ const AgentView = (() => {
     // Select agent
     const btnJunior = document.getElementById('select-agent-junior');
     const btnPlanning = document.getElementById('select-agent-planning');
-    if (btnJunior) {
-      btnJunior.onclick = () => {
-        _activeAgentKey = 'studio-junior';
-        render();
-      };
-    }
-    if (btnPlanning) {
-      btnPlanning.onclick = () => {
-        _activeAgentKey = 'planning-nidal';
-        render();
-      };
-    }
+    if (btnJunior) btnJunior.onclick = () => _selectAgent('studio-junior');
+    if (btnPlanning) btnPlanning.onclick = () => _selectAgent('planning-nidal');
 
     // Tabs
     document.querySelectorAll('.agent-tab-btn').forEach(btn => {
@@ -1086,6 +1099,16 @@ const AgentView = (() => {
     const form = document.getElementById('editorial-form');
     if (form) {
       form.onsubmit = _onGenerate;
+      const persistBrief = () => {
+        try {
+          _state[_activeAgentKey].brief = {
+            ..._state[_activeAgentKey].brief,
+            ..._readFormInputs()
+          };
+        } catch {}
+      };
+      form.addEventListener('input', persistBrief);
+      form.addEventListener('change', persistBrief);
     }
 
     // Actions
@@ -1630,7 +1653,7 @@ const AgentView = (() => {
     }
 
     // Switch to target agent and pre-fill its brief
-    _activeAgentKey = toAgent;
+    _selectAgent(toAgent, { renderNow: false });
     if (toAgent === 'planning-nidal') {
       _state['planning-nidal'].brief.topic = `Planification : ${sourceTitle}`;
       _state['planning-nidal'].brief.requiredInfo = `Contenu produit par Studio Nidal Junior avec Nounou. Storyboard et légende prêts pour intégration au calendrier.`;
