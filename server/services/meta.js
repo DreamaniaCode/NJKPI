@@ -5,6 +5,27 @@ function brandEnv(prefix, brand) {
   return process.env[`${prefix}_${brand === 'nidal-junior' ? 'NIDAL_JUNIOR' : 'NIDAL'}`];
 }
 
+function resolvedInstagramUserId(brand) {
+  const configured = resolvedInstagramUserId(brand);
+  if (configured) return configured;
+
+  // Compatibilité temporaire : les Instagram Business Account IDs commencent
+  // fréquemment par 178414... Si cet ID a été placé par erreur dans la variable
+  // Page Access Token, on l'utilise uniquement comme IG user ID et jamais comme token.
+  const misplaced = brandEnv('META_PAGE_ACCESS_TOKEN', brand);
+  if (/^178414\d{8,}$/.test(String(misplaced || ''))) {
+    return String(misplaced);
+  }
+  return null;
+}
+
+function configuredPageToken(brand) {
+  const value = brandEnv('META_PAGE_ACCESS_TOKEN', brand);
+  // Un token Meta n'est pas un simple identifiant numérique.
+  if (/^\d+$/.test(String(value || ''))) return null;
+  return value || null;
+}
+
 function normalizedUrl(value) {
   try {
     const url = new URL(value);
@@ -71,7 +92,7 @@ async function resolvePageAccessToken(brand) {
   const cached = PAGE_TOKEN_CACHE.get(pageId);
   if (cached) return cached;
 
-  const configured = brandEnv('META_PAGE_ACCESS_TOKEN', brand);
+  const configured = configuredPageToken(brand);
   if (configured) {
     try {
       const identity = await graph('me', { fields: 'id,name' }, configured);
@@ -142,7 +163,12 @@ export async function diagnoseMetaAccess(brand) {
     brand,
     pageId,
     userTokenConfigured: Boolean(process.env.META_ACCESS_TOKEN),
-    pageTokenConfigured: Boolean(brandEnv('META_PAGE_ACCESS_TOKEN', brand)),
+    pageTokenConfigured: Boolean(configuredPageToken(brand)),
+    instagramUserIdConfigured: Boolean(resolvedInstagramUserId(brand)),
+    instagramUserId: resolvedInstagramUserId(brand),
+    configurationWarnings: /^178414\d{8,}$/.test(String(brandEnv('META_PAGE_ACCESS_TOKEN', brand) || ''))
+      ? ['META_PAGE_ACCESS_TOKEN contient un identifiant Instagram numérique. NJKPI le traite temporairement comme META_IG_USER_ID; configurez les variables correctement dans Coolify.']
+      : [],
     userPermissions: [],
     missingUserPermissions: [],
     pageTokenValid: false,
@@ -176,7 +202,7 @@ export async function diagnoseMetaAccess(brand) {
 }
 
 export function metaConfigured(brand) {
-  return Boolean(process.env.META_ACCESS_TOKEN && (brandEnv('META_PAGE_ID', brand) || brandEnv('META_IG_USER_ID', brand)));
+  return Boolean(process.env.META_ACCESS_TOKEN && (brandEnv('META_PAGE_ID', brand) || resolvedInstagramUserId(brand)));
 }
 
 async function syncInstagramAccountInsights(igUserId) {
@@ -209,7 +235,7 @@ async function syncInstagramAccountInsights(igUserId) {
 }
 
 async function syncInstagramProfile(brand) {
-  const igUserId = brandEnv('META_IG_USER_ID', brand);
+  const igUserId = resolvedInstagramUserId(brand);
   if (!igUserId) throw new Error(`META_IG_USER_ID non configuré pour ${brand}`);
 
   const fields = 'id,username,name,biography,website,followers_count,follows_count,media_count,profile_picture_url';
@@ -377,7 +403,7 @@ export async function syncSocialProfiles({ brand, instagramUrl = '', facebookUrl
   };
 
   if (process.env.META_ACCESS_TOKEN && process.env.DEMO_MODE !== 'true') {
-    if (brandEnv('META_IG_USER_ID', brand)) {
+    if (resolvedInstagramUserId(brand)) {
       try { result.instagram = await syncInstagramProfile(brand); }
       catch (error) { result.errors.push({ platform: 'instagram', source: 'meta-api', message: error.message }); }
     }
@@ -477,7 +503,7 @@ export async function syncContentFromUrl({
 }
 
 async function syncInstagram(brand, finalUrl) {
-  const userId = brandEnv('META_IG_USER_ID', brand);
+  const userId = resolvedInstagramUserId(brand);
   if (!userId) throw new Error(`Compte Instagram non configure pour ${brand}`);
   const media = await graph(`${userId}/media`, { fields: 'id,permalink,media_type,timestamp,caption,like_count,comments_count', limit: 100 });
   const target = media.data?.find(item => normalizedUrl(item.permalink) === normalizedUrl(finalUrl));
@@ -577,7 +603,7 @@ async function syncFacebook(brand, finalUrl) {
 }
 
 async function getInstagramTopContent(brand, limit = 50) {
-  const userId = brandEnv('META_IG_USER_ID', brand);
+  const userId = resolvedInstagramUserId(brand);
   if (!userId) return { items: [], error: `META_IG_USER_ID non configuré pour ${brand}` };
 
   try {
@@ -926,7 +952,7 @@ async function waitForInstagramContainer(containerId, accessToken, maxAttempts =
 }
 
 async function publishInstagramPost(brand, job) {
-  const igUserId = brandEnv('META_IG_USER_ID', brand);
+  const igUserId = resolvedInstagramUserId(brand);
   if (!igUserId) throw new Error(`META_IG_USER_ID non configuré pour ${brand}`);
   if (!job.media_url) throw new Error('Instagram exige une photo ou vidéo.');
 
