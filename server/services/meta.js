@@ -184,6 +184,60 @@ async function syncInstagramProfile(brand) {
   };
 }
 
+async function syncFacebookPageInsights(brand, pageId) {
+  const token = await resolvePageAccessToken(brand);
+  const candidates = [
+    ['page_media_view', 'page_total_media_view_unique', 'page_post_engagements'],
+    ['page_views_total', 'page_post_engagements']
+  ];
+
+  const until = new Date();
+  const since = new Date(until.getTime() - 27 * 24 * 60 * 60 * 1000);
+  const fmt = d => d.toISOString().slice(0, 10);
+  const errors = [];
+
+  for (const metrics of candidates) {
+    try {
+      const payload = await graph(`${pageId}/insights`, {
+        metric: metrics.join(','),
+        period: 'day',
+        since: fmt(since),
+        until: fmt(until)
+      }, token);
+
+      const data = payload.data || [];
+      const byName = Object.fromEntries(data.map(item => [item.name, item]));
+
+      const sumSeries = item => Array.isArray(item?.values)
+        ? item.values.reduce((sum, row) => sum + Number(row?.value || 0), 0)
+        : null;
+
+      const reachItem = byName.page_total_media_view_unique;
+      const viewsItem = byName.page_media_view || byName.page_views_total;
+      const engagementItem = byName.page_post_engagements;
+
+      const reach = reachItem ? sumSeries(reachItem) : null;
+      const views = viewsItem ? sumSeries(viewsItem) : null;
+      const engagements = engagementItem ? sumSeries(engagementItem) : null;
+
+      if (reach !== null || views !== null || engagements !== null) {
+        return {
+          period: 'last_28_days',
+          reach,
+          views,
+          engagements,
+          metricsUsed: metrics,
+          errors
+        };
+      }
+    } catch (error) {
+      errors.push({ metrics, message: error.message });
+    }
+  }
+
+  return { period: 'last_28_days', reach: null, views: null, engagements: null, metricsUsed: [], errors };
+}
+
 async function syncFacebookProfile(brand) {
   const pageId = brandEnv('META_PAGE_ID', brand);
   if (!pageId) throw new Error(`META_PAGE_ID non configuré pour ${brand}`);
@@ -191,12 +245,13 @@ async function syncFacebookProfile(brand) {
   const fields = 'id,name,username,about,description,category,website,link,fan_count,followers_count,picture.type(large)';
   const profile = await pageGraph(brand, pageId, { fields });
 
-  // Vérifier réellement l'accès aux insights de contenu Facebook au lieu de
-  // déclarer les Insights inactifs en dur.
-  const contentInsights = await getFacebookTopContent(
-    brand,
-    Number(process.env.META_FACEBOOK_LIVE_POST_LIMIT || 50)
-  );
+  const [pageInsights, contentInsights] = await Promise.all([
+    syncFacebookPageInsights(brand, pageId),
+    getFacebookTopContent(
+      brand,
+      Number(process.env.META_FACEBOOK_LIVE_POST_LIMIT || 50)
+    )
+  ]);
   const analyzedPosts = contentInsights.items || [];
   const availableCounts = { reach: 0, views: 0 };
   const aggregate = analyzedPosts.reduce((acc, item) => {
@@ -236,15 +291,26 @@ async function syncFacebookProfile(brand) {
     profileUrl: profile.link || (profile.id ? `https://www.facebook.com/${profile.id}` : null),
     insightsAvailable,
     insights: {
-      scope: 'recent-published-posts',
+      scope: pageInsights.reach !== null || pageInsights.views !== null
+        ? 'page-last-28-days'
+        : 'recent-published-posts',
+      period: pageInsights.period,
       analyzedPosts: analyzedPosts.length,
-      reach: availableCounts.reach ? aggregate.reach : null,
-      views: availableCounts.views ? aggregate.views : null,
-      interactions: aggregate.interactions,
+      reach: pageInsights.reach !== null
+        ? pageInsights.reach
+        : (availableCounts.reach ? aggregate.reach : null),
+      views: pageInsights.views !== null
+        ? pageInsights.views
+        : (availableCounts.views ? aggregate.views : null),
+      interactions: pageInsights.engagements !== null
+        ? pageInsights.engagements
+        : aggregate.interactions,
       comments: aggregate.comments,
       shares: aggregate.shares,
       reactions: aggregate.reactions,
       topContent: analyzedPosts.slice(0, 3),
+      pageMetricsUsed: pageInsights.metricsUsed,
+      pageInsightErrors: pageInsights.errors,
       error: contentInsights.error || null
     }
   };
