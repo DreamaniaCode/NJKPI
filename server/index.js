@@ -197,10 +197,12 @@ app.get('/api/auth/users', authorize('admin'), async (_req, res, next) => {
 app.post('/api/auth/users', authorize('admin'), async (req, res, next) => {
   try {
     const { username, password, email, role, display_name } = req.body;
-    if (!username || !password) return res.status(400).json({ error: 'Nom d\'utilisateur et mot de passe requis' });
     const user = await createUser({ username, password, email, role, display_name });
     res.status(201).json(user);
-  } catch (error) { next(error); }
+  } catch (error) {
+    if (error?.statusCode) return res.status(error.statusCode).json({ error: error.message });
+    next(error);
+  }
 });
 
 app.put('/api/auth/users/:id/role', authorize('admin'), async (req, res, next) => {
