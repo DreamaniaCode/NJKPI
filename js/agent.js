@@ -770,7 +770,7 @@ const AgentView = (() => {
                   <div class="strategy-day-card__head">
                     <div>
                       <span class="strategy-day-number">Jour ${escapeHtml(String(item.dayNumber || idx + 1))}</span>
-                      <h3>${escapeHtml(item.title || item.topic || 'Contenu')}</h3>
+                      <h3 contenteditable="true" data-plan-edit="title" data-plan-index="${idx}" spellcheck="true">${escapeHtml(item.title || item.topic || 'Contenu')}</h3>
                       <div class="strategy-day-meta">
                         <span>${escapeHtml(item.date || 'Date à confirmer')}</span>
                         <span>${escapeHtml(item.publishTime || '18:30')}</span>
@@ -788,12 +788,12 @@ const AgentView = (() => {
                     <div><small>Pourquoi ce contenu ?</small><p>${escapeHtml(item.rationale || '—')}</p></div>
                   </div>
 
-                  <div class="strategy-content-block"><small>Hook</small><strong>${escapeHtml(item.hook || '—')}</strong></div>
-                  <div class="strategy-content-block"><small>Caption prête à publier</small><div class="strategy-caption">${escapeHtml(item.caption || '—')}</div></div>
+                  <div class="strategy-content-block"><small>Hook</small><strong contenteditable="true" data-plan-edit="hook" data-plan-index="${idx}" spellcheck="true">${escapeHtml(item.hook || '—')}</strong></div>
+                  <div class="strategy-content-block"><small>Caption prête à publier</small><div class="strategy-caption" contenteditable="true" data-plan-edit="caption" data-plan-index="${idx}" spellcheck="true">${escapeHtml(item.caption || '—')}</div></div>
 
                   ${video ? `<div class="strategy-content-block strategy-content-block--video">
                     <small>🎬 Script vidéo complet</small>
-                    <div class="strategy-caption">${escapeHtml(item.videoScript || 'Script à compléter')}</div>
+                    <div class="strategy-caption" contenteditable="true" data-plan-edit="videoScript" data-plan-index="${idx}" spellcheck="true">${escapeHtml(item.videoScript || 'Script à compléter')}</div>
                     ${storyboard.length ? `<div class="strategy-storyboard-mini">${storyboard.map(scene => `
                       <div><b>${escapeHtml(scene.time || '')}</b> · ${escapeHtml(scene.visual || '')}<br><span>${escapeHtml(scene.voiceOrText || scene.action || '')}</span></div>
                     `).join('')}</div>` : ''}
@@ -801,7 +801,7 @@ const AgentView = (() => {
 
                   ${!video ? `<div class="strategy-content-block">
                     <small>${carousel ? '🖼️ Concept carrousel / Prompt visuel' : '📷 Prompt photo / visuel'}</small>
-                    <div class="strategy-prompt">${escapeHtml(item.imagePrompt || 'Prompt visuel à compléter')}</div>
+                    <div class="strategy-prompt" contenteditable="true" data-plan-edit="imagePrompt" data-plan-index="${idx}" spellcheck="true">${escapeHtml(item.imagePrompt || 'Prompt visuel à compléter')}</div>
                   </div>` : ''}
 
                   ${story && item.companionStory ? `<div class="strategy-content-block"><small>📲 Story</small><div class="strategy-caption">${escapeHtml(JSON.stringify(item.companionStory, null, 2))}</div></div>` : ''}
@@ -809,7 +809,7 @@ const AgentView = (() => {
 
                   <div class="strategy-day-footer">
                     <span>${(item.hashtags || []).map(tag => escapeHtml(tag)).join(' ')}</span>
-                    <span>CTA : ${escapeHtml(item.cta || '—')}</span>
+                    <span>CTA : <b contenteditable="true" data-plan-edit="cta" data-plan-index="${idx}" spellcheck="true">${escapeHtml(item.cta || '—')}</b></span>
                   </div>
                 </article>`;
             }).join('')}
