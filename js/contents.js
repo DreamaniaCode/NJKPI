@@ -77,88 +77,112 @@ const ContentsView = (() => {
     const platformList = typeof PLATFORMS !== 'undefined' ? PLATFORMS : [
       { id: 'instagram-facebook', label: 'Instagram + Facebook (IG + FB)', icon: '🌐' },
       { id: 'instagram', label: 'Instagram (IG)', icon: '📷' },
-      { id: 'facebook', label: 'Facebook (FB)', icon: '📘' },
-      { id: 'reel-ig', label: 'Instagram Reel (IG)', icon: '🎬' },
-      { id: 'story-ig', label: 'Instagram Story (IG)', icon: '📱' },
-      { id: 'tiktok', label: 'TikTok', icon: '🎵' },
-      { id: 'linkedin', label: 'LinkedIn', icon: '💼' }
+      { id: 'facebook', label: 'Facebook (FB)', icon: '📘' }
     ];
 
-    return `<form id="content-form" onsubmit="return false;">
-      <div class="form-section"><h3>Publication</h3>
-        <div class="form-group form-group--wide"><label for="form-title">Titre *</label><input id="form-title" class="form-control" required value="${_value(content.titre)}"></div>
-        <div class="form-row form-row--three"><div class="form-group"><label for="form-date">Date</label><input type="date" id="form-date" class="form-control" value="${toISODate(content.datePublication)}"></div><div class="form-group"><label for="form-time">Heure</label><input type="time" id="form-time" class="form-control" value="${_value(content.heure || '18:30')}"></div><div class="form-group"><label for="form-platform">Plateforme</label><select id="form-platform" class="form-control">${platformList.map(p => `<option value="${p.label}" ${content.plateforme === p.label || content.plateforme === p.id || content.plateforme === p.short || (!content.plateforme && p.id === 'instagram-facebook') ? 'selected' : ''}>${p.icon} ${p.label}</option>`).join('')}</select></div></div>
-        <div class="form-row">
-          <div class="form-group">
-            <label>Photo / vidéo à publier</label>
-            <div class="media-upload-box">
-              <input type="file" id="form-media-file" accept="image/jpeg,image/png,image/webp,image/gif,video/mp4,video/quicktime,video/webm" hidden>
-              <button type="button" class="btn btn--secondary" id="form-media-upload-btn">📷 Choisir une photo / vidéo</button>
-              <span id="form-media-upload-status" class="media-upload-box__status">${content.mediaUrl ? 'Média déjà associé' : 'Aucun fichier choisi'}</span>
-              <div id="form-media-preview" class="media-upload-preview">${content.mediaUrl ? `<img src="${_value(content.mediaUrl)}" alt="Aperçu du média" onerror="this.style.display='none'">` : ''}</div>
-              <input type="url" id="form-media-url" class="form-control media-upload-box__url" value="${_value(content.mediaUrl)}" placeholder="URL créée automatiquement après upload">
+    return `<form id="content-form" class="social-composer-form" onsubmit="return false;">
+      <div class="social-composer">
+        <div class="social-composer__main">
+          <div class="social-composer__identity">
+            <img src="./assets/logo-cropped.png" alt="Nidal">
+            <div><strong>${escapeHtml(getActiveBrandLabel())}</strong><small>Nouvelle publication</small></div>
+          </div>
+
+          <div class="form-group social-composer__caption">
+            <label for="form-message">Votre publication</label>
+            <textarea id="form-message" class="form-control" rows="10" placeholder="Écrivez ici le texte complet comme sur Facebook ou Instagram…">${_value(content.message)}</textarea>
+            <small class="composer-help">Vous voyez tout le post ici. Le nom interne est facultatif et se trouve dans Options.</small>
+          </div>
+
+          <div class="media-upload-box social-composer__media">
+            <input type="file" id="form-media-file" accept="image/jpeg,image/png,image/webp,image/gif,video/mp4,video/quicktime,video/webm" hidden>
+            <div class="social-composer__media-actions">
+              <button type="button" class="btn btn--secondary" id="form-media-upload-btn">📷 Ajouter photo / vidéo</button>
+              <span id="form-media-upload-status" class="media-upload-box__status">${content.mediaUrl ? 'Média déjà associé' : 'Aucun média'}</span>
             </div>
-            <small style="color:var(--muted);">Le fichier est envoyé sur NJKPI puis une URL publique est générée automatiquement pour Meta.</small>
+            <div id="form-media-preview" class="media-upload-preview social-composer__preview">${content.mediaUrl ? `<img src="${_value(content.mediaUrl)}" alt="Aperçu du média" onerror="this.style.display='none'">` : ''}</div>
+            <input type="url" id="form-media-url" class="form-control media-upload-box__url" value="${_value(content.mediaUrl)}" placeholder="URL média générée automatiquement">
+          </div>
+        </div>
+
+        <aside class="social-composer__sidebar">
+          <div class="composer-side-card">
+            <strong>Diffusion</strong>
+            <div class="form-group">
+              <label for="form-platform">Publier sur</label>
+              <select id="form-platform" class="form-control">${platformList.map(p => `<option value="${p.label}" ${content.plateforme === p.label || content.plateforme === p.id || content.plateforme === p.short || (!content.plateforme && p.id === 'instagram-facebook') ? 'selected' : ''}>${p.icon} ${p.label}</option>`).join('')}</select>
+            </div>
+            <div class="form-row">
+              <div class="form-group"><label for="form-date">Date</label><input type="date" id="form-date" class="form-control" value="${toISODate(content.datePublication)}"></div>
+              <div class="form-group"><label for="form-time">Heure</label><input type="time" id="form-time" class="form-control" value="${_value(content.heure || '18:30')}"></div>
+            </div>
+            <div class="form-group"><label for="form-format">Format</label><select id="form-format" class="form-control">${_options(CONTENT_TYPES, content.format)}</select></div>
+          </div>
+
+          ${includePublishActions ? `<div class="composer-action-note"><strong>Prêt à publier ?</strong><small>Utilisez Enregistrer, Programmer ou Publier maintenant en bas.</small></div>` : ''}
+        </aside>
+      </div>
+
+      <details class="composer-details">
+        <summary>Options du post <span>facultatif</span></summary>
+        <div class="composer-details__body">
+          <div class="form-group"><label for="form-title">Nom interne</label><input id="form-title" class="form-control" value="${_value(content.titre)}" placeholder="Facultatif — ex. Portes ouvertes octobre"><small>Ce nom sert uniquement à retrouver le contenu dans NJKPI. Il n'est pas publié.</small></div>
+          <div class="form-row">
+            <div class="form-group"><label for="form-link-url">Lien CTA / site</label><input type="url" id="form-link-url" class="form-control" value="${_value(content.linkUrl)}" placeholder="https://gsnidal.ma/..."></div>
+            <div class="form-group"><label for="form-cta">CTA</label><input id="form-cta" class="form-control" value="${_value(content.cta)}" placeholder="Ex. Inscrivez-vous / Contactez-nous"></div>
           </div>
           <div class="form-group">
-            <label for="form-link-url">Lien CTA / site à partager</label>
-            <input type="url" id="form-link-url" class="form-control" value="${_value(content.linkUrl)}" placeholder="https://gsnidal.ma/...">
-            <small style="color:var(--muted);">Utilisé pour les publications Facebook avec lien.</small>
+            <div class="composer-inline-head"><label for="form-final-url">Lien du post déjà publié</label><button type="button" class="btn btn--secondary btn--sm" id="btn-sync-url-metrics">↻ Récupérer les métriques</button></div>
+            <input type="url" id="form-final-url" class="form-control" value="${_value(content.finalUrl)}" placeholder="https://www.facebook.com/... ou https://www.instagram.com/..."></div>
+          <div class="form-row form-row--three">
+            <div class="form-group"><label for="form-status">Statut</label><select id="form-status" class="form-control">${_options(STATUSES, content.statut)}</select></div>
+            <div class="form-group"><label for="form-validation">Validation</label><select id="form-validation" class="form-control">${_options(VALIDATIONS, content.validation)}</select></div>
+            <div class="form-group"><label for="form-level">Niveau</label><select id="form-level" class="form-control">${_options(LEVELS, content.niveau)}</select></div>
           </div>
-        </div>
-        <div class="form-group">
-            <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:4px;">
-              <label for="form-final-url">Lien final après publication</label>
-              <button type="button" class="btn btn--secondary btn--sm" id="btn-sync-url-metrics" style="padding:2px 8px;font-size:11px;" title="Récupérer les likes, commentaires et statistiques en direct">🔄 Récupérer Likes & Commentaires</button>
-            </div>
-            <input type="url" id="form-final-url" class="form-control" value="${_value(content.finalUrl)}" placeholder="https://www.instagram.com/p/...">
-        </div>
-        <div class="form-row form-row--three"><div class="form-group"><label for="form-format">Format</label><select id="form-format" class="form-control">${_options(CONTENT_TYPES, content.format)}</select></div><div class="form-group"><label for="form-status">Statut</label><select id="form-status" class="form-control">${_options(STATUSES, content.statut)}</select></div><div class="form-group"><label for="form-validation">Validation</label><select id="form-validation" class="form-control">${_options(VALIDATIONS, content.validation)}</select></div></div>
-        ${includePublishActions ? `
-          <div class="publish-choice-panel">
-            <div>
-              <span class="section-kicker">Publication Meta</span>
-              <strong>Les actions sont disponibles en bas de la fenêtre</strong>
-              <small>Enregistrer, Programmer ou Publier maintenant. La programmation utilise la date et l'heure ci-dessus.</small>
-            </div>
+          <div class="form-row">
+            <div class="form-group"><label for="form-classes">Classe(s)</label><input id="form-classes" class="form-control" value="${_value(content.classes)}"></div>
+            <div class="form-group"><label for="form-album">Album / campagne</label><input id="form-album" class="form-control" value="${_value(content.album)}"></div>
           </div>
-        ` : ''}
-      </div>
-      <div class="form-section"><h3>Vision editoriale</h3>
-        <div class="form-row"><div class="form-group"><label for="form-level">Niveau</label><select id="form-level" class="form-control">${_options(LEVELS, content.niveau)}</select></div><div class="form-group"><label for="form-classes">Classe(s)</label><input id="form-classes" class="form-control" value="${_value(content.classes)}"></div></div>
-        <div class="form-group"><label for="form-album">Album ou univers</label><input id="form-album" class="form-control" value="${_value(content.album)}"></div>
-        <div class="form-row"><div class="form-group"><label for="form-pillar">Pilier</label><input id="form-pillar" class="form-control" value="${_value(content.pilier)}"></div><div class="form-group"><label for="form-objective">But</label><input id="form-objective" class="form-control" value="${_value(content.objectif)}"></div></div>
-        <div class="form-group"><label for="form-message">Message principal</label><textarea id="form-message" class="form-control" rows="3">${_value(content.message)}</textarea></div>
-        <div class="form-row"><div class="form-group"><label for="form-cta">Appel a l’action</label><input id="form-cta" class="form-control" value="${_value(content.cta)}"></div><div class="form-group"><label for="form-deliverable">Livrable</label><input id="form-deliverable" class="form-control" value="${_value(content.livrable)}"></div></div>
-      </div>
-      <div class="form-section"><h3>Objectifs cibles & Échéance (ETA)</h3>
-        <div class="form-row form-row--four">
-          ${_numberField('target-reach','Portée cible',objectifs.portee)}
-          ${_numberField('target-views','Vues cibles',objectifs.vues)}
-          ${_numberField('target-comments','Commentaires cibles',objectifs.commentaires)}
-          ${_numberField('target-conversions','Conversions cibles',objectifs.conversions)}
+          <div class="form-row">
+            <div class="form-group"><label for="form-pillar">Pilier</label><input id="form-pillar" class="form-control" value="${_value(content.pilier)}"></div>
+            <div class="form-group"><label for="form-objective">Objectif</label><input id="form-objective" class="form-control" value="${_value(content.objectif)}"></div>
+          </div>
+          <div class="form-group"><label for="form-deliverable">Livrable / note de production</label><input id="form-deliverable" class="form-control" value="${_value(content.livrable)}"></div>
+          <div class="form-group"><label for="form-notes">Notes internes</label><textarea id="form-notes" class="form-control" rows="2">${_value(content.notes)}</textarea></div>
         </div>
-        <div class="form-row form-row--three">
-          ${_numberField('target-interactions','Interactions cibles',objectifs.interactions)}
-          ${_numberField('target-clicks','Clics CTA cibles',objectifs.clics)}
-          <div class="form-group"><label for="target-eta">Échéance cible (ETA)</label><input type="date" id="target-eta" class="form-control" value="${toISODate(objectifs.eta || content.datePublication)}"></div>
+      </details>
+
+      <details class="composer-details">
+        <summary>KPI & suivi <span>avancé</span></summary>
+        <div class="composer-details__body">
+          <h4>Objectifs</h4>
+          <div class="form-row form-row--four">
+            ${_numberField('target-reach','Portée',objectifs.portee)}
+            ${_numberField('target-views','Vues',objectifs.vues)}
+            ${_numberField('target-comments','Commentaires',objectifs.commentaires)}
+            ${_numberField('target-conversions','Conversions',objectifs.conversions)}
+          </div>
+          <div class="form-row form-row--three">
+            ${_numberField('target-interactions','Interactions',objectifs.interactions)}
+            ${_numberField('target-clicks','Clics CTA',objectifs.clics)}
+            <div class="form-group"><label for="target-eta">Échéance</label><input type="date" id="target-eta" class="form-control" value="${toISODate(objectifs.eta || content.datePublication)}"></div>
+          </div>
+          <h4>Résultats réels</h4>
+          <div class="form-row form-row--four">
+            ${_numberField('result-reach','Portée',resultats.portee)}
+            ${_numberField('result-views','Vues',resultats.vues)}
+            ${_numberField('result-comments','Commentaires',resultats.commentaires)}
+            ${_numberField('result-reactions','Réactions',resultats.reactions)}
+          </div>
+          <div class="form-row form-row--four">
+            ${_numberField('result-shares','Partages',resultats.partages)}
+            ${_numberField('result-saves','Enregistrements',resultats.enregistrements)}
+            ${_numberField('result-clicks','Clics CTA',resultats.clics)}
+            ${_numberField('result-conversions','Conversions',resultats.conversions)}
+          </div>
+          <div class="check-grid composer-checks">${_check('check-logo','Logo officiel',checks.logo)}${_check('check-values','Valeurs marque',checks.valeurs)}${_check('check-footer','Pied de page',checks.footer)}${_check('check-consent','Autorisations',checks.autorisation)}</div>
         </div>
-      </div>
-      <div class="form-section"><h3>Résultats réels constatés</h3>
-        <div class="form-row form-row--four">
-          ${_numberField('result-reach','Portée réelle',resultats.portee)}
-          ${_numberField('result-views','Vues vidéo',resultats.vues)}
-          ${_numberField('result-comments','Commentaires',resultats.commentaires)}
-          ${_numberField('result-conversions','Conversions / Inscriptions',resultats.conversions)}
-        </div>
-        <div class="form-row form-row--four">
-          ${_numberField('result-reactions','Réactions',resultats.reactions)}
-          ${_numberField('result-shares','Partages',resultats.partages)}
-          ${_numberField('result-saves','Enregistrements',resultats.enregistrements)}
-          ${_numberField('result-clicks','Clics CTA',resultats.clics)}
-        </div>
-      </div>
-      <div class="form-section"><h3>Controle avant publication</h3><div class="check-grid">${_check('check-logo','Logo officiel',checks.logo)}${_check('check-values','Valeurs de la marque',checks.valeurs)}${_check('check-footer','Pied de page',checks.footer)}${_check('check-consent','Autorisations verifiees ou non requises',checks.autorisation)}</div><div class="form-group"><label for="form-notes">Notes</label><textarea id="form-notes" class="form-control" rows="2">${_value(content.notes)}</textarea></div></div>
+      </details>
     </form>`;
   }
 
@@ -167,31 +191,43 @@ const ContentsView = (() => {
   function _number(modal, id) { const el = modal.querySelector(`#${id}`); if (!el) return null; const value = el.value; return value === '' ? null : Number(value); }
 
   function _readForm(modal) {
+    const el = id => modal.querySelector(`#${id}`);
+    const value = (id, fallback = '') => el(id)?.value?.trim?.() ?? fallback;
+    const checked = (id, fallback = true) => el(id) ? Boolean(el(id).checked) : fallback;
+    const message = value('form-message');
+    const explicitTitle = value('form-title');
+    const autoTitle = (message.split(/\n+/).find(Boolean) || 'Publication').replace(/[#*_]/g, '').trim().slice(0, 80);
     return {
-      titre: modal.querySelector('#form-title').value.trim(), datePublication: modal.querySelector('#form-date').value, heure: modal.querySelector('#form-time').value, mediaUrl: modal.querySelector('#form-media-url')?.value.trim() || '', linkUrl: modal.querySelector('#form-link-url')?.value.trim() || '', finalUrl: modal.querySelector('#form-final-url').value.trim(),
-      plateforme: modal.querySelector('#form-platform').value, format: modal.querySelector('#form-format').value, statut: modal.querySelector('#form-status').value, validation: modal.querySelector('#form-validation').value,
-      niveau: modal.querySelector('#form-level').value, classes: modal.querySelector('#form-classes').value.trim(), album: modal.querySelector('#form-album').value.trim(), pilier: modal.querySelector('#form-pillar').value.trim(), objectif: modal.querySelector('#form-objective').value.trim(),
-      message: modal.querySelector('#form-message').value.trim(), cta: modal.querySelector('#form-cta').value.trim(), livrable: modal.querySelector('#form-deliverable').value.trim(), notes: modal.querySelector('#form-notes').value.trim(),
+      titre: explicitTitle || autoTitle,
+      datePublication: value('form-date'),
+      heure: value('form-time', '18:30'),
+      mediaUrl: value('form-media-url'),
+      linkUrl: value('form-link-url'),
+      finalUrl: value('form-final-url'),
+      plateforme: value('form-platform', 'Instagram + Facebook (IG + FB)'),
+      format: value('form-format', 'post'),
+      statut: value('form-status', 'planifie'),
+      validation: value('form-validation', 'a-valider'),
+      niveau: value('form-level', 'tous'),
+      classes: value('form-classes', 'Toutes les classes'),
+      album: value('form-album'),
+      pilier: value('form-pillar'),
+      objectif: value('form-objective'),
+      message,
+      cta: value('form-cta'),
+      livrable: value('form-deliverable'),
+      notes: value('form-notes'),
       objectifs: {
-        portee: _number(modal,'target-reach'),
-        vues: _number(modal,'target-views'),
-        commentaires: _number(modal,'target-comments'),
-        interactions: _number(modal,'target-interactions'),
-        clics: _number(modal,'target-clicks'),
-        conversions: _number(modal,'target-conversions'),
-        eta: modal.querySelector('#target-eta')?.value || ''
+        portee: _number(modal,'target-reach'), vues: _number(modal,'target-views'), commentaires: _number(modal,'target-comments'),
+        interactions: _number(modal,'target-interactions'), clics: _number(modal,'target-clicks'), conversions: _number(modal,'target-conversions'),
+        eta: el('target-eta')?.value || ''
       },
       resultats: {
-        portee: _number(modal,'result-reach'),
-        vues: _number(modal,'result-views'),
-        commentaires: _number(modal,'result-comments'),
-        reactions: _number(modal,'result-reactions'),
-        partages: _number(modal,'result-shares'),
-        enregistrements: _number(modal,'result-saves'),
-        clics: _number(modal,'result-clicks'),
-        conversions: _number(modal,'result-conversions')
+        portee: _number(modal,'result-reach'), vues: _number(modal,'result-views'), commentaires: _number(modal,'result-comments'),
+        reactions: _number(modal,'result-reactions'), partages: _number(modal,'result-shares'), enregistrements: _number(modal,'result-saves'),
+        clics: _number(modal,'result-clicks'), conversions: _number(modal,'result-conversions')
       },
-      checks: { logo: modal.querySelector('#check-logo').checked, valeurs: modal.querySelector('#check-values').checked, footer: modal.querySelector('#check-footer').checked, autorisation: modal.querySelector('#check-consent').checked }
+      checks: { logo: checked('check-logo'), valeurs: checked('check-values'), footer: checked('check-footer'), autorisation: checked('check-consent') }
     };
   }
 
@@ -570,7 +606,7 @@ const ContentsView = (() => {
   function openCreateForm(defaultDate = '') {
     const today = defaultDate || new Date().toISOString().slice(0, 10);
     const initial = { datePublication: today, heure: '18:30', format: 'post', statut: 'planifie', niveau: 'tous', validation: 'a-valider', plateforme: 'Instagram + Facebook (IG + FB)', mediaUrl: '', checks: { logo: true, valeurs: true, footer: true, autorisation: true }, objectifs: { portee: 1000, vues: 1500, commentaires: 15, interactions: 50, clics: 10, conversions: 5, eta: today }, resultats: {} };
-    openModal('Nouveau contenu', _formHtml(initial, { includePublishActions: true }), {
+    openModal('Créer une publication', _formHtml(initial, { includePublishActions: true }), {
       footer: `
         <button type="button" class="btn btn--secondary" data-close-modal>Annuler</button>
         <button type="button" class="btn btn--secondary" id="save-content-btn">Enregistrer</button>
@@ -635,7 +671,7 @@ const ContentsView = (() => {
     if (!content) return;
 
     openModal(
-      publishFocused ? 'Publier ou programmer ce contenu' : 'Modifier le contenu',
+      publishFocused ? 'Publier ou programmer' : 'Modifier la publication',
       _formHtml(content, { includePublishActions: true }),
       {
         footer: `
