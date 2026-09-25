@@ -611,9 +611,12 @@ export async function generateEditorialOutput({
   const isProfessionalPlan = /planning stratégique|plan social media professionnel/i.test(
     String(briefData?.format || '') + ' ' + String(briefData?.topic || '')
   );
-  const requestTimeoutMs = isProfessionalPlan
-    ? Math.max(150000, Number(process.env.AI_PLAN_TIMEOUT_MS || 0))
-    : Math.max(75000, Number(process.env.AI_REQUEST_TIMEOUT_MS || 0));
+  const isProviderTest = aiConfig?.testMode === true;
+  const requestTimeoutMs = isProviderTest
+    ? 20000
+    : isProfessionalPlan
+      ? Math.max(150000, Number(process.env.AI_PLAN_TIMEOUT_MS || 0))
+      : Math.max(75000, Number(process.env.AI_REQUEST_TIMEOUT_MS || 0));
 
   const aiFetch = (url, options = {}, timeoutMs) =>
     fetchAiWithTimeout(url, options, timeoutMs ?? requestTimeoutMs);
