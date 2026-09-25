@@ -762,6 +762,16 @@ app.get('/api/editorial/generations', async (req, res, next) => {
   } catch (error) { next(error); }
 });
 
+function compactAiContext(value, depth = 0) {
+  if (value === null || value === undefined) return value;
+  if (depth > 6) return '[reduit]';
+  if (typeof value === 'string') return value.length > 1200 ? value.slice(0, 1200) + '…' : value;
+  if (Array.isArray(value)) return value.slice(0, 20).map(item => compactAiContext(item, depth + 1));
+  if (typeof value === 'object') {
+    return Object.fromEntries(Object.entries(value).slice(0, 50).map(([key, item]) => [key, compactAiContext(item, depth + 1)]));
+  }
+  return value;
+}
 function extractProfessionalPlanItems(output = '') {
   const text = String(output || '');
   const marker = text.indexOf('===PLAN_JSON===');
@@ -961,7 +971,7 @@ app.post('/api/editorial/pro-plan', async (req, res, next) => {
           syncedAt: socialProfiles?.facebook?.synced_at || null
         } : null
       },
-      audienceSnapshot: audience,
+      audienceSnapshot: compactAiContext(audience),
       paidMedia: {
         totals: paidTotals,
         campaigns: adsSummary
