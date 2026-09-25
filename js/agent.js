@@ -1747,8 +1747,10 @@ const AgentView = (() => {
               </small>
             </div>
           </div>
+          <div class="ai-provider-test-result" id="ai-provider-test-result" hidden></div>
           <div class="modal__footer">
             <button type="button" class="btn btn--secondary" id="ai-modal-cancel">Annuler</button>
+            <button type="button" class="btn btn--secondary" id="ai-modal-test">Tester l’API</button>
             <button type="button" class="btn btn--primary" id="ai-modal-save">Enregistrer la configuration</button>
           </div>
         </div>
@@ -1762,6 +1764,7 @@ const AgentView = (() => {
       const closeBtn = document.getElementById('ai-modal-close');
       const cancelBtn = document.getElementById('ai-modal-cancel');
       const saveBtn = document.getElementById('ai-modal-save');
+      const testBtn = document.getElementById('ai-modal-test');
       const providerSelect = document.getElementById('ai-select-provider');
       const modelSelect = document.getElementById('ai-select-model');
       const toggleKeyBtn = document.getElementById('ai-toggle-key-visibility');
@@ -1802,6 +1805,55 @@ const AgentView = (() => {
           const customGroup = document.getElementById('ai-custom-model-group');
           if (customGroup) {
             customGroup.style.display = currentModel === 'custom' ? '' : 'none';
+          }
+        };
+      }
+
+      if (testBtn) {
+        testBtn.onclick = async () => {
+          const selectedProv = document.getElementById('ai-select-provider')?.value || 'openrouter';
+          const selectedMod = document.getElementById('ai-select-model')?.value || '';
+          const customModInput = document.getElementById('ai-input-custom-model')?.value?.trim() || '';
+          const keyVal = document.getElementById('ai-input-api-key')?.value?.trim() || '';
+          const finalModel = selectedMod === 'custom' && customModInput ? customModInput : selectedMod;
+          const resultBox = document.getElementById('ai-provider-test-result');
+
+          testBtn.disabled = true;
+          testBtn.textContent = 'Test en cours…';
+          if (resultBox) {
+            resultBox.hidden = false;
+            resultBox.className = 'ai-provider-test-result';
+            resultBox.textContent = 'Connexion au fournisseur IA…';
+          }
+
+          try {
+            const result = await NidalAPI.testEditorialProvider({
+              provider: selectedProv,
+              model: finalModel,
+              customModel: customModInput,
+              apiKey: keyVal
+            });
+
+            _saveAiProviderProfile(selectedProv, {
+              model: finalModel,
+              customModel: customModInput,
+              apiKey: keyVal
+            });
+
+            if (resultBox) {
+              resultBox.className = 'ai-provider-test-result ai-provider-test-result--success';
+              resultBox.textContent = `✓ API opérationnelle · ${result.provider} / ${result.model} · ${result.latencyMs} ms`;
+            }
+            showToast('Test IA réussi. Le fournisseur et le modèle répondent correctement.', 'success', 5500);
+          } catch (error) {
+            if (resultBox) {
+              resultBox.className = 'ai-provider-test-result ai-provider-test-result--error';
+              resultBox.textContent = '× ' + error.message;
+            }
+            showToast('Test IA échoué : ' + error.message, 'error', 8000);
+          } finally {
+            testBtn.disabled = false;
+            testBtn.textContent = 'Tester l’API';
           }
         };
       }
