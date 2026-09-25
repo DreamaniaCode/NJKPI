@@ -73,11 +73,30 @@ const App = (() => {
 
   function _startMetaLivePolling() {
     if (_metaLiveTimer || typeof NidalStore.syncMetaLive !== 'function') return;
-    _metaLiveTimer = window.setInterval(async () => {
+
+    const refresh = async (force = false) => {
       if (document.hidden || !NidalAPI.isOnline()) return;
-      const live = await NidalStore.syncMetaLive(getActiveBrand(), false);
-      if (live && _currentView === 'dashboard') _renderCurrentView();
+      const live = await NidalStore.syncMetaLive(getActiveBrand(), force);
+      if (live && ['dashboard', 'performance', 'insights', 'audience'].includes(_currentView)) {
+        _renderCurrentView();
+      }
+    };
+
+    let ticks = 0;
+    _metaLiveTimer = window.setInterval(async () => {
+      ticks += 1;
+      // Toutes les 5 minutes, forcer une vraie lecture Meta.
+      // Entre-temps, utiliser le cache serveur pour garder l'UI à jour sans surcharger l'API.
+      await refresh(ticks % 5 === 0);
     }, 60000);
+
+    window.addEventListener('focus', () => {
+      refresh(true).catch(() => {});
+    });
+
+    document.addEventListener('visibilitychange', () => {
+      if (!document.hidden) refresh(true).catch(() => {});
+    });
   }
 
   function _showLoginPage() {
