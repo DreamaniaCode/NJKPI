@@ -10,6 +10,15 @@ const AgentView = (() => {
   const AI_PROFILES_KEY = 'nidal_ai_provider_profiles_v2';
   const BRIEF_DRAFT_KEY = 'nidal_agent_brief_drafts';
 
+  // Conserver le statut d'un job IA même si render() reconstruit la vue.
+  let _taskProgressState = {
+    visible: false,
+    percent: 0,
+    title: '',
+    detail: '',
+    state: 'idle'
+  };
+
   function _loadBriefDrafts() {
     try {
       return JSON.parse(localStorage.getItem(BRIEF_DRAFT_KEY) || '{}') || {};
@@ -24,7 +33,20 @@ const AgentView = (() => {
     localStorage.setItem(BRIEF_DRAFT_KEY, JSON.stringify(drafts));
   }
 
-  function _setAgentProgress({ visible = true, percent = 0, title = '', detail = '', state = 'running' } = {}) {
+  function _setAgentProgress(update = {}) {
+    _taskProgressState = {
+      ..._taskProgressState,
+      ...(update || {})
+    };
+
+    const {
+      visible = true,
+      percent = 0,
+      title = '',
+      detail = '',
+      state = 'running'
+    } = _taskProgressState;
+
     const box = document.getElementById('agent-task-progress');
     if (!box) return;
     box.hidden = !visible;
@@ -41,16 +63,61 @@ const AgentView = (() => {
   }
 
   function _startAgentProgress(kind = 'content', days = 30) {
-    const planSteps = [
-      [8, 'Préparation de l’analyse', 'Chargement des contenus, KPI et données disponibles…'],
-      [20, 'Analyse des contenus publiés', 'Formats, fréquence, sujets et performances sont comparés.'],
-      [34, 'Analyse des KPI sociaux', 'Instagram et Facebook sont étudiés séparément.'],
-      [48, 'Analyse Audience & Conversions', 'Segmentation, signaux de conversion et données disponibles sont croisés.'],
-      [62, 'Analyse Meta Ads', 'Dépenses, reach, impressions, clics, CTR, CPC et actions sont examinés.'],
-      [74, 'Détection des manques', 'L’agent identifie les trous éditoriaux et les priorités.'],
-      [86, 'Construction du planning', `Création d’un calendrier précis sur ${days} jours.`],
-      [94, 'Rédaction des livrables', 'Captions, scripts vidéo, prompts visuels, CTA et KPI sont finalisés. Cette étape peut prendre 1 à 2 minutes selon le modèle.']
-    ];
+    // Le plan professionnel utilise désormais uniquement la progression réelle
+    // renvoyée par le job serveur. Plus de faux pourcentages calculés au timer.
+    if (kind === 'plan') {
+      _setAgentProgress({
+        visible: true,
+        percent: 5,
+        title: 'Initialisation de l’analyse',
+        detail: `Préparation du plan professionnel sur ${days} jours…`,
+        state: 'running'
+      });
+
+      return {
+        update(snapshot = {}) {
+          const providerModel = [snapshot.provider, snapshot.model]
+            .filter(value => value && value !== 'auto')
+            .join(' · ');
+          const dayProgress = snapshot.totalDays
+            ? `${Number(snapshot.completedDays || 0)}/${snapshot.totalDays} jours`
+            : '';
+          const details = [snapshot.detail, providerModel, dayProgress].filter(Boolean);
+
+          _setAgentProgress({
+            visible: true,
+            percent: snapshot.progress ?? _taskProgressState.percent,
+            title: snapshot.message || _taskProgressState.title || 'Analyse en cours',
+            detail: details.join(' · ') || _taskProgressState.detail,
+            state: snapshot.status === 'failed'
+              ? 'error'
+              : snapshot.status === 'completed'
+                ? 'success'
+                : 'running'
+          });
+        },
+        success(message = 'Terminé avec succès') {
+          _setAgentProgress({
+            visible: true,
+            percent: 100,
+            title: '✓ ' + message,
+            detail: 'Le résultat est prêt ci-dessous.',
+            state: 'success'
+          });
+        },
+        error(message = 'Une erreur est survenue') {
+          _setAgentProgress({
+            visible: true,
+            percent: 100,
+            title: 'Échec de l’opération',
+            detail: message,
+            state: 'error'
+          });
+        },
+        stop() {}
+      };
+    }
+
     const contentSteps = [
       [12, 'Lecture du brief', 'Le sujet, le format et la plateforme sont vérifiés.'],
       [35, 'Recherche de l’angle éditorial', 'L’agent structure le message et le hook.'],
@@ -58,22 +125,22 @@ const AgentView = (() => {
       [78, 'Création du visuel / script', 'Prompt image ou script vidéo détaillé en cours.'],
       [92, 'Contrôle final', 'Cohérence, marque et qualité du contenu sont vérifiées.']
     ];
-    const steps = kind === 'plan' ? planSteps : contentSteps;
     let index = 0;
     _setAgentProgress({
       visible: true,
-      percent: steps[0][0],
-      title: steps[0][1],
-      detail: steps[0][2],
+      percent: contentSteps[0][0],
+      title: contentSteps[0][1],
+      detail: contentSteps[0][2],
       state: 'running'
     });
     const timer = window.setInterval(() => {
-      if (index < steps.length - 1) index += 1;
-      const step = steps[index];
+      if (index < contentSteps.length - 1) index += 1;
+      const step = contentSteps[index];
       _setAgentProgress({ visible: true, percent: step[0], title: step[1], detail: step[2], state: 'running' });
-    }, kind === 'plan' ? 12000 : 3500);
+    }, 3500);
 
     return {
+      update() {},
       success(message = 'Terminé avec succès') {
         window.clearInterval(timer);
         _setAgentProgress({ visible: true, percent: 100, title: '✓ ' + message, detail: 'Le résultat est prêt ci-dessous.', state: 'success' });
@@ -705,6 +772,7 @@ const AgentView = (() => {
       </section>`;
 
     _bindEvents();
+    _setAgentProgress(_taskProgressState);
   }
 
   function _formatOptionsHtml(agentKey, selected) {
@@ -1546,6 +1614,11 @@ const AgentView = (() => {
         days,
         objective,
         aiConfig
+      }, snapshot => {
+        progress.update(snapshot);
+        if (button && snapshot?.message) {
+          button.textContent = snapshot.message;
+        }
       });
 
       const agentKey = brand === 'nidal' ? 'planning-nidal' : 'studio-junior';
