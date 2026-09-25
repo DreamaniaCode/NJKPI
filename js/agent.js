@@ -306,33 +306,36 @@ const AgentView = (() => {
 
       <section class="agent-layout">
         <!-- Formulaire de brief -->
-        <form class="agent-brief" id="editorial-form">
-          <div style="display:flex;justify-content:space-between;align-items:flex-start;">
+        <form class="agent-brief agent-brief--simple" id="editorial-form">
+          <div class="agent-simple-head">
             <div>
-              <span class="section-kicker">${isJunior ? 'Studio Créatif Jeunesse' : 'Stratégie & Calendrier'}</span>
-              <h2>${isJunior ? 'Brief pour Studio Nidal Junior' : 'Brief pour Planning GS Nidal'}</h2>
+              <span class="section-kicker">${isJunior ? 'Studio Nidal Junior' : 'Planning GS Nidal'}</span>
+              <h2>Que voulez-vous créer ?</h2>
+              <p>Donnez simplement le sujet. Vous pouvez aussi mettre plusieurs sujets, un par ligne.</p>
             </div>
-            <span class="badge ${isJunior ? 'badge--magenta' : 'badge--blue'}">
-              ${isJunior ? 'Mascotte Nounou' : 'Groupe Scolaire Nidal'}
-            </span>
+            <span class="badge ${isJunior ? 'badge--magenta' : 'badge--blue'}">${isJunior ? 'Nounou' : 'GS Nidal'}</span>
           </div>
 
-          <div class="form-group">
-            <label for="brief-topic">Sujet principal / Thème *</label>
-            <input type="text" id="brief-topic" class="form-control" required
-              value="${escapeHtml(currentAgent.brief.topic)}"
-              placeholder="${isJunior ? 'Ex : Le plaisir de lire avec Nounou' : 'Ex : Calendrier éditorial de 4 semaines'}">
-          </div>
-
-          <div class="form-row">
-            <div class="form-group">
-              <label for="brief-format">Format / Type de publication *</label>
-              <select id="brief-format" class="form-control">
-                ${_formatOptionsHtml(_activeAgentKey, currentAgent.brief.format)}
+          <div class="form-group agent-topic-group">
+            <div class="agent-topic-toolbar">
+              <label for="brief-topic">Sujet(s) *</label>
+              <select id="brief-topic-mode" class="compact-select">
+                <option value="single" ${(currentAgent.brief.topicMode || 'single') === 'single' ? 'selected' : ''}>1 sujet</option>
+                <option value="multiple" ${currentAgent.brief.topicMode === 'multiple' ? 'selected' : ''}>Plusieurs sujets</option>
               </select>
             </div>
+            <textarea id="brief-topic" class="form-control agent-topic-input" rows="7" required
+              placeholder="${isJunior ? 'Ex : Le plaisir de lire avec Nounou' : 'Ex : Active Learning\nPortes ouvertes\nVie scolaire et projets élèves'}">${escapeHtml(currentAgent.brief.topic)}</textarea>
+            <small>Pour plusieurs sujets : écrivez un sujet par ligne. L’IA les traitera séparément.</small>
+          </div>
+
+          <div class="agent-quick-options">
             <div class="form-group">
-              <label for="brief-platform">Canal de diffusion</label>
+              <label for="brief-format">Type de contenu</label>
+              <select id="brief-format" class="form-control">${_formatOptionsHtml(_activeAgentKey, currentAgent.brief.format)}</select>
+            </div>
+            <div class="form-group">
+              <label for="brief-platform">Plateforme</label>
               <select id="brief-platform" class="form-control">
                 ${['Instagram + Facebook (IG + FB)', 'Instagram (IG)', 'Facebook (FB)', 'Instagram Reel + Facebook Story', 'Instagram Story', 'Facebook Reel', 'LinkedIn + Facebook', 'TikTok', 'Multi-plateformes']
                   .map(p => `<option value="${p}" ${currentAgent.brief.platform === p || (!currentAgent.brief.platform && p.startsWith('Instagram + Facebook')) ? 'selected' : ''}>${p}</option>`).join('')}
@@ -340,95 +343,56 @@ const AgentView = (() => {
             </div>
           </div>
 
-          <!-- Options dynamiques selon format : Durée pour Reel, Slides pour Carrousel, Note pour Post -->
           <div id="format-duration-group" class="form-group" style="${/reel|vidéo|video/i.test(currentAgent.brief.format) ? '' : 'display:none;'}">
-            <label for="brief-duration">Durée totale décidée du Reel / Vidéo *</label>
+            <label for="brief-duration">Durée</label>
             <select id="brief-duration" class="form-control">
-              <option value="15 secondes" ${currentAgent.brief.duration === '15 secondes' ? 'selected' : ''}>15 secondes (Flash / Rythme soutenu)</option>
-              <option value="30 secondes" ${(!currentAgent.brief.duration || currentAgent.brief.duration === '30 secondes') ? 'selected' : ''}>30 secondes (Format standard recommandé)</option>
-              <option value="45 secondes" ${currentAgent.brief.duration === '45 secondes' ? 'selected' : ''}>45 secondes (Démonstration pédagogique)</option>
-              <option value="60 secondes" ${currentAgent.brief.duration === '60 secondes' ? 'selected' : ''}>60 secondes (Récit complet / Histoire)</option>
+              <option value="15 secondes" ${currentAgent.brief.duration === '15 secondes' ? 'selected' : ''}>15 s</option>
+              <option value="30 secondes" ${(!currentAgent.brief.duration || currentAgent.brief.duration === '30 secondes') ? 'selected' : ''}>30 s</option>
+              <option value="45 secondes" ${currentAgent.brief.duration === '45 secondes' ? 'selected' : ''}>45 s</option>
+              <option value="60 secondes" ${currentAgent.brief.duration === '60 secondes' ? 'selected' : ''}>60 s</option>
             </select>
           </div>
 
           <div id="format-slides-group" class="form-group" style="${/carrousel/i.test(currentAgent.brief.format) ? '' : 'display:none;'}">
-            <label for="brief-slides">Nombre de slides du Carrousel *</label>
+            <label for="brief-slides">Nombre de slides</label>
             <select id="brief-slides" class="form-control">
-              <option value="4 slides" ${currentAgent.brief.slideCount === '4 slides' ? 'selected' : ''}>4 slides (Couverture + 2 étapes + Synthèse)</option>
-              <option value="5 slides" ${(!currentAgent.brief.slideCount || currentAgent.brief.slideCount === '5 slides') ? 'selected' : ''}>5 slides (Format recommandé équilibré)</option>
-              <option value="6 slides" ${currentAgent.brief.slideCount === '6 slides' ? 'selected' : ''}>6 slides (Approfondissement complet)</option>
-              <option value="8 slides" ${currentAgent.brief.slideCount === '8 slides' ? 'selected' : ''}>8 slides (Guide détaillé / Tutoriel)</option>
+              <option value="4 slides" ${currentAgent.brief.slideCount === '4 slides' ? 'selected' : ''}>4 slides</option>
+              <option value="5 slides" ${(!currentAgent.brief.slideCount || currentAgent.brief.slideCount === '5 slides') ? 'selected' : ''}>5 slides</option>
+              <option value="6 slides" ${currentAgent.brief.slideCount === '6 slides' ? 'selected' : ''}>6 slides</option>
+              <option value="8 slides" ${currentAgent.brief.slideCount === '8 slides' ? 'selected' : ''}>8 slides</option>
             </select>
           </div>
+          <div id="format-tip-box" hidden></div>
 
-          <div id="format-tip-box" class="format-tip" style="${/post/i.test(currentAgent.brief.format) ? '' : 'display:none;'}">
-            📌 <strong>Format Post :</strong> Accroche percutante, visuel clair, corps de texte aéré de 2-3 courts paragraphes, CTA clair et <strong>STRICTEMENT 5 HASHTAGS</strong> (aucun storyboard superflu).
-          </div>
-
-          <div class="form-row">
-            <div class="form-group">
-              <label for="brief-audience">Public cible</label>
-              <input type="text" id="brief-audience" class="form-control"
-                value="${escapeHtml(currentAgent.brief.audience)}" placeholder="Enfants, parents...">
+          <details class="agent-advanced">
+            <summary>Options avancées <span>facultatif</span></summary>
+            <div class="agent-advanced__body">
+              <div class="form-row">
+                <div class="form-group"><label for="brief-audience">Public cible</label><input type="text" id="brief-audience" class="form-control" value="${escapeHtml(currentAgent.brief.audience)}" placeholder="Parents, élèves, enfants…"></div>
+                <div class="form-group"><label for="brief-target-date">Date souhaitée</label><input type="date" id="brief-target-date" class="form-control" value="${escapeHtml(currentAgent.brief.targetDate)}"></div>
+              </div>
+              <div class="form-group"><label for="brief-objective">Objectif</label><input type="text" id="brief-objective" class="form-control" value="${escapeHtml(currentAgent.brief.objective)}" placeholder="Informer, engager, convertir…"></div>
+              <div class="form-group"><label for="brief-cta">CTA</label><input type="text" id="brief-cta" class="form-control" value="${escapeHtml(currentAgent.brief.cta)}" placeholder="Contactez-nous, inscrivez-vous…"></div>
+              <div class="form-group"><label for="brief-required-info">Informations obligatoires</label><textarea id="brief-required-info" class="form-control" rows="2" placeholder="Horaires, lieu, détails à respecter…">${escapeHtml(currentAgent.brief.requiredInfo)}</textarea></div>
+              <div class="form-row">
+                <div class="form-group"><label for="brief-assets">Ressources</label><input type="text" id="brief-assets" class="form-control" value="${escapeHtml(currentAgent.brief.assets)}" placeholder="Logo, photo, mascotte…"></div>
+                <div class="form-group"><label for="brief-language">Langue</label><select id="brief-language" class="form-control">
+                  <option value="Français" ${currentAgent.brief.language === 'Français' ? 'selected' : ''}>Français</option>
+                  <option value="Bilingue FR/AR" ${currentAgent.brief.language === 'Bilingue FR/AR' ? 'selected' : ''}>Bilingue FR/AR</option>
+                  <option value="Arabe" ${currentAgent.brief.language === 'Arabe' ? 'selected' : ''}>Arabe</option>
+                </select></div>
+              </div>
+              <div class="check-grid">
+                <label class="check-item"><input type="checkbox" id="brief-include-nounou" ${currentAgent.brief.includeNounou ? 'checked' : ''}><span>Inclure Nounou</span></label>
+                <label class="check-item"><input type="checkbox" id="brief-include-storyboard" ${currentAgent.brief.includeStoryboard ? 'checked' : ''}><span>Créer un storyboard</span></label>
+              </div>
             </div>
-            <div class="form-group">
-              <label for="brief-target-date">Date souhaitée (laisser vide pour « Date à confirmer »)</label>
-              <input type="date" id="brief-target-date" class="form-control"
-                value="${escapeHtml(currentAgent.brief.targetDate)}">
-            </div>
-          </div>
+          </details>
 
-          <div class="form-group">
-            <label for="brief-objective">Objectif pédagogique / éditorial</label>
-            <input type="text" id="brief-objective" class="form-control"
-              value="${escapeHtml(currentAgent.brief.objective)}" placeholder="Valoriser l'effort, rassurer...">
-          </div>
-
-          <div class="form-group">
-            <label for="brief-cta">Appel à l'action (CTA)</label>
-            <input type="text" id="brief-cta" class="form-control"
-              value="${escapeHtml(currentAgent.brief.cta)}" placeholder="Posez vos questions...">
-          </div>
-
-          <div class="form-group">
-            <label for="brief-required-info">Informations obligatoires / Faits confirmés</label>
-            <textarea id="brief-required-info" class="form-control" rows="2"
-              placeholder="Préciser les horaires, lieux ou règles déjà arrêtées">${escapeHtml(currentAgent.brief.requiredInfo)}</textarea>
-          </div>
-
-          <div class="form-row">
-            <div class="form-group">
-              <label for="brief-assets">Ressources disponibles</label>
-              <input type="text" id="brief-assets" class="form-control"
-                value="${escapeHtml(currentAgent.brief.assets)}" placeholder="Ex: Mascotte officielle assets/mascot.png">
-            </div>
-            <div class="form-group">
-              <label for="brief-language">Langue</label>
-              <select id="brief-language" class="form-control">
-                <option value="Français" ${currentAgent.brief.language === 'Français' ? 'selected' : ''}>Français (langue principale)</option>
-                <option value="Bilingue FR/AR" ${currentAgent.brief.language === 'Bilingue FR/AR' ? 'selected' : ''}>Bilingue (Français & Arabe)</option>
-                <option value="Arabe" ${currentAgent.brief.language === 'Arabe' ? 'selected' : ''}>Arabe</option>
-              </select>
-            </div>
-          </div>
-
-          <!-- Options spécifiques Nounou / Storyboard -->
-          <div class="check-grid" style="margin: 12px 0;">
-            <label class="check-item">
-              <input type="checkbox" id="brief-include-nounou" ${currentAgent.brief.includeNounou ? 'checked' : ''}>
-              <span>Présence de Nounou (Mascotte officielle)</span>
-            </label>
-            <label class="check-item">
-              <input type="checkbox" id="brief-include-storyboard" ${currentAgent.brief.includeStoryboard ? 'checked' : ''}>
-              <span>Storyboard minuté scène par scène</span>
-            </label>
-          </div>
-
-          <button class="btn btn--primary btn--block" type="submit" ${online ? '' : 'disabled'}>
-            ${online ? (isJunior ? '🎨 Générer avec Studio Nidal Junior' : '🏛️ Générer avec Planning GS Nidal') : 'Connecter le serveur pour générer'}
+          <button class="btn btn--primary btn--block agent-generate-btn" type="submit" ${online ? '' : 'disabled'}>
+            ${online ? '✨ Générer le contenu' : 'Connecter le serveur pour générer'}
           </button>
         </form>
-
         <!-- Sortie et propositions -->
         <section class="agent-output">
           <div class="agent-output__head">
@@ -1040,26 +1004,38 @@ const AgentView = (() => {
   }
 
   function _readFormInputs() {
-    const format = document.getElementById('brief-format').value;
-    const durEl = document.getElementById('brief-duration');
-    const slideEl = document.getElementById('brief-slides');
-
+    const get = id => document.getElementById(id);
+    const format = get('brief-format')?.value || 'post';
+    const topic = get('brief-topic')?.value.trim() || '';
+    const topicMode = get('brief-topic-mode')?.value || 'single';
     return {
-      topic: document.getElementById('brief-topic').value.trim(),
+      topic,
+      topicMode,
       format,
-      duration: durEl ? durEl.value : undefined,
-      slideCount: slideEl ? slideEl.value : undefined,
-      platform: document.getElementById('brief-platform').value,
-      audience: document.getElementById('brief-audience').value.trim(),
-      targetDate: document.getElementById('brief-target-date').value,
-      objective: document.getElementById('brief-objective').value.trim(),
-      cta: document.getElementById('brief-cta').value.trim(),
-      requiredInfo: document.getElementById('brief-required-info').value.trim(),
-      assets: document.getElementById('brief-assets').value.trim(),
-      language: document.getElementById('brief-language').value,
-      includeNounou: document.getElementById('brief-include-nounou').checked,
-      includeStoryboard: document.getElementById('brief-include-storyboard').checked
+      duration: get('brief-duration')?.value || undefined,
+      slideCount: get('brief-slides')?.value || undefined,
+      platform: get('brief-platform')?.value || 'Instagram + Facebook (IG + FB)',
+      audience: get('brief-audience')?.value.trim() || '',
+      targetDate: get('brief-target-date')?.value || '',
+      objective: get('brief-objective')?.value.trim() || '',
+      cta: get('brief-cta')?.value.trim() || '',
+      requiredInfo: get('brief-required-info')?.value.trim() || '',
+      assets: get('brief-assets')?.value.trim() || '',
+      language: get('brief-language')?.value || 'Français',
+      includeNounou: Boolean(get('brief-include-nounou')?.checked),
+      includeStoryboard: Boolean(get('brief-include-storyboard')?.checked)
     };
+  }
+
+  function _topicForRequest(inputs) {
+    if (inputs.topicMode !== 'multiple') return inputs.topic;
+    const subjects = inputs.topic.split(/\n+/).map(item => item.trim()).filter(Boolean);
+    if (subjects.length <= 1) return inputs.topic;
+    return [
+      'Créer une publication DISTINCTE pour chacun des sujets suivants. Ne fusionne pas les sujets. Chaque publication doit avoir son propre texte, ses 5 hashtags et son prompt image IA unique.',
+      '',
+      ...subjects.map((subject, index) => `${index + 1}. ${subject}`)
+    ].join('\n');
   }
 
   async function _onGenerate(e) {
@@ -1079,7 +1055,8 @@ const AgentView = (() => {
         agentKey: _activeAgentKey,
         brand: _activeAgentKey === 'planning-nidal' ? 'nidal' : 'nidal-junior',
         aiConfig,
-        ...inputs
+        ...inputs,
+        topic: _topicForRequest(inputs)
       });
 
       const loaded = _formatLoadedGen(response);
@@ -1120,6 +1097,7 @@ const AgentView = (() => {
         brand: _activeAgentKey === 'planning-nidal' ? 'nidal' : 'nidal-junior',
         aiConfig,
         ...inputs,
+        topic: _topicForRequest(inputs),
         revisionOf: `Consignes de révision sur la proposition précédente (« ${gen?.structuredData?.titre || inputs.topic} ») :\n${revText}\n\nContenu précédent à ajuster :\n${gen?.output || ''}`
       });
 
