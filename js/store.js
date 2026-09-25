@@ -278,8 +278,16 @@ const NidalStore = (() => {
   }
 
   function _pushItem(item) {
-    if (!NidalAPI.isOnline()) return;
-    NidalAPI.upsertContent({ ...item, brand: item.brand, data: item }).catch(error => console.warn('Sauvegarde distante differee:', error.message));
+    if (!NidalAPI.isOnline()) {
+      showToast('Serveur hors ligne : ce contenu n’est pas encore enregistré dans PostgreSQL.', 'error');
+      return;
+    }
+
+    NidalAPI.upsertContent({ ...item, brand: item.brand, data: item })
+      .catch(error => {
+        console.error('Sauvegarde PostgreSQL échouée:', error.message);
+        showToast('Échec de sauvegarde en base : ' + error.message, 'error');
+      });
   }
 
   function getInteractions(content) {
