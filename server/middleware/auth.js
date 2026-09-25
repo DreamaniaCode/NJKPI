@@ -148,16 +148,47 @@ export async function initAuth() {
       `);
 
       if (resetDefaultAdmin) {
-        await query(
-          `INSERT INTO users (username, email, password_hash, role, display_name)
-           VALUES ($1, $2, $3, 'admin', 'Administrateur')
-           ON CONFLICT (username) DO UPDATE SET
-             email = EXCLUDED.email,
-             password_hash = EXCLUDED.password_hash,
-             role = 'admin',
-             display_name = EXCLUDED.display_name`,
-          [adminUser, adminEmail, hashedPass]
+        const byUsername = await query(
+          'SELECT id FROM users WHERE username = $1 LIMIT 1',
+          [adminUser]
         );
+
+        if (byUsername.rows.length > 0) {
+          await query(
+            `UPDATE users
+             SET password_hash = $2,
+                 role = 'admin',
+                 display_name = 'Administrateur'
+             WHERE id = $1`,
+            [byUsername.rows[0].id, hashedPass]
+          );
+        } else {
+          const existingAdmin = await query(
+            `SELECT id FROM users
+             WHERE role = 'admin'
+             ORDER BY id ASC
+             LIMIT 1`
+          );
+
+          if (existingAdmin.rows.length > 0) {
+            await query(
+              `UPDATE users
+               SET username = $2,
+                   password_hash = $3,
+                   role = 'admin',
+                   display_name = 'Administrateur'
+               WHERE id = $1`,
+              [existingAdmin.rows[0].id, adminUser, hashedPass]
+            );
+          } else {
+            await query(
+              `INSERT INTO users (username, email, password_hash, role, display_name)
+               VALUES ($1, $2, $3, 'admin', 'Administrateur')`,
+              [adminUser, adminEmail, hashedPass]
+            );
+          }
+        }
+
         console.log(`[Auth] Compte administrateur réinitialisé depuis les variables d'environnement (${adminUser}).`);
       } else {
         // Vérifier si un admin existe
