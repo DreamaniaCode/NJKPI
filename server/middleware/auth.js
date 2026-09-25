@@ -130,6 +130,7 @@ export async function initAuth() {
   const adminPass = process.env.DEFAULT_ADMIN_PASS || 'nidal2026';
   const adminEmail = process.env.DEFAULT_ADMIN_EMAIL || 'admin@gsnidal.ma';
   const hashedPass = hashPassword(adminPass);
+  const resetDefaultAdmin = process.env.RESET_DEFAULT_ADMIN === 'true';
 
   if (hasDatabase() && isDbConnected()) {
     try {
@@ -146,18 +147,32 @@ export async function initAuth() {
         );
       `);
 
-      // Vérifier si un admin existe
-      const res = await query(`SELECT COUNT(*) FROM users WHERE role = 'admin'`);
-      const adminCount = parseInt(res.rows[0].count, 10);
-
-      if (adminCount === 0) {
+      if (resetDefaultAdmin) {
         await query(
-          `INSERT INTO users (username, email, password_hash, role, display_name) 
-           VALUES ($1, $2, $3, 'admin', 'Administrateur par défaut') 
-           ON CONFLICT (username) DO NOTHING`,
+          `INSERT INTO users (username, email, password_hash, role, display_name)
+           VALUES ($1, $2, $3, 'admin', 'Administrateur')
+           ON CONFLICT (username) DO UPDATE SET
+             email = EXCLUDED.email,
+             password_hash = EXCLUDED.password_hash,
+             role = 'admin',
+             display_name = EXCLUDED.display_name`,
           [adminUser, adminEmail, hashedPass]
         );
-        console.log(`[Auth] Utilisateur admin par défaut créé en base de données (${adminUser}).`);
+        console.log(`[Auth] Compte administrateur réinitialisé depuis les variables d'environnement (${adminUser}).`);
+      } else {
+        // Vérifier si un admin existe
+        const res = await query(`SELECT COUNT(*) FROM users WHERE role = 'admin'`);
+        const adminCount = parseInt(res.rows[0].count, 10);
+
+        if (adminCount === 0) {
+          await query(
+            `INSERT INTO users (username, email, password_hash, role, display_name) 
+             VALUES ($1, $2, $3, 'admin', 'Administrateur par défaut') 
+             ON CONFLICT (username) DO NOTHING`,
+            [adminUser, adminEmail, hashedPass]
+          );
+          console.log(`[Auth] Utilisateur admin par défaut créé en base de données (${adminUser}).`);
+        }
       }
     } catch (error) {
       console.error('[Auth] Erreur lors de l\'initialisation de la table users :', error);
@@ -165,7 +180,26 @@ export async function initAuth() {
   }
   
   // Toujours maintenir la mémoire pour le fallback
-  if (memoryUsers.length === 0) {
+  if (resetDefaultAdmin) {
+    const existing = memoryUsers.find(user => user.username === adminUser);
+    if (existing) {
+      existing.email = adminEmail;
+      existing.password_hash = hashedPass;
+      existing.role = 'admin';
+      existing.display_name = 'Administrateur';
+    } else {
+      memoryUsers.push({
+        id: memoryUserIdCounter++,
+        username: adminUser,
+        email: adminEmail,
+        password_hash: hashedPass,
+        role: 'admin',
+        display_name: 'Administrateur',
+        created_at: new Date(),
+        last_login: null
+      });
+    }
+  } else if (memoryUsers.length === 0) {
     memoryUsers.push({
       id: memoryUserIdCounter++,
       username: adminUser,
