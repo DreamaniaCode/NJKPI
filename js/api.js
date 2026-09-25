@@ -47,59 +47,22 @@ const NidalAPI = (() => {
     return payload;
   }
 
-  async function _convertStillImageToJpeg(file) {
-    const type = String(file?.type || '').toLowerCase();
-    if (!['image/png', 'image/webp', 'image/gif'].includes(type)) return file;
-
-    let bitmap;
-    try {
-      bitmap = await createImageBitmap(file);
-    } catch {
-      throw new Error('Cette image ne peut pas être convertie automatiquement. Utilisez JPG/JPEG.');
-    }
-
-    const maxSide = 4096;
-    const scale = Math.min(1, maxSide / Math.max(bitmap.width, bitmap.height));
-    const width = Math.max(1, Math.round(bitmap.width * scale));
-    const height = Math.max(1, Math.round(bitmap.height * scale));
-    const canvas = document.createElement('canvas');
-    canvas.width = width;
-    canvas.height = height;
-    const ctx = canvas.getContext('2d');
-    if (!ctx) throw new Error('Conversion image indisponible dans ce navigateur.');
-
-    // JPEG ne gère pas la transparence : fond blanc neutre.
-    ctx.fillStyle = '#ffffff';
-    ctx.fillRect(0, 0, width, height);
-    ctx.drawImage(bitmap, 0, 0, width, height);
-    bitmap.close?.();
-
-    const blob = await new Promise((resolve, reject) => {
-      canvas.toBlob(result => result ? resolve(result) : reject(new Error('Conversion JPEG impossible.')), 'image/jpeg', 0.92);
-    });
-
-    const baseName = String(file.name || 'image').replace(/\.[^.]+$/, '');
-    return new File([blob], `${baseName}.jpg`, { type: 'image/jpeg', lastModified: Date.now() });
-  }
 
   async function uploadMedia(file) {
     if (!file) throw new Error('Sélectionnez un fichier.');
 
     const originalType = String(file.type || '').toLowerCase();
-    const normalizedFile = await _convertStillImageToJpeg(file);
-    const wasConverted = normalizedFile !== file;
-
     const config = getConfig();
     const headers = {
-      'Content-Type': normalizedFile.type || 'application/octet-stream',
-      'X-File-Name': encodeURIComponent(normalizedFile.name || 'media')
+      'Content-Type': file.type || 'application/octet-stream',
+      'X-File-Name': encodeURIComponent(file.name || 'media')
     };
     Object.assign(headers, getAuthHeaders());
 
     const response = await fetch(`${config.baseUrl}/api/uploads`, {
       method: 'POST',
       headers,
-      body: normalizedFile
+      body: file
     });
     const text = await response.text();
     let payload;
@@ -115,9 +78,9 @@ const NidalAPI = (() => {
     }
     return {
       ...payload,
-      convertedForMeta: wasConverted,
-      originalMime: originalType || null,
-      mime: payload.mime || normalizedFile.type
+      convertedForMeta: Boolean(payload.convertedForMeta),
+      originalMime: payload.originalMime || originalType || null,
+      mime: payload.mime || file.type
     };
   }
 
