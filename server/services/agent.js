@@ -811,6 +811,16 @@ function buildUserPrompt(briefData = {}, context = '') {
 
   parts.push(`\n=== DIRECTIVES IMPÉRATIVES POUR LE FORMAT "${format.toUpperCase()}" ===`);
 
+  parts.push(`\n=== VARIATION VISUELLE OBLIGATOIRE ===
+- Le Prompt image IA doit être créé SPÉCIFIQUEMENT pour le sujet de cette publication. INTERDICTION de reprendre un prompt générique de classe, bibliothèque ou cour d'école si le sujet ne l'exige pas.
+- Chaque nouveau contenu doit avoir un visuel réellement différent des contenus précédents : change au minimum 4 éléments parmi le lieu, l'action, le nombre de personnes, l'âge/groupe, le cadrage, l'angle caméra, la focale, la lumière, les accessoires, l'arrière-plan et la composition.
+- Le sujet principal et l'action doivent illustrer directement l'idée du post. Exemple : sciences → expérience concrète ; sport → mouvement réel ; lecture → interaction avec un livre ; créativité → atelier artistique ; rentrée → accueil/arrivée ; technologie → manipulation d'outil numérique.
+- Ne recopie jamais mot pour mot le début d'un Prompt image IA déjà présent dans le contexte.
+- Évite de commencer systématiquement par "A modern classroom", "A vibrant classroom", "smiling students" ou une formule équivalente.
+- Le prompt final doit contenir : sujet précis, action précise, lieu précis, composition, cadrage, lumière, ambiance, détails de décor, palette Nidal, style photographique/illustratif, focale ou rendu, résolution et ratio.
+- Pour un calendrier/planning avec plusieurs publications : CHAQUE publication doit avoir son propre Prompt image IA entièrement distinct. Aucun copier-coller entre les jours.
+- Si plusieurs prompts sont générés dans la même réponse, varie aussi le type de plan : gros plan, plan moyen, plan large, vue en plongée légère, contre-plongée douce, over-the-shoulder, scène extérieure, scène intérieure, selon le sujet.`);
+
   if (/post/i.test(format)) {
     parts.push(`- INTERDICTION ABSOLUE DE PRODUIRE UN STORYBOARD OU DES SCÈNES.
 - Rédige un POST RÉSEAUX SOCIAUX limpide, complet, percutant et prêt à publier immédiatement.
@@ -848,8 +858,9 @@ function buildUserPrompt(briefData = {}, context = '') {
   • Date & Heure conseillées
   • Titre & Format
   • Post prêt à publier (texte rédigé complet avec accroche et appel à l'action)
-  • Prompt image IA (pour générer le visuel du post)
-  • STRICTEMENT 5 HASHTAGS`);
+  • Prompt image IA UNIQUE pour ce post (lieu, action, cadrage et composition différents des autres jours)
+  • STRICTEMENT 5 HASHTAGS
+- Vérifie avant de répondre qu'aucun Prompt image IA du calendrier n'est identique ou quasi-identique à un autre.`);
   } else {
     parts.push(`- Produis un contenu éditorial soigné avec Titre, Chapeau, Corps structuré en 3 parties, Prompt image IA, Appel à l'action et STRICTEMENT 5 HASHTAGS.`);
   }
