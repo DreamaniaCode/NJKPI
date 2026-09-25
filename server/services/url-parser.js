@@ -71,7 +71,22 @@ export function parseContentUrl(url) {
 
   try {
     const cleaned = url.trim().replace(/\s+/g, '');
-    result.normalizedUrl = cleaned.replace(/\?.*$/, '').replace(/\/$/, '') + '/';
+    const parsedUrl = new URL(cleaned);
+
+    // Ne jamais supprimer fbid sur les liens Facebook Photo.
+    // Sans fbid, "facebook.com/photo/?fbid=..." devenait simplement
+    // "facebook.com/photo/" et il était impossible de retrouver le vrai post.
+    if (/facebook\.com/i.test(parsedUrl.hostname) && /\/photo\/?$/i.test(parsedUrl.pathname)) {
+      const fbid = parsedUrl.searchParams.get('fbid');
+      const set = parsedUrl.searchParams.get('set');
+      parsedUrl.search = '';
+      if (fbid) parsedUrl.searchParams.set('fbid', fbid);
+      if (set) parsedUrl.searchParams.set('set', set);
+      result.normalizedUrl = parsedUrl.toString();
+    } else {
+      parsedUrl.search = '';
+      result.normalizedUrl = parsedUrl.toString().replace(/\/$/, '') + '/';
+    }
 
     for (const rule of PLATFORM_RULES) {
       if (!rule.patterns.some(p => p.test(cleaned))) continue;
@@ -87,6 +102,14 @@ export function parseContentUrl(url) {
         }
       }
       if (result.contentType === 'unknown') result.contentType = 'post';
+
+      // Les URLs Facebook photo modernes portent l'identifiant dans ?fbid=
+      if (result.platform === 'facebook' && !result.contentId) {
+        try {
+          const fbUrl = new URL(cleaned);
+          result.contentId = fbUrl.searchParams.get('fbid') || null;
+        } catch {}
+      }
       break;
     }
   } catch { /* URL invalide */ }
