@@ -670,9 +670,9 @@ async function publishFacebookPost(brand, job) {
   };
 }
 
-async function waitForInstagramContainer(containerId, maxAttempts = 20) {
+async function waitForInstagramContainer(containerId, accessToken, maxAttempts = 20) {
   for (let attempt = 1; attempt <= maxAttempts; attempt++) {
-    const status = await graph(containerId, { fields: 'status_code,status' });
+    const status = await graph(containerId, { fields: 'status_code,status' }, accessToken);
     const code = String(status.status_code || '').toUpperCase();
 
     if (code === 'FINISHED') return status;
@@ -696,6 +696,10 @@ async function publishInstagramPost(brand, job) {
   const igUserId = brandEnv('META_IG_USER_ID', brand);
   if (!igUserId) throw new Error(`META_IG_USER_ID non configuré pour ${brand}`);
   if (!job.media_url) throw new Error('Instagram exige une photo ou vidéo.');
+
+  // Le projet utilise "Instagram API with Facebook Login".
+  // Meta documente la publication avec le Page Access Token lié au compte IG pro.
+  const publishToken = await resolvePageAccessToken(brand);
 
   const mediaType = String(job.media_type || 'image').toLowerCase();
   const createParams = { caption: job.message || '' };
@@ -721,21 +725,21 @@ async function publishInstagramPost(brand, job) {
     createParams.image_url = job.media_url;
   }
 
-  const container = await graphPost(`${igUserId}/media`, createParams);
+  const container = await graphPost(`${igUserId}/media`, createParams, publishToken);
   if (!container?.id) throw new Error('Meta n’a pas retourné de conteneur Instagram.');
 
-  await waitForInstagramContainer(container.id);
+  await waitForInstagramContainer(container.id, publishToken);
 
   const published = await graphPost(`${igUserId}/media_publish`, {
     creation_id: container.id
-  });
+  }, publishToken);
   if (!published?.id) throw new Error('Instagram n’a pas confirmé la publication.');
 
   let verification = null;
   try {
     verification = await graph(published.id, {
       fields: 'id,permalink,media_type,timestamp'
-    });
+    }, publishToken);
   } catch {
     verification = { id: published.id };
   }
