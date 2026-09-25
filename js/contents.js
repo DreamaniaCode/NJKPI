@@ -57,7 +57,11 @@ const ContentsView = (() => {
         <td>${escapeHtml(getContentType(content.format).label)}<span class="badge" style="margin-left:6px;font-size:10px;background:#eef4ff;color:#1746d1;font-weight:600;">${platformMeta.icon} ${escapeHtml(platformMeta.short)}</span></td>
         <td><span class="badge badge--${content.statut}">${escapeHtml(getStatus(content.statut).label)}</span></td>
         <td><span class="control-badge ${control.className}">${control.label}</span></td>
-        <td class="actions-column"><button class="btn btn--icon btn--sm" onclick="ContentsView.openEditForm('${content.id}')" aria-label="Modifier ${escapeHtml(content.titre)}" title="Modifier">Modifier</button><button class="btn btn--icon btn--sm btn--danger-text" onclick="ContentsView.deleteContent('${content.id}')" aria-label="Supprimer ${escapeHtml(content.titre)}" title="Supprimer">Supprimer</button></td>
+        <td class="actions-column">
+          ${content.statut !== 'publie' ? `<button class="btn btn--primary btn--sm" onclick="ContentsView.openPublishForm('${content.id}')" aria-label="Publier ou programmer ${escapeHtml(content.titre)}" title="Publier ou programmer">Publier</button>` : ''}
+          <button class="btn btn--icon btn--sm" onclick="ContentsView.openEditForm('${content.id}')" aria-label="Modifier ${escapeHtml(content.titre)}" title="Modifier">Modifier</button>
+          <button class="btn btn--icon btn--sm btn--danger-text" onclick="ContentsView.deleteContent('${content.id}')" aria-label="Supprimer ${escapeHtml(content.titre)}" title="Supprimer">Supprimer</button>
+        </td>
       </tr>`;
     }).join('');
   }
@@ -617,25 +621,103 @@ const ContentsView = (() => {
     });
   }
 
-  function openEditForm(id) {
+  function _openExistingContentModal(id, publishFocused = false) {
     const content = NidalStore.getById(id);
     if (!content) return;
-    openModal('Modifier le contenu', _formHtml(content), {
-      footer: `<button type="button" class="btn btn--secondary" data-close-modal>Annuler</button><button type="button" class="btn btn--primary" id="save-content-btn">Enregistrer</button>`,
-      onOpen: modal => {
-        _bindFormSync(modal);
-        _bindMediaUpload(modal);
-        modal.querySelector('#save-content-btn').onclick = () => {
-          const values = _readForm(modal);
-          if (!values.titre) return showToast('Le titre est obligatoire', 'error');
-          NidalStore.update(id, values);
-          closeModal();
-          showToast('Modifications enregistrées', 'success');
-        };
+
+    openModal(
+      publishFocused ? 'Publier ou programmer ce contenu' : 'Modifier le contenu',
+      _formHtml(content, { includePublishActions: true }),
+      {
+        footer: `
+          <button type="button" class="btn btn--secondary" data-close-modal>Annuler</button>
+          <button type="button" class="btn btn--secondary" id="save-content-btn">Enregistrer</button>
+          <button type="button" class="btn btn--secondary" id="schedule-content-btn">🗓 Programmer</button>
+          <button type="button" class="btn btn--primary" id="publish-content-btn">🚀 Publier maintenant</button>
+        `,
+        onOpen: modal => {
+          _bindFormSync(modal);
+          _bindMediaUpload(modal);
+
+          const runExistingAction = async (mode, button) => {
+            const values = _readForm(modal);
+            if (!values.titre) return showToast('Le titre est obligatoire', 'error');
+            if (mode === 'schedule' && !values.datePublication) {
+              return showToast('Choisissez la date de programmation.', 'error');
+            }
+            if (mode !== 'save' && _platformsFromValue(values.plateforme).includes('instagram') && !values.mediaUrl) {
+              return showToast('Choisissez et téléversez une photo ou vidéo pour Instagram.', 'error');
+            }
+
+            // Toujours sauvegarder les modifications du contenu existant avant l'action Meta.
+            NidalStore.update(id, values);
+
+            if (mode === 'save') {
+              closeModal();
+              showToast('Modifications enregistrées', 'success');
+              return;
+            }
+
+            const buttons = [...modal.querySelectorAll('#save-content-btn,#schedule-content-btn,#publish-content-btn')];
+            buttons.forEach(btn => btn.disabled = true);
+            const original = button.textContent;
+            button.textContent = mode === 'now' ? 'Publication…' : 'Programmation…';
+
+            try {
+              const result = await _queueContentPublication(values, mode);
+
+              if (mode === 'now') {
+                const metaResult = result?.result || {};
+                const finalUrl =
+                  metaResult.instagram?.permalink ||
+                  metaResult.facebook?.permalink ||
+                  values.finalUrl ||
+                  '';
+                NidalStore.update(id, {
+                  ...values,
+                  statut: 'publie',
+                  validation: 'approuve',
+                  finalUrl,
+                  publishedAt: new Date().toISOString()
+                });
+                closeModal();
+                showToast('Publication confirmée par Meta.', 'success');
+              } else {
+                NidalStore.update(id, {
+                  ...values,
+                  statut: 'planifie'
+                });
+                closeModal();
+                showToast('Publication programmée.', 'success');
+              }
+            } catch (error) {
+              NidalStore.update(id, {
+                ...values,
+                statut: values.statut || 'brouillon',
+                notes: [values.notes, 'Publication Meta à vérifier : ' + error.message].filter(Boolean).join('\n')
+              });
+              buttons.forEach(btn => btn.disabled = false);
+              button.textContent = original;
+              showToast('Publication Meta non terminée : ' + error.message, 'error');
+            }
+          };
+
+          modal.querySelector('#save-content-btn').onclick = event => runExistingAction('save', event.currentTarget);
+          modal.querySelector('#schedule-content-btn').onclick = event => runExistingAction('schedule', event.currentTarget);
+          modal.querySelector('#publish-content-btn').onclick = event => runExistingAction('now', event.currentTarget);
+        }
       }
-    });
+    );
+  }
+
+  function openEditForm(id) {
+    _openExistingContentModal(id, false);
+  }
+
+  function openPublishForm(id) {
+    _openExistingContentModal(id, true);
   }
 
   function deleteContent(id) { const content = NidalStore.getById(id); confirmAction(`Supprimer « ${content?.titre || 'ce contenu'} » ?`, () => { NidalStore.remove(id); showToast('Contenu supprime', 'success'); }); }
-  return { render, openCreateForm, openBulkCreateForm, openWeeklyCreateForm, openEditForm, deleteContent };
+  return { render, openCreateForm, openBulkCreateForm, openWeeklyCreateForm, openEditForm, openPublishForm, deleteContent };
 })();
