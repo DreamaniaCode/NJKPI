@@ -7,6 +7,7 @@ const NidalStore = (() => {
   const CURRENT_VERSION = 3;
   let _subscribers = [];
   let _data = null;
+  const _syncPromises = new Map();
 
   const DEFAULT_BRAND_KPI_TARGETS = {
     'nidal-junior': {
@@ -131,14 +132,28 @@ const NidalStore = (() => {
 
   function getAll(brand = getActiveBrand()) { return [...(_data?.contents || [])].filter(item => !brand || item.brand === brand).sort((a, b) => (a.datePublication || '9999').localeCompare(b.datePublication || '9999') || a.heure.localeCompare(b.heure)); }
   function getById(id) { return _data?.contents.find(item => item.id === id) || null; }
-  function create(content) { const item = _normalize({ brand: getActiveBrand(), ...content }); _data.contents.push(item); _save(); _pushItem(item); return item; }
+  function create(content) {
+    const item = _normalize({ brand: getActiveBrand(), ...content });
+    _data.contents.push(item);
+    _save();
+    _syncPromises.set(item.id, _pushItem(item));
+    return item;
+  }
   function update(id, updates) {
     const index = _data.contents.findIndex(item => item.id === id);
     if (index === -1) return null;
     _data.contents[index] = _normalize({ ..._data.contents[index], ...updates, id });
     _save();
-    _pushItem(_data.contents[index]);
+    _syncPromises.set(id, _pushItem(_data.contents[index]));
     return _data.contents[index];
+  }
+
+  async function waitForSync(id) {
+    const pending = _syncPromises.get(id);
+    if (!pending) return { ok: true, skipped: true };
+    const result = await pending;
+    _syncPromises.delete(id);
+    return result;
   }
   function remove(id) { const index = _data.contents.findIndex(item => item.id === id); if (index === -1) return false; _data.contents.splice(index, 1); _save(); if (NidalAPI.isOnline()) NidalAPI.deleteContent(id).catch(error => console.warn('Suppression distante differee:', error.message)); return true; }
   function getSettings() { return { ...(_data?.settings || { theme: 'light' }) }; }
@@ -277,17 +292,21 @@ const NidalStore = (() => {
     return _data?.socialProfiles?.[slug] || null;
   }
 
-  function _pushItem(item) {
+  async function _pushItem(item) {
     if (!NidalAPI.isOnline()) {
-      showToast('Serveur hors ligne : ce contenu n’est pas encore enregistré dans PostgreSQL.', 'error');
-      return;
+      const error = new Error('Serveur hors ligne : ce contenu n’est pas encore enregistré dans PostgreSQL.');
+      showToast(error.message, 'error', 7000);
+      return { ok: false, error };
     }
 
-    NidalAPI.upsertContent({ ...item, brand: item.brand, data: item })
-      .catch(error => {
-        console.error('Sauvegarde PostgreSQL échouée:', error.message);
-        showToast('Échec de sauvegarde en base : ' + error.message, 'error');
-      });
+    try {
+      const record = await NidalAPI.upsertContent({ ...item, brand: item.brand, data: item });
+      return { ok: true, record };
+    } catch (error) {
+      console.error('Sauvegarde PostgreSQL échouée:', error.message);
+      showToast('Échec de sauvegarde en base : ' + error.message, 'error', 7500);
+      return { ok: false, error };
+    }
   }
 
   function getInteractions(content) {
@@ -576,7 +595,7 @@ const NidalStore = (() => {
   }
 
   return {
-    init, getAll, getById, create, update, remove,
+    init, getAll, getById, create, update, remove, waitForSync,
     getSettings, updateSettings, exportData, importData,
     reset, clearMockData, loadDemoData, hasMockData, syncRemote, syncMetaLive, getSocialLive,
     getInteractions, getEngagement, getControl, getStats, subscribe,
