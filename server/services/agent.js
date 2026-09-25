@@ -491,7 +491,7 @@ async function fetchAiWithTimeout(url, options = {}, timeoutMs = Number(process.
   const timer = setTimeout(() => controller.abort(), Math.max(5000, timeoutMs));
 
   try {
-    return await fetchAiWithTimeout(url, { ...options, signal: controller.signal });
+    return await fetch(url, { ...options, signal: controller.signal });
   } catch (error) {
     if (error?.name === 'AbortError') {
       throw new Error(
