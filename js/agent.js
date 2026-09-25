@@ -266,6 +266,13 @@ const AgentView = (() => {
   }
 
   function render() {
+    const activeBrand = getActiveBrand();
+    const expectedAgent = activeBrand === 'nidal' ? 'planning-nidal' : 'studio-junior';
+    if (_activeAgentKey !== expectedAgent) {
+      _activeAgentKey = expectedAgent;
+      localStorage.setItem(ACTIVE_AGENT_KEY, expectedAgent);
+    }
+
     const view = document.getElementById('view-agent');
     if (!view) return;
     if (!_initialized) {
@@ -1180,6 +1187,45 @@ const AgentView = (() => {
       };
     }
 
+    document.querySelectorAll('[data-plan-edit]').forEach(el => {
+      const savePlanEdit = () => {
+        const current = _state[_activeAgentKey].currentGeneration;
+        const items = current?.structuredData?.planItems || [];
+        const index = Number(el.dataset.planIndex);
+        const field = el.dataset.planEdit;
+        if (!items[index] || !field) return;
+        items[index][field] = el.innerText.trim();
+        el.classList.add('is-edited');
+      };
+      el.addEventListener('input', savePlanEdit);
+      el.addEventListener('blur', savePlanEdit);
+    });
+
+    document.querySelectorAll('.btn-validate-plan-item').forEach(btn => {
+      btn.onclick = async () => {
+        const index = Number(btn.dataset.planIndex);
+        const original = btn.textContent;
+        btn.disabled = true;
+        btn.textContent = 'Ajout…';
+        try {
+          await _savePlanItem(index);
+          btn.textContent = '✓ Ajouté';
+        } catch (error) {
+          btn.disabled = false;
+          btn.textContent = original;
+          showToast(error.message, 'error');
+        }
+      };
+    });
+
+    const btnValidateAll = document.getElementById('btn-validate-all-plan');
+    if (btnValidateAll) btnValidateAll.onclick = _saveAllPlanItems;
+
+    const btnOpenPlanning = document.getElementById('btn-open-planning');
+    if (btnOpenPlanning) btnOpenPlanning.onclick = () => App.navigateTo('planning');
+
+    const btnOpenPublisher = document.getElementById('btn-open-publisher');
+    if (btnOpenPublisher) btnOpenPublisher.onclick = () => App.navigateTo('publisher');
     document.querySelectorAll('.btn-copy-inline').forEach(btn => {
       btn.onclick = () => {
         const txt = btn.dataset.copyText || '';
