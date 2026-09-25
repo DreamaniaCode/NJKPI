@@ -839,13 +839,21 @@ const AgentView = (() => {
               </button>
             </div>
 
-            <div class="post-caption-box" id="post-caption-content">${escapeHtml(postText)}</div>
+            <div class="generated-edit-head">
+              <span>✏️ Texte modifiable — vos changements seront utilisés pour l’enregistrement et la publication.</span>
+              <span class="generated-edit-status" id="generated-edit-status">Modifications locales</span>
+            </div>
+            <div class="form-group generated-title-field">
+              <label for="generated-title-edit">Titre interne</label>
+              <input id="generated-title-edit" class="form-control" value="${escapeHtml(data.titre || gen.brief?.topic || '')}" placeholder="Titre du contenu">
+            </div>
+            <textarea class="post-caption-box post-caption-box--editable form-control" id="post-caption-content" rows="12">${escapeHtml(postText)}</textarea>
 
             <div class="post-preview-card__tags">
               <span class="post-tags-label">5 Hashtags officiels :</span>
-              <div class="post-tags-list">
-                ${tags.map(t => `<span class="badge badge--blue">${escapeHtml(t)}</span>`).join('')}
-              </div>
+              <input id="generated-tags-edit" class="form-control generated-tags-edit"
+                value="${escapeHtml(tags.join(' '))}"
+                placeholder="#GSNidal #Education #Marrakech #Ecole #Parents">
             </div>
           </div>
 
@@ -864,7 +872,7 @@ const AgentView = (() => {
               </button>
             </div>
 
-            <div class="image-prompt-box" id="image-prompt-content">${escapeHtml(imagePrompt)}</div>
+            <textarea class="image-prompt-box image-prompt-box--editable form-control" id="image-prompt-content" rows="8">${escapeHtml(imagePrompt)}</textarea>
 
             <div class="image-prompt-footer">
               <div class="image-prompt-tips">
@@ -1115,6 +1123,39 @@ const AgentView = (() => {
     const currentAgent = _state[_activeAgentKey];
     const gen = currentAgent.currentGeneration;
 
+    const titleEdit = document.getElementById('generated-title-edit');
+    const captionEdit = document.getElementById('post-caption-content');
+    const tagsEdit = document.getElementById('generated-tags-edit');
+    const imagePromptEdit = document.getElementById('image-prompt-content');
+    const editStatus = document.getElementById('generated-edit-status');
+
+    const persistGeneratedEdits = () => {
+      if (!gen) return;
+      if (!gen.structuredData) gen.structuredData = {};
+      if (titleEdit) gen.structuredData.titre = titleEdit.value.trim();
+      if (captionEdit) {
+        gen.structuredData.message = captionEdit.value;
+        gen.structuredData.postComplet = captionEdit.value;
+      }
+      if (imagePromptEdit) {
+        gen.structuredData.imagePrompt = imagePromptEdit.value;
+        gen.structuredData.promptImage = imagePromptEdit.value;
+      }
+      if (tagsEdit) {
+        gen.structuredData.tags = tagsEdit.value
+          .split(/[\s,]+/)
+          .map(tag => tag.trim())
+          .filter(Boolean)
+          .map(tag => tag.startsWith('#') ? tag : '#' + tag)
+          .slice(0, 5);
+      }
+      if (editStatus) editStatus.textContent = '✓ Modifié';
+    };
+
+    [titleEdit, captionEdit, tagsEdit, imagePromptEdit].forEach(el => {
+      el?.addEventListener('input', persistGeneratedEdits);
+      el?.addEventListener('change', persistGeneratedEdits);
+    });
     const btnCopyAll = document.getElementById('btn-copy-all');
     if (btnCopyAll && gen) {
       btnCopyAll.onclick = () => navigator.clipboard.writeText(gen.output).then(() => showToast('Contenu complet copié dans le presse-papiers', 'success'));
@@ -1123,6 +1164,7 @@ const AgentView = (() => {
     const btnCopyPost = document.getElementById('btn-copy-post');
     if (btnCopyPost && gen) {
       btnCopyPost.onclick = () => {
+        persistGeneratedEdits();
         const { postText, tags } = _extractPostAndPrompt(gen, _activeAgentKey);
         const fullPost = `${postText}\n\n${tags.join(' ')}`.trim();
         navigator.clipboard.writeText(fullPost).then(() => showToast('Post et hashtags copiés dans le presse-papiers !', 'success'));
@@ -1132,6 +1174,7 @@ const AgentView = (() => {
     const btnCopyImgPrompt = document.getElementById('btn-copy-image-prompt');
     if (btnCopyImgPrompt && gen) {
       btnCopyImgPrompt.onclick = () => {
+        persistGeneratedEdits();
         const { imagePrompt } = _extractPostAndPrompt(gen, _activeAgentKey);
         navigator.clipboard.writeText(imagePrompt).then(() => showToast('Prompt Image IA copié ! Collez-le dans Midjourney / DALL-E / Canva.', 'success'));
       };
@@ -1598,6 +1641,7 @@ const AgentView = (() => {
     render();
   }
   async function _saveContent(status = 'brouillon') {
+    document.getElementById('post-caption-content')?.dispatchEvent(new Event('change'));
     const currentAgent = _state[_activeAgentKey];
     const gen = currentAgent.currentGeneration;
     if (!gen || !gen.structuredData) return showToast('Aucun contenu à enregistrer', 'error');
