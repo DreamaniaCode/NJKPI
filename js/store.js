@@ -327,11 +327,15 @@ const NidalStore = (() => {
       if (Number.isFinite(Number(fb.followers))) {
         merged.facebookFollowers = { ...(merged.facebookFollowers || fallback.facebookFollowers), current: Number(fb.followers), source: 'meta-api', syncedAt };
       }
-      if (Number.isFinite(Number(fbInsights.reach))) {
+      if (fbInsights.reach !== null && fbInsights.reach !== undefined && Number.isFinite(Number(fbInsights.reach))) {
         merged.facebookReach = { ...(merged.facebookReach || fallback.facebookReach), current: Number(fbInsights.reach), source: 'meta-api', syncedAt };
+      } else {
+        merged.facebookReach = { ...(merged.facebookReach || fallback.facebookReach), current: null, source: 'meta-unavailable', syncedAt };
       }
-      if (Number.isFinite(Number(fbInsights.views))) {
+      if (fbInsights.views !== null && fbInsights.views !== undefined && Number.isFinite(Number(fbInsights.views))) {
         merged.facebookViews = { ...(merged.facebookViews || fallback.facebookViews), current: Number(fbInsights.views), source: 'meta-api', syncedAt };
+      } else {
+        merged.facebookViews = { ...(merged.facebookViews || fallback.facebookViews), current: null, source: 'meta-unavailable', syncedAt };
       }
       if (Number.isFinite(Number(fbInsights.interactions))) {
         merged.facebookInteractions = { ...(merged.facebookInteractions || fallback.facebookInteractions), current: Number(fbInsights.interactions), source: 'meta-api', syncedAt };
@@ -369,7 +373,8 @@ const NidalStore = (() => {
     if (hasInteractions) merged.interactions = { ...(merged.interactions || fallback.interactions), current: sumInteractions, source: 'content-sync', syncedAt: latestContentSync };
 
     const enrich = (key, metric) => {
-      const cur = _number(metric.current) ?? 0;
+      const rawCurrent = _number(metric.current);
+      const cur = metric.source === 'meta-unavailable' ? null : (rawCurrent ?? 0);
       const tgt = _number(metric.target) ?? 1;
       const ratio = tgt > 0 ? cur / tgt : 0;
       const eta = metric.eta || '';
@@ -381,7 +386,7 @@ const NidalStore = (() => {
         target: tgt,
         ratio,
         pct: Math.round(ratio * 100),
-        remaining: Math.max(0, tgt - cur),
+        remaining: cur === null ? null : Math.max(0, tgt - cur),
         etaInfo
       };
     };
