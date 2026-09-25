@@ -486,6 +486,25 @@ export function getAiProvider(aiConfig = {}) {
 // ============================================================================
 // APPEL MULTI-FOURNISSEURS IA (OPENROUTER, OPENAI, GEMINI, ANTHROPIC, GROQ, DEEPSEEK, DEMO)
 // ============================================================================
+async function fetchAiWithTimeout(url, options = {}, timeoutMs = Number(process.env.AI_REQUEST_TIMEOUT_MS || 45000)) {
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), Math.max(5000, timeoutMs));
+
+  try {
+    return await fetchAiWithTimeout(url, { ...options, signal: controller.signal });
+  } catch (error) {
+    if (error?.name === 'AbortError') {
+      throw new Error(
+        `Le fournisseur IA n'a pas répondu dans les ${Math.round(timeoutMs / 1000)} secondes. ` +
+        'La requête a été arrêtée avant le timeout du proxy. Réessayez ou choisissez un autre modèle/fournisseur.'
+      );
+    }
+    throw error;
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
 export async function generateEditorialOutput({
   agentKey = 'studio-junior',
   brand,
@@ -545,7 +564,7 @@ export async function generateEditorialOutput({
     if (!model || model === 'free') model = 'openrouter/free';
 
     async function callOpenRouter(selectedModel) {
-      const res = await fetch(OPENROUTER_URL, {
+      const res = await fetchAiWithTimeout(OPENROUTER_URL, {
         method: 'POST',
         headers: {
           'Authorization': `Bearer ${apiKey}`,
@@ -609,7 +628,7 @@ export async function generateEditorialOutput({
   // 2. OPENAI
   if (provider === 'openai') {
     const model = (aiConfig.model || process.env.OPENAI_MODEL || 'gpt-4o-mini').trim();
-    const response = await fetch(OPENAI_URL, {
+    const response = await fetchAiWithTimeout(OPENAI_URL, {
       method: 'POST',
       headers: {
         Authorization: `Bearer ${apiKey}`,
@@ -647,7 +666,7 @@ export async function generateEditorialOutput({
 
     async function callGemini(selectedModel) {
       const geminiUrl = `https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(selectedModel)}:generateContent?key=${encodeURIComponent(apiKey)}`;
-      const response = await fetch(geminiUrl, {
+      const response = await fetchAiWithTimeout(geminiUrl, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -726,7 +745,7 @@ export async function generateEditorialOutput({
       process.env.ALIBABA_BASE_URL ||
       'https://dashscope-intl.aliyuncs.com/compatible-mode/v1'
     ).replace(/\/$/, '');
-    const response = await fetch(`${baseUrl}/chat/completions`, {
+    const response = await fetchAiWithTimeout(`${baseUrl}/chat/completions`, {
       method: 'POST',
       headers: {
         Authorization: `Bearer ${apiKey}`,
@@ -763,7 +782,7 @@ export async function generateEditorialOutput({
     if (!accountId) throw new Error('CLOUDFLARE_ACCOUNT_ID non configuré');
     const model = (aiConfig.model || process.env.CLOUDFLARE_MODEL || '@cf/qwen/qwen3.8-27b').trim();
     const baseUrl = `https://api.cloudflare.com/client/v4/accounts/${encodeURIComponent(accountId)}/ai/v1`;
-    const response = await fetch(`${baseUrl}/chat/completions`, {
+    const response = await fetchAiWithTimeout(`${baseUrl}/chat/completions`, {
       method: 'POST',
       headers: {
         Authorization: `Bearer ${apiKey}`,
@@ -797,7 +816,7 @@ export async function generateEditorialOutput({
   // 4. ANTHROPIC CLAUDE
   if (provider === 'anthropic') {
     const model = (aiConfig.model || 'claude-3-5-sonnet-20241022').trim();
-    const response = await fetch(ANTHROPIC_URL, {
+    const response = await fetchAiWithTimeout(ANTHROPIC_URL, {
       method: 'POST',
       headers: {
         'x-api-key': apiKey,
@@ -832,7 +851,7 @@ export async function generateEditorialOutput({
   // 5. GROQ
   if (provider === 'groq') {
     const model = (aiConfig.model || 'llama-3.3-70b-versatile').trim();
-    const response = await fetch(GROQ_URL, {
+    const response = await fetchAiWithTimeout(GROQ_URL, {
       method: 'POST',
       headers: {
         Authorization: `Bearer ${apiKey}`,
@@ -867,7 +886,7 @@ export async function generateEditorialOutput({
   // 6. DEEPSEEK
   if (provider === 'deepseek') {
     const model = (aiConfig.model || 'deepseek-chat').trim();
-    const response = await fetch(DEEPSEEK_URL, {
+    const response = await fetchAiWithTimeout(DEEPSEEK_URL, {
       method: 'POST',
       headers: {
         Authorization: `Bearer ${apiKey}`,
