@@ -250,7 +250,10 @@ const ContentsView = (() => {
       btnSync.textContent = 'Récupération en direct...';
       try {
         const brand = getActiveBrand();
-        const res = await NidalAPI.request('/api/import/url', { method: 'POST', body: JSON.stringify({ url, brand }) });
+        const res = await NidalAPI.request('/api/import/url', {
+          method: 'POST',
+          body: JSON.stringify({ url, brand, requireVerifiedMetrics: true })
+        });
         if (res?.metrics) {
           const m = res.metrics;
           const setV = (id, val) => { const el = modal.querySelector(`#${id}`); if (el && val !== null && val !== undefined) el.value = val; };
@@ -279,7 +282,13 @@ const ContentsView = (() => {
             const fmtEl = modal.querySelector('#form-format');
             if (fmtEl) fmtEl.value = res.content.data.format;
           }
-          showToast(`Métriques synchronisées : ${m.reactions || 0} likes, ${m.commentaires || 0} commentaires !`, 'success');
+          if (res.sync?.verified) {
+            const likesText = m.reactions == null ? '—' : m.reactions;
+            const commentsText = m.commentaires == null ? '—' : m.commentaires;
+            showToast(`Meta API officielle : ${likesText} réactions, ${commentsText} commentaires.`, 'success');
+          } else {
+            throw new Error(res.sync?.warning || 'Les chiffres retournés ne sont pas certifiés par Meta API.');
+          }
         } else {
           showToast('Lien analysé, aucune métrique publique trouvée', 'info');
         }
