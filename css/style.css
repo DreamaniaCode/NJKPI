@@ -1547,3 +1547,95 @@ textarea.form-control { resize: vertical; }
     max-width: 100%;
   }
 }
+
+
+/* ── Performance : KPI Facebook séparés ─────────────────────────── */
+.kpi-goals-section--facebook {
+  padding: 18px;
+  border: 1px solid #dbe7ff;
+  border-radius: 14px;
+  background: linear-gradient(180deg, #f8fbff, #f3f7ff);
+}
+
+.kpi-goals-grid--facebook {
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.kpi-goal-card--facebook {
+  border-top-color: #1877f2;
+  background: #ffffff;
+}
+
+.kpi-goal-card--facebook .kpi-goal-card__title > .icon {
+  display: inline-grid;
+  place-items: center;
+  min-width: 24px;
+  height: 24px;
+  padding: 0 5px;
+  border-radius: 7px;
+  background: #1877f2;
+  color: #fff;
+  font-size: 13px;
+  font-weight: 900;
+}
+
+.kpi-live-badge {
+  display: inline-flex;
+  align-items: center;
+  padding: 2px 5px;
+  border-radius: 999px;
+  background: #e9f2ff;
+  color: #1264d6;
+  font-size: 7.5px;
+  font-weight: 900;
+  letter-spacing: .05em;
+  white-space: nowrap;
+}
+
+.kpi-goal-card__pct--muted {
+  background: var(--surface);
+  color: var(--muted);
+}
+
+.kpi-target-group-title {
+  margin: 16px 0 2px;
+  padding: 7px 10px;
+  border-radius: 7px;
+  background: var(--surface);
+  color: var(--ink);
+  font-size: 10px;
+  font-weight: 900;
+  letter-spacing: .04em;
+  text-transform: uppercase;
+}
+
+.kpi-target-group-title:first-of-type {
+  margin-top: 6px;
+}
+
+.kpi-current-source {
+  display: block;
+  margin-top: 3px;
+  color: #1877f2;
+  font-size: 8.5px;
+  font-weight: 800;
+}
+
+@media (max-width: 1350px) {
+  .kpi-goals-grid--facebook {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 900px) {
+  .kpi-goals-grid--facebook {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 640px) {
+  .kpi-goals-grid--facebook {
+    grid-template-columns: 1fr;
+  }
+}
