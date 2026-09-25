@@ -398,6 +398,81 @@ app.post('/api/contents/:id/sync', async (req, res, next) => {
   } catch (error) { next(error); }
 });
 
+
+app.post('/api/contents/sync-all', async (req, res, next) => {
+  try {
+    const brand = req.body?.brand === 'nidal' ? 'nidal' : 'nidal-junior';
+    const contents = await listContents(brand);
+    const candidates = contents
+      .filter(item => {
+        const data = item.data || {};
+        return Boolean(item.final_url || data.finalUrl);
+      })
+      .slice(0, Number(process.env.META_BULK_SYNC_LIMIT || 50));
+
+    const results = [];
+    let updated = 0;
+    let failed = 0;
+
+    for (const item of candidates) {
+      const data = item.data || {};
+      const finalUrl = item.final_url || data.finalUrl;
+      const platform = item.platform || data.plateforme || '';
+
+      try {
+        const sync = await syncContentFromUrl({
+          brand,
+          finalUrl,
+          platform,
+          requireVerifiedMetrics: true
+        });
+
+        if (!sync?.metrics || sync.metricsVerified !== true) {
+          throw new Error('Métriques Meta officielles non disponibles');
+        }
+
+        const updatedData = {
+          ...data,
+          brand,
+          finalUrl,
+          resultats: { ...(data.resultats || {}), ...sync.metrics },
+          externalMediaId: sync.externalMediaId || data.externalMediaId || '',
+          syncStatus: 'connected',
+          lastSyncedAt: new Date().toISOString()
+        };
+
+        const record = await upsertContent({
+          id: item.id,
+          brand,
+          data: updatedData,
+          finalUrl,
+          externalMediaId: sync.externalMediaId,
+          platform,
+          syncStatus: 'connected',
+          lastSyncedAt: updatedData.lastSyncedAt
+        });
+
+        await saveMetrics(item.id, sync.source || 'meta', sync.metrics, false);
+        updated++;
+        results.push({ id: item.id, ok: true, content: record, source: sync.metricsSource || sync.source });
+      } catch (error) {
+        failed++;
+        results.push({ id: item.id, ok: false, error: error.message });
+      }
+    }
+
+    res.json({
+      ok: true,
+      brand,
+      total: candidates.length,
+      updated,
+      failed,
+      syncedAt: new Date().toISOString(),
+      results
+    });
+  } catch (error) { next(error); }
+});
+
 app.get('/api/ads', async (req, res, next) => { try { res.json(await listAds(req.query.brand || 'nidal-junior')); } catch (error) { next(error); } });
 app.post('/api/ads/sync', async (req, res, next) => { try { const brand = req.body.brand || 'nidal-junior'; const campaigns = await syncAds(brand); res.json(await saveAds(brand, campaigns)); } catch (error) { next(error); } });
 
