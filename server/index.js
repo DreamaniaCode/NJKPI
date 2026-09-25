@@ -574,9 +574,21 @@ app.post('/api/agent/generate', async (req, res, next) => {
 
       if (existing?.length) {
         const recentTitles = existing.slice(0, 15).map(c => `• ${c.data?.titre || c.data?.title || 'Sans titre'} (${c.data?.statut || 'brouillon'}, ${c.data?.format || 'article'})`).join('\n');
+        const recentImagePrompts = existing
+          .map(c => c.data?.imagePrompt || c.data?.promptImage || '')
+          .filter(Boolean)
+          .slice(0, 10)
+          .map((prompt, index) => `• Visuel précédent ${index + 1}: ${String(prompt).slice(0, 450)}`)
+          .join('\n');
+
+        const visualContext = recentImagePrompts
+          ? `\n\nPROMPTS IMAGE RÉCENTS À NE PAS RÉPÉTER NI PARAPHRASER DE TROP PRÈS :\n${recentImagePrompts}`
+          : '';
+
+        const recentContext = `Contenus récents existants dans l’application (éviter doublons) :\n${recentTitles}${visualContext}`;
         enrichedContext = enrichedContext
-          ? `${enrichedContext}\n\nContenus récents existants dans l’application (éviter doublons) :\n${recentTitles}`
-          : `Contenus récents existants dans l’application (éviter doublons) :\n${recentTitles}`;
+          ? `${enrichedContext}\n\n${recentContext}`
+          : recentContext;
       }
 
       const kpiContext = buildKpiContext({ brand, targetsRecord, contents: existing || [] });
@@ -668,9 +680,21 @@ app.post('/api/editorial/generate', async (req, res, next) => {
 
       if (existing?.length) {
         const recentTitles = existing.slice(0, 15).map(c => `• ${c.data?.titre || c.data?.title || 'Sans titre'} (${c.data?.statut || 'brouillon'}, ${c.data?.format || 'article'})`).join('\n');
+        const recentImagePrompts = existing
+          .map(c => c.data?.imagePrompt || c.data?.promptImage || '')
+          .filter(Boolean)
+          .slice(0, 10)
+          .map((prompt, index) => `• Visuel précédent ${index + 1}: ${String(prompt).slice(0, 450)}`)
+          .join('\n');
+
+        const visualContext = recentImagePrompts
+          ? `\n\nPROMPTS IMAGE RÉCENTS À NE PAS RÉPÉTER NI PARAPHRASER DE TROP PRÈS :\n${recentImagePrompts}`
+          : '';
+
+        const recentContext = `Contenus récents existants dans l’application (éviter doublons) :\n${recentTitles}${visualContext}`;
         enrichedContext = enrichedContext
-          ? `${enrichedContext}\n\nContenus récents existants dans l’application (éviter doublons) :\n${recentTitles}`
-          : `Contenus récents existants dans l’application (éviter doublons) :\n${recentTitles}`;
+          ? `${enrichedContext}\n\n${recentContext}`
+          : recentContext;
       }
 
       const kpiContext = buildKpiContext({ brand, targetsRecord, contents: existing || [] });
