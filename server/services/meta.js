@@ -6,7 +6,7 @@ function brandEnv(prefix, brand) {
 }
 
 function resolvedInstagramUserId(brand) {
-  const configured = resolvedInstagramUserId(brand);
+  const configured = brandEnv('META_IG_USER_ID', brand);
   if (configured) return configured;
 
   // Compatibilité temporaire : les Instagram Business Account IDs commencent
