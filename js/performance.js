@@ -44,6 +44,28 @@ const PerformanceView = (() => {
         </div>
       </section>
 
+      <section class="kpi-goals-section kpi-goals-section--facebook" aria-label="Objectifs KPI Facebook">
+        <div class="section-heading" style="margin-bottom:12px;">
+          <div>
+            <span class="section-kicker">Facebook · ${escapeHtml(brandLabel)}</span>
+            <h2 style="font-size:16px;">Objectifs Facebook séparés</h2>
+            <p style="margin:4px 0 0;color:var(--muted);font-size:10.5px;">
+              Valeurs actuelles synchronisées depuis Meta. Les followers Facebook restent séparés des followers Instagram.
+            </p>
+          </div>
+          <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;">
+            <button class="btn btn--secondary btn--sm" id="btn-refresh-facebook-kpi">↻ Actualiser Meta</button>
+            <button class="text-button" id="btn-open-facebook-targets">Modifier les objectifs Facebook</button>
+          </div>
+        </div>
+        <div class="kpi-goals-grid kpi-goals-grid--facebook">
+          ${_renderGoalCard('f', 'Followers Facebook', targets.facebookFollowers, '#1877f2', 'abonnés', 'facebook')}
+          ${_renderGoalCard('↗', 'Reach Facebook', targets.facebookReach, '#1877f2', 'comptes', 'facebook')}
+          ${_renderGoalCard('▶', 'Vues Facebook', targets.facebookViews, '#1877f2', 'vues', 'facebook')}
+          ${_renderGoalCard('♥', 'Interactions Facebook', targets.facebookInteractions, '#1877f2', 'interactions', 'facebook')}
+          ${_renderGoalCard('💬', 'Commentaires Facebook', targets.facebookComments, '#1877f2', 'commentaires', 'facebook')}
+        </div>
+      </section>
       <!-- Section 2 : Synthèse cumulée de la marque -->
       <section class="summary-strip" style="grid-template-columns: repeat(6, minmax(0, 1fr));">
         ${_summary('Portée cumulée', formatNumber(stats.totalReach))}
@@ -86,10 +108,11 @@ const PerformanceView = (() => {
     _bindEvents();
   }
 
-  function _renderGoalCard(icon, title, metric, color, unit) {
+  function _renderGoalCard(icon, title, metric = {}, color, unit, platform = '') {
     const cur = metric.current ?? 0;
-    const tgt = metric.target ?? 1;
-    const pct = metric.pct ?? (tgt > 0 ? Math.round((cur / tgt) * 100) : 0);
+    const tgt = metric.target ?? 0;
+    const hasTarget = Number(tgt) > 0;
+    const pct = hasTarget ? (metric.pct ?? Math.round((cur / tgt) * 100)) : 0;
     const cappedPct = Math.min(100, Math.max(0, pct));
     const etaInfo = metric.etaInfo || { label: 'Échéance à définir', badgeClass: 'eta-badge--muted' };
 
@@ -100,39 +123,34 @@ const PerformanceView = (() => {
     else pctColorClass = 'kpi-goal-card__pct--red';
 
     return `
-      <article class="kpi-goal-card" style="--goal-color:${color}">
+      <article class="kpi-goal-card ${platform ? `kpi-goal-card--${platform}` : ''}" style="--goal-color:${color}">
         <div class="kpi-goal-card__head">
           <div class="kpi-goal-card__title">
             <span class="icon">${icon}</span>
             <span>${escapeHtml(title)}</span>
+            ${metric.source === 'meta-api' ? '<small class="kpi-live-badge">META LIVE</small>' : ''}
           </div>
-          <button class="btn btn--icon btn--sm" data-edit-kpi="${metric.key}" title="Modifier cet objectif" style="font-size:11px;">✏️</button>
+          <button class="btn btn--icon btn--sm" data-edit-kpi="${metric.key || ''}" title="Modifier cet objectif" style="font-size:11px;">✏️</button>
         </div>
-
         <div class="kpi-goal-card__body">
           <div class="kpi-goal-card__values">
             <strong>${formatNumber(cur)}</strong>
-            <span class="target">/ ${formatNumber(tgt)} ${unit}</span>
+            <span class="target">${hasTarget ? `/ ${formatNumber(tgt)} ${unit}` : '· objectif à définir'}</span>
           </div>
-          <span class="kpi-goal-card__pct ${pctColorClass}">${pct}%</span>
+          <span class="kpi-goal-card__pct ${hasTarget ? pctColorClass : 'kpi-goal-card__pct--muted'}">${hasTarget ? `${pct}%` : '—'}</span>
         </div>
-
-        <div class="progress-track--lg" title="${pct}% de l'objectif atteint">
-          <i style="width:${cappedPct}%;"></i>
+        <div class="progress-track--lg" title="${hasTarget ? `${pct}% de l\'objectif atteint` : 'Objectif à définir'}">
+          <i style="width:${hasTarget ? cappedPct : 0}%;"></i>
         </div>
-
         <div class="kpi-goal-card__footer">
           <span class="kpi-goal-card__remaining">
-            ${metric.remaining > 0 ? `Reste : <b>${formatNumber(metric.remaining)}</b>` : '<b>Objectif atteint ! 🎉</b>'}
+            ${!hasTarget ? '<b>Définissez une cible</b>' : (metric.remaining > 0 ? `Reste : <b>${formatNumber(metric.remaining)}</b>` : '<b>Objectif atteint ! 🎉</b>')}
           </span>
-          <span class="eta-badge ${etaInfo.badgeClass}" title="Date cible ETA">
-            ⏱️ ${escapeHtml(etaInfo.label)}
-          </span>
+          <span class="eta-badge ${etaInfo.badgeClass}" title="Date cible ETA">⏱️ ${escapeHtml(etaInfo.label)}</span>
         </div>
       </article>
     `;
   }
-
   function _summary(label, value) {
     return `<article><span>${label}</span><strong>${value}</strong></article>`;
   }
@@ -206,6 +224,26 @@ const PerformanceView = (() => {
     if (btnTargets) btnTargets.onclick = openKpiTargetsModal;
     if (btnTargetsText) btnTargetsText.onclick = openKpiTargetsModal;
 
+    const btnFacebookTargets = document.getElementById('btn-open-facebook-targets');
+    if (btnFacebookTargets) btnFacebookTargets.onclick = () => openKpiTargetsModal('facebookFollowers');
+
+    const btnRefreshFacebook = document.getElementById('btn-refresh-facebook-kpi');
+    if (btnRefreshFacebook) {
+      btnRefreshFacebook.onclick = async () => {
+        btnRefreshFacebook.disabled = true;
+        btnRefreshFacebook.textContent = 'Actualisation…';
+        try {
+          await NidalStore.syncMetaLive(getActiveBrand(), true);
+          render();
+          showToast('KPI Facebook actualisés depuis Meta.', 'success');
+        } catch (error) {
+          btnRefreshFacebook.disabled = false;
+          btnRefreshFacebook.textContent = '↻ Actualiser Meta';
+          showToast('Actualisation Facebook impossible : ' + error.message, 'error');
+        }
+      };
+    }
+
     const btnExport = document.getElementById('btn-perf-export-csv');
     if (btnExport) {
       btnExport.onclick = () => {
@@ -226,12 +264,18 @@ const PerformanceView = (() => {
     const totals = targets.contentTotals;
 
     const fields = [
-      { key: 'followers', icon: '📸', label: 'Followers Instagram', unit: 'abonnés IG', color: '#1746d1', hint: 'Abonnés Instagram uniquement — ne pas additionner Facebook' },
-      { key: 'views', icon: '👁️', label: 'Vues Vidéos & Reels', unit: 'vues', color: '#ffc928', hint: 'Cumul des lectures de vidéos et stories' },
-      { key: 'comments', icon: '💬', label: 'Commentaires & Échanges', unit: 'commentaires', color: '#31b9cc', hint: 'Réponses, retours et messages générés' },
-      { key: 'conversions', icon: '🎯', label: 'Conversions / Inscriptions', unit: 'inscriptions', color: '#d91b5c', hint: 'Prises de contact, visites, inscriptions' },
-      { key: 'reach', icon: '📢', label: 'Portée Globale (Reach)', unit: 'comptes', color: '#0f8871', hint: 'Personnes uniques atteintes' },
-      { key: 'interactions', icon: '❤️', label: 'Interactions totales', unit: 'interactions', color: '#6938ef', hint: 'Réactions, partages, enregistrements' }
+      { group: 'Instagram & global', key: 'followers', icon: '📸', label: 'Followers Instagram', unit: 'abonnés IG', color: '#d62976', hint: 'Abonnés Instagram uniquement — ne jamais additionner Facebook' },
+      { group: 'Instagram & global', key: 'views', icon: '👁️', label: 'Vues Vidéos & Reels', unit: 'vues', color: '#ffc928', hint: 'Cumul des contenus suivis dans NJKPI' },
+      { group: 'Instagram & global', key: 'comments', icon: '💬', label: 'Commentaires & Échanges', unit: 'commentaires', color: '#31b9cc', hint: 'Commentaires des contenus suivis' },
+      { group: 'Instagram & global', key: 'conversions', icon: '🎯', label: 'Conversions / Inscriptions', unit: 'inscriptions', color: '#d91b5c', hint: 'Prises de contact, visites, inscriptions' },
+      { group: 'Instagram & global', key: 'reach', icon: '📢', label: 'Portée globale (Reach)', unit: 'comptes', color: '#0f8871', hint: 'Portée des contenus suivis dans NJKPI' },
+      { group: 'Instagram & global', key: 'interactions', icon: '❤️', label: 'Interactions totales', unit: 'interactions', color: '#6938ef', hint: 'Réactions, commentaires, partages et enregistrements' },
+
+      { group: 'Facebook', key: 'facebookFollowers', icon: 'f', label: 'Followers Facebook', unit: 'abonnés FB', color: '#1877f2', hint: 'Valeur actuelle synchronisée depuis la Page Facebook' },
+      { group: 'Facebook', key: 'facebookReach', icon: '↗', label: 'Reach Facebook', unit: 'comptes', color: '#1877f2', hint: 'Portée des publications Facebook analysées par Meta' },
+      { group: 'Facebook', key: 'facebookViews', icon: '▶', label: 'Vues Facebook', unit: 'vues', color: '#1877f2', hint: 'Vues des publications Facebook analysées par Meta' },
+      { group: 'Facebook', key: 'facebookInteractions', icon: '♥', label: 'Interactions Facebook', unit: 'interactions', color: '#1877f2', hint: 'Réactions + commentaires + partages Facebook' },
+      { group: 'Facebook', key: 'facebookComments', icon: '💬', label: 'Commentaires Facebook', unit: 'commentaires', color: '#1877f2', hint: 'Commentaires des publications Facebook analysées' }
     ];
 
     const contentHtml = `
@@ -256,9 +300,14 @@ const PerformanceView = (() => {
           <span>ÉCHÉANCE (ETA)</span>
         </div>
 
-        ${fields.map(f => {
+        ${fields.map((f, index) => {
           const item = targets[f.key] || {};
+          const previousGroup = index > 0 ? fields[index - 1].group : null;
+          const groupHeader = f.group !== previousGroup
+            ? `<div class="kpi-target-group-title">${escapeHtml(f.group)}</div>`
+            : '';
           return `
+            ${groupHeader}
             <div class="kpi-target-edit-row" id="row-${f.key}" style="${focusKey === f.key ? 'background:var(--soft-blue);border-radius:4px;padding-inline:4px;' : ''}">
               <span style="font-size:18px;">${f.icon}</span>
               <div>
@@ -267,11 +316,12 @@ const PerformanceView = (() => {
               </div>
               <div>
                 <input type="number" min="0" id="target-cur-${f.key}" class="form-control"
-                  value="${item.current ?? 0}" placeholder="Actuel">
+                  value="${item.current ?? 0}" placeholder="Actuel" ${item.source === 'meta-api' ? 'readonly title="Synchronisé automatiquement depuis Meta"' : ''}>
+                ${item.source === 'meta-api' ? '<small class="kpi-current-source">Meta Live</small>' : ''}
               </div>
               <div>
                 <input type="number" min="0" id="target-val-${f.key}" class="form-control"
-                  value="${item.target ?? 1}" placeholder="Objectif">
+                  value="${item.target ?? 0}" placeholder="Objectif">
               </div>
               <div>
                 <input type="date" id="target-eta-${f.key}" class="form-control"
@@ -320,7 +370,7 @@ const PerformanceView = (() => {
               newTargets[f.key] = {
                 ...(targets[f.key] || {}),
                 current: curVal === '' ? 0 : Number(curVal),
-                target: tgtVal === '' ? 1 : Number(tgtVal),
+                target: tgtVal === '' ? 0 : Number(tgtVal),
                 eta: etaVal || ''
               };
             });
