@@ -86,21 +86,24 @@ async function graphPost(path, params = {}, accessToken = process.env.META_ACCES
 const PAGE_TOKEN_CACHE = new Map();
 
 async function resolvePageAccessToken(brand) {
-  const pageId = brandEnv('META_PAGE_ID', brand);
-  if (!pageId) throw new Error(`META_PAGE_ID non configuré pour ${brand}`);
+  let pageId = brandEnv('META_PAGE_ID', brand);
+  const igUserId = resolvedInstagramUserId(brand);
 
-  const cached = PAGE_TOKEN_CACHE.get(pageId);
-  if (cached) return cached;
+  const cachedKey = pageId || (igUserId ? `ig:${igUserId}` : null);
+  if (cachedKey) {
+    const cached = PAGE_TOKEN_CACHE.get(cachedKey);
+    if (cached) return cached;
+  }
 
   const configured = configuredPageToken(brand);
-  if (configured) {
+  if (configured && pageId) {
     try {
       const identity = await graph('me', { fields: 'id,name' }, configured);
       if (String(identity?.id) === String(pageId)) {
         PAGE_TOKEN_CACHE.set(pageId, configured);
         return configured;
       }
-      console.warn(`[Meta] META_PAGE_ACCESS_TOKEN_${brand === 'nidal-junior' ? 'NIDAL_JUNIOR' : 'NIDAL'} n'est pas un token de la Page ${pageId}; tentative via /me/accounts.`);
+      console.warn(`[Meta] Page token configuré ne correspond pas à la Page ${pageId}; tentative via /me/accounts.`);
     } catch (error) {
       console.warn('[Meta] Page token configuré invalide, tentative via /me/accounts:', error.message);
     }
@@ -109,7 +112,7 @@ async function resolvePageAccessToken(brand) {
   let payload;
   try {
     payload = await graph('me/accounts', {
-      fields: 'id,name,access_token',
+      fields: 'id,name,access_token,instagram_business_account{id,username}',
       limit: 100
     });
   } catch (error) {
@@ -121,21 +124,43 @@ async function resolvePageAccessToken(brand) {
       const missing = required.filter(permission => !granted.includes(permission));
       permissionDetail = missing.length
         ? ` Permissions manquantes sur META_ACCESS_TOKEN: ${missing.join(', ')}.`
-        : ` Permissions page principales détectées; vérifiez que ce compte admin gère bien la Page ${pageId}.`;
+        : ' Permissions Page principales détectées.';
     } catch {}
 
     throw new Error(
-      `Impossible d'obtenir le Page Access Token Facebook pour la Page ${pageId}.` +
+      `Impossible d'obtenir le Page Access Token Meta pour ${brand}.` +
       permissionDetail +
-      ` Le token utilisateur doit autoriser pages_show_list, pages_read_engagement et pages_manage_posts, puis /me/accounts doit retourner cette Page. Détail Meta: ${error.message}`
+      ` Détail Meta: ${error.message}`
     );
   }
 
-  const page = (payload.data || []).find(item => String(item.id) === String(pageId));
+  const pages = payload.data || [];
+
+  // Si META_PAGE_ID n'est pas encore renseigné, retrouver automatiquement
+  // la Page liée à l'Instagram Business Account configuré.
+  if (!pageId && igUserId) {
+    const linked = pages.find(item => String(item.instagram_business_account?.id || '') === String(igUserId));
+    if (linked?.id) {
+      pageId = String(linked.id);
+      console.log(`[Meta] Page ${pageId} auto-détectée pour Instagram ${igUserId} (${brand}).`);
+      if (linked.access_token) {
+        PAGE_TOKEN_CACHE.set(pageId, linked.access_token);
+        PAGE_TOKEN_CACHE.set(`ig:${igUserId}`, linked.access_token);
+        return linked.access_token;
+      }
+    }
+  }
+
+  if (!pageId) {
+    throw new Error(
+      `META_PAGE_ID non configuré pour ${brand} et aucune Page liée à l'Instagram Business Account ${igUserId || 'non configuré'} n'a pu être détectée via /me/accounts.`
+    );
+  }
+
+  const page = pages.find(item => String(item.id) === String(pageId));
   if (!page?.access_token) {
     throw new Error(
-      `Aucun Page Access Token trouvé pour la Page ${pageId}. ` +
-      'Vérifiez pages_show_list, pages_read_engagement, pages_manage_posts et que le compte admin gère bien cette Page.'
+      `Aucun Page Access Token trouvé pour la Page ${pageId}. Vérifiez pages_show_list, pages_read_engagement, pages_manage_posts et que le compte admin gère cette Page.`
     );
   }
 
@@ -149,6 +174,7 @@ async function resolvePageAccessToken(brand) {
   }
 
   PAGE_TOKEN_CACHE.set(pageId, page.access_token);
+  if (igUserId) PAGE_TOKEN_CACHE.set(`ig:${igUserId}`, page.access_token);
   return page.access_token;
 }
 
