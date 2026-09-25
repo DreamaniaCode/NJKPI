@@ -20,26 +20,33 @@ const NidalAuth = (() => {
       }
     } catch { /* ignore */ }
 
-    // Vérifier auprès du serveur
-    if (NidalAPI.isOnline()) {
-      try {
-        const headers = {};
-        if (_token) headers.Authorization = `Bearer ${_token}`;
-        const config = NidalAPI.getConfig();
-        const resp = await fetch(`${config.baseUrl}/api/auth/me`, { headers: { ...headers, 'Content-Type': 'application/json' } });
-        if (resp.ok) {
-          const data = await resp.json();
-          _authEnabled = Boolean(data.authEnabled);
-          if (data.user) {
-            _user = data.user;
-          } else if (_authEnabled) {
-            // Token invalide et auth obligatoire
-            _clear();
-          }
+    // Vérifier directement auprès du serveur. Ne pas dépendre de
+    // NidalAPI.isOnline() ici : au premier chargement l'API peut ne pas encore
+    // avoir terminé son health-check, ce qui laissait auparavant entrer dans
+    // l'application sans vraie session.
+    try {
+      const headers = { 'Content-Type': 'application/json' };
+      if (_token) headers.Authorization = `Bearer ${_token}`;
+      const config = NidalAPI.getConfig();
+      const resp = await fetch(`${config.baseUrl}/api/auth/me`, { headers });
+
+      if (resp.ok) {
+        const data = await resp.json();
+        _authEnabled = Boolean(data.authEnabled);
+        if (data.user) {
+          _user = data.user;
+          _token = _token || null;
+          if (_token) _updateApiToken(_token);
+        } else if (_authEnabled) {
+          _clear();
+          _authEnabled = true;
         }
-      } catch (e) {
-        console.warn('Auth check différé:', e);
+      } else if (resp.status === 401) {
+        _clear();
+        _authEnabled = true;
       }
+    } catch (e) {
+      console.warn('Auth check différé:', e);
     }
     return _user;
   }
