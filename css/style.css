@@ -2204,3 +2204,218 @@ textarea.form-control { resize: vertical; }
     flex-direction: column;
   }
 }
+
+
+/* ── Professional daily strategy cards ───────────────────────── */
+.strategy-social-card--ads {
+  border-color: #f0d9ff;
+  background: linear-gradient(180deg, #fffaff 0%, #ffffff 100%);
+}
+
+.strategy-calendar-head {
+  display: flex;
+  justify-content: space-between;
+  gap: 18px;
+  align-items: end;
+  padding: 17px 18px;
+  border: 1px solid var(--line);
+  border-radius: 13px;
+  background: var(--panel);
+}
+
+.strategy-calendar-head h3 {
+  margin: 4px 0 4px;
+  color: var(--ink);
+  font-size: 16px;
+}
+
+.strategy-calendar-head p {
+  margin: 0;
+  color: var(--muted);
+  font-size: 10px;
+}
+
+.strategy-calendar-actions {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 8px;
+}
+
+.strategy-day-list {
+  display: grid;
+  gap: 14px;
+}
+
+.strategy-day-card {
+  padding: 18px;
+  border: 1px solid var(--line);
+  border-left: 4px solid var(--blue);
+  border-radius: 13px;
+  background: var(--panel);
+  box-shadow: 0 5px 18px rgba(29, 53, 87, .05);
+}
+
+.strategy-day-card__head {
+  display: flex;
+  justify-content: space-between;
+  gap: 15px;
+  align-items: start;
+  padding-bottom: 13px;
+  border-bottom: 1px solid var(--line);
+}
+
+.strategy-day-number {
+  display: inline-flex;
+  padding: 3px 7px;
+  border-radius: 999px;
+  background: #eef4ff;
+  color: var(--blue);
+  font-size: 9px;
+  font-weight: 900;
+}
+
+.strategy-day-card__head h3 {
+  margin: 6px 0 5px;
+  color: var(--ink);
+  font-size: 15px;
+}
+
+.strategy-day-meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 5px;
+}
+
+.strategy-day-meta span {
+  padding: 3px 6px;
+  border-radius: 6px;
+  background: var(--surface);
+  color: var(--muted);
+  font-size: 8.5px;
+  font-weight: 750;
+}
+
+.strategy-day-grid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 10px;
+  margin: 13px 0;
+}
+
+.strategy-day-grid > div,
+.strategy-content-block {
+  padding: 11px;
+  border: 1px solid var(--line);
+  border-radius: 9px;
+  background: var(--surface);
+}
+
+.strategy-day-grid small,
+.strategy-content-block small {
+  display: block;
+  margin-bottom: 5px;
+  color: var(--muted);
+  font-size: 8.5px;
+  font-weight: 850;
+  letter-spacing: .03em;
+  text-transform: uppercase;
+}
+
+.strategy-day-grid p {
+  margin: 0;
+  color: var(--ink);
+  font-size: 10px;
+  line-height: 1.5;
+}
+
+.strategy-content-block {
+  margin-top: 9px;
+}
+
+.strategy-content-block > strong {
+  display: block;
+  color: var(--ink);
+  font-size: 12px;
+  line-height: 1.55;
+}
+
+.strategy-caption,
+.strategy-prompt {
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  color: var(--ink);
+  font-size: 11px;
+  line-height: 1.7;
+}
+
+.strategy-prompt {
+  padding: 9px;
+  border-radius: 7px;
+  background: #fff;
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 9.5px;
+}
+
+.strategy-content-block--video {
+  border-left: 3px solid var(--magenta);
+}
+
+.strategy-storyboard-mini {
+  display: grid;
+  gap: 6px;
+  margin-top: 10px;
+}
+
+.strategy-storyboard-mini > div {
+  padding: 8px 9px;
+  border-radius: 7px;
+  background: #fff;
+  color: var(--ink);
+  font-size: 9.5px;
+  line-height: 1.5;
+}
+
+.strategy-storyboard-mini span {
+  color: var(--muted);
+}
+
+.strategy-day-footer {
+  display: flex;
+  justify-content: space-between;
+  gap: 10px;
+  margin-top: 11px;
+  color: var(--muted);
+  font-size: 9px;
+  line-height: 1.5;
+}
+
+@media (max-width: 900px) {
+  .strategy-calendar-head,
+  .strategy-day-card__head {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .strategy-calendar-actions {
+    justify-content: flex-start;
+  }
+
+  .strategy-day-grid {
+    grid-template-columns: 1fr 1fr;
+  }
+}
+
+@media (max-width: 600px) {
+  .strategy-day-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .strategy-day-footer {
+    flex-direction: column;
+  }
+
+  .strategy-calendar-actions .btn {
+    width: 100%;
+  }
+}
