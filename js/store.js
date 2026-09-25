@@ -10,7 +10,7 @@ const NidalStore = (() => {
 
   const DEFAULT_BRAND_KPI_TARGETS = {
     'nidal-junior': {
-      followers: { current: 2450, target: 5000, eta: '2026-12-31', label: 'Followers (Abonnés)', unit: 'abonnés', note: 'Communauté Instagram & Facebook Nidal Junior' },
+      followers: { current: 2450, target: 5000, eta: '2026-12-31', label: 'Followers (Abonnés)', unit: 'abonnés', note: 'Abonnés Instagram Nidal Junior uniquement' },
       views: { current: 18500, target: 50000, eta: '2026-11-30', label: 'Vues (Reels & Vidéos)', unit: 'vues', note: 'Cumul des vues Reels, Stories et vidéos Nounou' },
       comments: { current: 320, target: 1000, eta: '2026-11-30', label: 'Commentaires & Échanges', unit: 'commentaires', note: 'Réponses aux quiz, histoires et publications' },
       conversions: { current: 42, target: 120, eta: '2026-10-31', label: 'Conversions & Inscriptions', unit: 'inscriptions', note: 'Demandes de visite, appels et inscriptions maternelle' },
@@ -23,7 +23,7 @@ const NidalStore = (() => {
       facebookComments: { current: 0, target: 0, eta: '', label: 'Commentaires Facebook', unit: 'commentaires', note: 'Commentaires sur les publications Facebook analysées' }
     },
     'nidal': {
-      followers: { current: 6800, target: 12000, eta: '2026-12-31', label: 'Followers (Abonnés)', unit: 'abonnés', note: 'Communauté officielle Groupe Scolaire Nidal' },
+      followers: { current: 6800, target: 12000, eta: '2026-12-31', label: 'Followers (Abonnés)', unit: 'abonnés', note: 'Abonnés Instagram Groupe Scolaire Nidal uniquement' },
       views: { current: 45000, target: 100000, eta: '2026-12-15', label: 'Vues (Reels & Vidéos)', unit: 'vues', note: 'Vues cumulées capsules pédagogiques et Reels' },
       comments: { current: 640, target: 2000, eta: '2026-12-15', label: 'Commentaires & Échanges', unit: 'commentaires', note: 'Interactions parents et élèves' },
       conversions: { current: 85, target: 250, eta: '2026-11-15', label: 'Conversions & Inscriptions', unit: 'inscriptions', note: 'Prises de RDV, formulaires gsnidal.ma et inscriptions' },
