@@ -131,6 +131,38 @@ async function repairLegacyContentsSchema() {
     }
   }
 
+  // Supprimer les CHECK constraints qui appartiennent uniquement à l'ancien schéma.
+  // Le schéma actuel stocke type/statut/validation/etc. dans data JSONB ; conserver
+  // ces anciennes contraintes sur des colonnes legacy peut bloquer tous les INSERT.
+  const legacyConstraintRows = await pool.query(`
+    SELECT c.conname,
+           array_agg(a.attname ORDER BY a.attname) AS columns
+    FROM pg_constraint c
+    JOIN LATERAL unnest(c.conkey) AS k(attnum) ON TRUE
+    JOIN pg_attribute a
+      ON a.attrelid = c.conrelid
+     AND a.attnum = k.attnum
+    WHERE c.conrelid = 'contents'::regclass
+      AND c.contype = 'c'
+    GROUP BY c.conname
+  `);
+
+  const currentContentColumns = new Set([
+    'id', 'brand_slug', 'data', 'final_url', 'external_media_id',
+    'platform', 'sync_status', 'last_synced_at', 'created_at', 'updated_at'
+  ]);
+
+  for (const constraint of legacyConstraintRows.rows) {
+    const columns = Array.isArray(constraint.columns) ? constraint.columns : [];
+    if (!columns.length) continue;
+    const isLegacyOnly = columns.every(column => !currentContentColumns.has(column));
+    if (!isLegacyOnly) continue;
+
+    const safeConstraint = '"' + String(constraint.conname).replace(/"/g, '""') + '"';
+    await pool.query(`ALTER TABLE contents DROP CONSTRAINT IF EXISTS ${safeConstraint}`);
+    console.log(`Migration legacy contents: contrainte supprimée ${constraint.conname} (${columns.join(', ')})`);
+  }
+
   // Réparer tous les anciens CHECK constraints de colonnes texte (type, statut, etc.),
   // même lorsqu'un ancien DEFAULT invalide existe déjà.
   const legacyChecks = await pool.query(`
