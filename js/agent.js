@@ -669,22 +669,25 @@ const AgentView = (() => {
       const formats = inv.formats || {};
       const ig = audit.social?.instagram || null;
       const fb = audit.social?.facebook || null;
+      const paid = audit.paidMedia?.totals || {};
+      const planItems = Array.isArray(data.planItems) ? data.planItems : [];
+      const humanAnalysis = String(gen.output || '').split('===PLAN_JSON===')[0].trim();
 
       return `
         <div class="strategy-analysis-view">
           <div class="strategy-analysis-hero">
-            <span class="section-kicker">Diagnostic NJKPI</span>
-            <h3>Analyse des données & plan de travail</h3>
-            <p>Cette synthèse utilise les données réellement disponibles dans NJKPI. Les données absentes restent indiquées comme indisponibles.</p>
+            <span class="section-kicker">Diagnostic NJKPI + Meta Ads</span>
+            <h3>Analyse profonde & plan de travail prêt à exécuter</h3>
+            <p>L'agent croise contenus organiques, KPI, audience, conversions et campagnes Meta disponibles. Vous validez ensuite chaque contenu pour l'ajouter au planning.</p>
           </div>
 
           <div class="strategy-audit-grid">
             <div class="strategy-audit-card"><small>Contenus</small><strong>${formatNumber(inv.total || 0)}</strong><span>${formatNumber(inv.published || 0)} publiés</span></div>
-            <div class="strategy-audit-card"><small>Posts</small><strong>${formatNumber(formats.post || 0)}</strong><span>dans l'inventaire</span></div>
-            <div class="strategy-audit-card"><small>Reels</small><strong>${formatNumber(formats.reel || 0)}</strong><span>dans l'inventaire</span></div>
-            <div class="strategy-audit-card"><small>Stories</small><strong>${formatNumber(formats.story || 0)}</strong><span>dans l'inventaire</span></div>
-            <div class="strategy-audit-card"><small>Vidéos</small><strong>${formatNumber(formats.video || 0)}</strong><span>dans l'inventaire</span></div>
-            <div class="strategy-audit-card"><small>Carrousels</small><strong>${formatNumber(formats.carrousel || 0)}</strong><span>dans l'inventaire</span></div>
+            <div class="strategy-audit-card"><small>Posts</small><strong>${formatNumber(formats.post || 0)}</strong><span>inventaire</span></div>
+            <div class="strategy-audit-card"><small>Reels</small><strong>${formatNumber(formats.reel || 0)}</strong><span>inventaire</span></div>
+            <div class="strategy-audit-card"><small>Stories</small><strong>${formatNumber(formats.story || 0)}</strong><span>inventaire</span></div>
+            <div class="strategy-audit-card"><small>Vidéos</small><strong>${formatNumber(formats.video || 0)}</strong><span>inventaire</span></div>
+            <div class="strategy-audit-card"><small>Carrousels</small><strong>${formatNumber(formats.carrousel || 0)}</strong><span>inventaire</span></div>
           </div>
 
           <div class="strategy-social-grid">
@@ -700,17 +703,97 @@ const AgentView = (() => {
               <div>Reach : <b>${fb?.reach ?? '—'}</b></div>
               <div>Interactions : <b>${fb?.interactions ?? '—'}</b></div>
             </div>
+            <div class="strategy-social-card strategy-social-card--ads">
+              <strong>Meta Ads</strong>
+              <div>Dépense : <b>${paid.spend != null ? formatNumber(paid.spend) : '—'}</b></div>
+              <div>Reach : <b>${paid.reach != null ? formatNumber(paid.reach) : '—'}</b></div>
+              <div>Impressions : <b>${paid.impressions != null ? formatNumber(paid.impressions) : '—'}</b></div>
+              <div>Clics : <b>${paid.clicks != null ? formatNumber(paid.clicks) : '—'}</b></div>
+              <div>CTR : <b>${paid.ctr != null ? paid.ctr + '%' : '—'}</b></div>
+              <div>CPC : <b>${paid.cpc != null ? paid.cpc : '—'}</b></div>
+            </div>
           </div>
 
           <div class="strategy-plan-output">
             <div class="strategy-plan-output__head">
-              <div><span class="section-kicker">Recommandation de l'agent</span><h3>Plan opérationnel complet</h3></div>
-              <button class="btn btn--primary btn--sm" id="btn-copy-all" type="button">📋 Copier le plan</button>
+              <div><span class="section-kicker">Diagnostic & solutions</span><h3>Ce qui manque, pourquoi et quoi faire</h3></div>
+              <button class="btn btn--secondary btn--sm" id="btn-copy-all" type="button">📋 Copier l'analyse</button>
             </div>
-            <pre>${escapeHtml(gen.output || '')}</pre>
+            <pre>${escapeHtml(humanAnalysis || 'Analyse non disponible.')}</pre>
           </div>
+
+          <div class="strategy-calendar-head">
+            <div>
+              <span class="section-kicker">Calendrier exécutable</span>
+              <h3>${planItems.length ? `${planItems.length} jours de contenu prêt à valider` : 'Plan détaillé'}</h3>
+              <p>Titre, caption, photo ou script vidéo, storyboard, CTA, hashtags et KPI pour chaque jour.</p>
+            </div>
+            <div class="strategy-calendar-actions">
+              ${planItems.length ? '<button class="btn btn--primary" id="btn-validate-all-plan">✓ Valider tout & ajouter au planning</button>' : ''}
+              <button class="btn btn--secondary" id="btn-open-planning">📅 Ouvrir le planning</button>
+              <button class="btn btn--secondary" id="btn-open-publisher">🚀 Programmer / publier</button>
+            </div>
+          </div>
+
+          ${planItems.length ? `<div class="strategy-day-list">
+            ${planItems.map((item, idx) => {
+              const video = /reel|video|vidéo/i.test(item.format || '');
+              const story = /story/i.test(item.format || '');
+              const carousel = /carrousel|carousel/i.test(item.format || '');
+              const storyboard = Array.isArray(item.storyboard) ? item.storyboard : [];
+              const companion = item.companionStory || null;
+              return `
+                <article class="strategy-day-card" data-plan-index="${idx}">
+                  <div class="strategy-day-card__head">
+                    <div>
+                      <span class="strategy-day-number">Jour ${escapeHtml(String(item.dayNumber || idx + 1))}</span>
+                      <h3>${escapeHtml(item.title || item.topic || 'Contenu')}</h3>
+                      <div class="strategy-day-meta">
+                        <span>${escapeHtml(item.date || 'Date à confirmer')}</span>
+                        <span>${escapeHtml(item.publishTime || '18:30')}</span>
+                        <span>${escapeHtml(item.format || 'post')}</span>
+                        <span>${escapeHtml(item.platform || 'Instagram + Facebook')}</span>
+                      </div>
+                    </div>
+                    <button class="btn btn--primary btn--sm btn-validate-plan-item" data-plan-index="${idx}" type="button">✓ Valider & ajouter</button>
+                  </div>
+
+                  <div class="strategy-day-grid">
+                    <div><small>Objectif</small><p>${escapeHtml(item.objective || '—')}</p></div>
+                    <div><small>Tunnel</small><p>${escapeHtml(item.funnelStage || '—')}</p></div>
+                    <div><small>KPI principal</small><p>${escapeHtml(item.primaryKpi || '—')}</p></div>
+                    <div><small>Pourquoi ce contenu ?</small><p>${escapeHtml(item.rationale || '—')}</p></div>
+                  </div>
+
+                  <div class="strategy-content-block"><small>Hook</small><strong>${escapeHtml(item.hook || '—')}</strong></div>
+                  <div class="strategy-content-block"><small>Caption prête à publier</small><div class="strategy-caption">${escapeHtml(item.caption || '—')}</div></div>
+
+                  ${video ? `<div class="strategy-content-block strategy-content-block--video">
+                    <small>🎬 Script vidéo complet</small>
+                    <div class="strategy-caption">${escapeHtml(item.videoScript || 'Script à compléter')}</div>
+                    ${storyboard.length ? `<div class="strategy-storyboard-mini">${storyboard.map(scene => `
+                      <div><b>${escapeHtml(scene.time || '')}</b> · ${escapeHtml(scene.visual || '')}<br><span>${escapeHtml(scene.voiceOrText || scene.action || '')}</span></div>
+                    `).join('')}</div>` : ''}
+                  </div>` : ''}
+
+                  ${!video ? `<div class="strategy-content-block">
+                    <small>${carousel ? '🖼️ Concept carrousel / Prompt visuel' : '📷 Prompt photo / visuel'}</small>
+                    <div class="strategy-prompt">${escapeHtml(item.imagePrompt || 'Prompt visuel à compléter')}</div>
+                  </div>` : ''}
+
+                  ${story && item.companionStory ? `<div class="strategy-content-block"><small>📲 Story</small><div class="strategy-caption">${escapeHtml(JSON.stringify(item.companionStory, null, 2))}</div></div>` : ''}
+                  ${!story && companion ? `<div class="strategy-content-block"><small>📲 Story d'accompagnement</small><div class="strategy-caption">${escapeHtml((companion.frames || []).join(' → '))}<br>${escapeHtml(companion.interaction || '')}</div></div>` : ''}
+
+                  <div class="strategy-day-footer">
+                    <span>${(item.hashtags || []).map(tag => escapeHtml(tag)).join(' ')}</span>
+                    <span>CTA : ${escapeHtml(item.cta || '—')}</span>
+                  </div>
+                </article>`;
+            }).join('')}
+          </div>` : `<div class="empty-state"><div><strong>Le modèle n'a pas renvoyé le planning structuré.</strong><p>L'analyse humaine reste disponible ci-dessus. Relancez le plan avec un modèle récent.</p></div></div>`}
         </div>`;
     }
+
     // 1. ONGLET PRINCIPAL : POST PRÊT À PUBLIER & PROMPT IMAGE IA
     if (agent.activeTab === 'output') {
       const fullCopyPayload = `${postText}\n\n${tags.join(' ')}`;
@@ -1173,7 +1256,8 @@ const AgentView = (() => {
       const loaded = _formatLoadedGen(response);
       loaded.output = response.output || '';
       loaded.structuredData = response.structuredData || response.structured_data || {};
-      loaded.dataAudit = response.dataAudit || null;
+      loaded.dataAudit = response.dataAudit || response.structuredData?.dataAudit || null;
+      if (Array.isArray(response.planItems)) loaded.structuredData.planItems = response.planItems;
 
       _state[agentKey].currentGeneration = loaded;
       _state[agentKey].activeTab = 'analysis';
@@ -1419,6 +1503,77 @@ const AgentView = (() => {
     bindModalEvents();
   }
 
+  function _planItemToStructuredData(item = {}) {
+    const hashtags = Array.isArray(item.hashtags) ? item.hashtags.slice(0, 5) : [];
+    const storyboardText = Array.isArray(item.storyboard) && item.storyboard.length
+      ? item.storyboard.map(s => `${s.time || ''} | ${s.visual || ''} | ${s.action || ''} | ${s.voiceOrText || ''} | ${s.transition || ''}`).join('\n')
+      : '';
+    const production = /reel|video|vidéo/i.test(item.format || '')
+      ? [item.videoScript, storyboardText].filter(Boolean).join('\n\nSTORYBOARD\n')
+      : item.imagePrompt || '';
+
+    return {
+      titre: item.title || item.topic || 'Contenu du planning IA',
+      datePublication: item.date || '',
+      heure: item.publishTime || '18:30',
+      plateforme: item.platform || 'Instagram + Facebook',
+      canal: item.platform || 'Instagram + Facebook',
+      format: item.format || 'post',
+      pilier: item.funnelStage || '',
+      objectif: item.objective || '',
+      message: item.caption || '',
+      postComplet: item.caption || '',
+      cta: item.cta || '',
+      imagePrompt: item.imagePrompt || '',
+      promptImage: item.imagePrompt || '',
+      livrable: production,
+      notes: [item.rationale, item.basedOnData?.length ? `Basé sur : ${item.basedOnData.join(' | ')}` : ''].filter(Boolean).join('\n'),
+      tags: hashtags,
+      kpiPrincipal: item.primaryKpi || '',
+      storyboard: item.storyboard || [],
+      companionStory: item.companionStory || null,
+      sourceAgent: 'professional-plan'
+    };
+  }
+
+  async function _savePlanItem(index, { silent = false } = {}) {
+    const current = _state[_activeAgentKey].currentGeneration;
+    const items = current?.structuredData?.planItems || [];
+    const item = items[index];
+    if (!item) throw new Error('Contenu du planning introuvable');
+    if (item._savedContentId) return item._savedContentId;
+
+    const brand = current.brand || (_activeAgentKey === 'planning-nidal' ? 'nidal' : 'nidal-junior');
+    const structured = _planItemToStructuredData(item);
+    const result = await NidalAPI.saveToPlanning({
+      structuredData: structured,
+      brand,
+      targetStatus: 'planifie',
+      validated: true
+    });
+
+    const saved = result?.content?.data || result?.content || structured;
+    if (result?.content) NidalStore.create(saved);
+    item._savedContentId = result?.content?.id || saved.id || true;
+    if (!silent) showToast(`« ${structured.titre} » ajouté au planning et validé.`, 'success');
+    return item._savedContentId;
+  }
+
+  async function _saveAllPlanItems() {
+    const current = _state[_activeAgentKey].currentGeneration;
+    const items = current?.structuredData?.planItems || [];
+    if (!items.length) return showToast('Aucun contenu structuré à ajouter.', 'error');
+    const button = document.getElementById('btn-validate-all-plan');
+    if (button) { button.disabled = true; button.textContent = 'Ajout au planning…'; }
+    let saved = 0;
+    let failed = 0;
+    for (let i = 0; i < items.length; i++) {
+      try { await _savePlanItem(i, { silent: true }); saved++; }
+      catch (error) { failed++; console.warn('Plan item non sauvegardé:', error.message); }
+    }
+    showToast(`${saved} contenu(s) ajoutés au planning${failed ? ` · ${failed} échec(s)` : ''}.`, failed ? 'info' : 'success');
+    render();
+  }
   async function _saveContent(status = 'brouillon') {
     const currentAgent = _state[_activeAgentKey];
     const gen = currentAgent.currentGeneration;
