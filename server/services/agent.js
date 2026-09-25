@@ -40,11 +40,11 @@ export const SUPPORTED_AI_PROVIDERS = [
   {
     id: 'gemini',
     name: 'Google Gemini',
-    description: 'API officielle Google Gemini (Gemini 2.5 Flash, 2.5 Pro)',
-    defaultModel: 'gemini-2.5-flash',
+    description: 'API officielle Google Gemini',
+    defaultModel: 'gemini-3.8-flash',
     models: [
-      { id: 'gemini-2.5-flash', name: 'Gemini 2.5 Flash (Rapide & recommandé)', recommended: true },
-      { id: 'gemini-2.5-pro', name: 'Gemini 2.5 Pro (Raisonnement avancé)' }
+      { id: 'gemini-3.8-flash', name: 'Gemini 2.5 Flash (Rapide & recommandé)', recommended: true },
+      { id: 'gemini-3.8-flash', name: 'Gemini 3.8 Flash (Recommandé)', recommended: true }
     ],
     allowCustomModel: true
   },
@@ -619,41 +619,69 @@ export async function generateEditorialOutput({
 
   // 3. GOOGLE GEMINI
   if (provider === 'gemini') {
-    const model = (aiConfig.model || process.env.GEMINI_MODEL || 'gemini-2.5-flash').trim();
-    const geminiUrl = `https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(model)}:generateContent?key=${encodeURIComponent(apiKey)}`;
-    const response = await fetch(geminiUrl, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        systemInstruction: { parts: [{ text: systemInstructions }] },
-        contents: [{ role: 'user', parts: [{ text: userPrompt }] }],
-        generationConfig: { temperature: 0.7 }
-      })
-    });
-    const payload = await response.json();
-    if (!response.ok || !payload.candidates?.[0]?.content?.parts?.[0]?.text) {
-      const geminiError = payload.error?.message || (!response.ok ? `Google Gemini API ${response.status}` : 'Réponse Gemini vide');
-      const canFallback = !aiConfig.disableFallback
-        && !aiConfig.apiKey
-        && Boolean(process.env.OPENROUTER_API_KEY);
-      if (canFallback) {
-        console.warn(`Gemini indisponible (${geminiError}). Bascule automatique vers OpenRouter.`);
-        return generateEditorialOutput({
-          agentKey,
-          brand: targetBrand,
-          briefData,
-          context,
-          aiConfig: {
-            provider: 'openrouter',
-            model: process.env.OPENROUTER_MODEL || 'openrouter/free',
-            apiKey: '',
-            disableFallback: true
-          }
-        });
-      }
-      throw new Error(geminiError);
+    let model = (aiConfig.model || process.env.GEMINI_MODEL || 'gemini-3.8-flash').trim();
+
+    async function callGemini(selectedModel) {
+      const geminiUrl = `https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(selectedModel)}:generateContent?key=${encodeURIComponent(apiKey)}`;
+      const response = await fetch(geminiUrl, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          systemInstruction: { parts: [{ text: systemInstructions }] },
+          contents: [{ role: 'user', parts: [{ text: userPrompt }] }],
+          generationConfig: { temperature: 0.7 }
+        })
+      });
+      const payload = await response.json();
+      return { response, payload };
     }
-    const output = payload.candidates[0].content.parts[0].text;
+
+    let { response, payload } = await callGemini(model);
+    let output = payload.candidates?.[0]?.content?.parts?.[0]?.text;
+
+    if (!response.ok || !output) {
+      const geminiError = payload.error?.message || (!response.ok ? `Google Gemini API ${response.status}` : 'Réponse Gemini vide');
+
+      // Google indique parfois explicitement le modèle de remplacement.
+      // Exemple : "... use models/gemini-x.x-flash ...".
+      const suggested = geminiError.match(/use\s+models\/([A-Za-z0-9._-]+)/i)?.[1]
+        || geminiError.match(/models\/([A-Za-z0-9._-]+)\s+for the latest/i)?.[1]
+        || null;
+
+      if (suggested && suggested !== model) {
+        console.warn(`Gemini ${model} indisponible. Nouvelle tentative automatique avec ${suggested}.`);
+        model = suggested;
+        const retry = await callGemini(model);
+        response = retry.response;
+        payload = retry.payload;
+        output = payload.candidates?.[0]?.content?.parts?.[0]?.text;
+      }
+
+      if (!response.ok || !output) {
+        const finalError = payload.error?.message || geminiError;
+        const canFallback = !aiConfig.disableFallback
+          && !aiConfig.apiKey
+          && Boolean(process.env.OPENROUTER_API_KEY);
+
+        if (canFallback) {
+          console.warn(`Gemini indisponible (${finalError}). Bascule automatique vers OpenRouter.`);
+          return generateEditorialOutput({
+            agentKey,
+            brand: targetBrand,
+            briefData,
+            context,
+            aiConfig: {
+              provider: 'openrouter',
+              model: process.env.OPENROUTER_MODEL || 'openrouter/free',
+              apiKey: '',
+              disableFallback: true
+            }
+          });
+        }
+
+        throw new Error(finalError);
+      }
+    }
 
     return {
       output,
