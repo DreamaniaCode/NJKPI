@@ -15,6 +15,7 @@ import {
   savePublishJob, listPublishJobs, listDuePublishJobs
 } from './repository.js';
 import { metaConfigured, syncContentFromUrl, syncAds, syncSocialProfiles, syncAudienceConversions, publishSocialJob } from './services/meta.js';
+import { normalizeUploadedMedia } from './services/media.js';
 import { getMetaLiveCache, setMetaLiveCache, isMetaLiveCacheFresh } from './services/meta-live.js';
 import { getAudienceCache, setAudienceCache, isAudienceCacheFresh } from './services/audience-cache.js';
 import {
@@ -401,29 +402,21 @@ app.post('/api/uploads', authenticate, authorize('admin', 'editor'), async (req,
       return res.status(400).json({ error: 'Format non supporté. Utilisez JPG, PNG, WEBP, GIF, MP4, MOV ou WEBM.' });
     }
 
-    const extByMime = {
-      'image/jpeg': '.jpg',
-      'image/png': '.png',
-      'image/webp': '.webp',
-      'image/gif': '.gif',
-      'video/mp4': '.mp4',
-      'video/quicktime': '.mov',
-      'video/webm': '.webm'
-    };
-    const originalExt = path.extname(rawName).toLowerCase();
-    const ext = extByMime[mime] || originalExt || '.bin';
-    const filename = `${Date.now()}-${crypto.randomUUID()}${ext}`;
+    const normalized = await normalizeUploadedMedia(req.body, mime, rawName);
+    const filename = `${Date.now()}-${crypto.randomUUID()}${normalized.ext}`;
 
     await fs.mkdir(uploadsDir, { recursive: true });
-    await fs.writeFile(path.join(uploadsDir, filename), req.body);
+    await fs.writeFile(path.join(uploadsDir, filename), normalized.buffer);
 
     const baseUrl = String(process.env.PUBLIC_BASE_URL || `${req.protocol}://${req.get('host')}`).replace(/\/$/, '');
     res.status(201).json({
       ok: true,
       filename,
       originalName: rawName,
-      mime,
-      size: req.body.length,
+      mime: normalized.mime,
+      originalMime: mime,
+      convertedForMeta: normalized.converted,
+      size: normalized.buffer.length,
       path: `/uploads/${filename}`,
       url: `${baseUrl}/uploads/${filename}`
     });
