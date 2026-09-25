@@ -8,8 +8,32 @@ function brandEnv(prefix, brand) {
 function normalizedUrl(value) {
   try {
     const url = new URL(value);
-    return `${url.hostname.replace(/^www\./, '')}${url.pathname}`.replace(/\/$/, '').toLowerCase();
+    const hostPath = `${url.hostname.replace(/^www\./, '')}${url.pathname}`.replace(/\/$/, '').toLowerCase();
+    if (/facebook\.com\/photo$/i.test(hostPath)) {
+      const fbid = url.searchParams.get('fbid');
+      return fbid ? `${hostPath}?fbid=${fbid}` : hostPath;
+    }
+    return hostPath;
   } catch { return String(value || '').replace(/\/$/, '').toLowerCase(); }
+}
+
+function facebookObjectRef(value) {
+  try {
+    const url = new URL(value);
+    const fbid = url.searchParams.get('fbid');
+    if (fbid) return { type: 'photo', id: fbid };
+
+    const patterns = [
+      { type: 'post', re: /\/posts\/([A-Za-z0-9_.-]+)/i },
+      { type: 'video', re: /\/videos\/(\d+)/i },
+      { type: 'reel', re: /\/reel\/(\d+)/i }
+    ];
+    for (const item of patterns) {
+      const match = url.pathname.match(item.re);
+      if (match) return { type: item.type, id: match[1] };
+    }
+  } catch {}
+  return null;
 }
 
 async function graph(path, params = {}, accessToken = process.env.META_ACCESS_TOKEN) {
@@ -258,29 +282,49 @@ export async function syncSocialProfiles({ brand, instagramUrl = '', facebookUrl
 
 import { scrapeSocialPost, scrapeSocialProfile } from './public-scraper.js';
 
-export async function syncContentFromUrl({ brand, finalUrl, platform }) {
-  // 1. Si Meta API officielle est configurée, essayer l'API officielle
-  if (metaConfigured(brand) && process.env.DEMO_MODE !== 'true') {
+export async function syncContentFromUrl({
+  brand,
+  finalUrl,
+  platform,
+  requireVerifiedMetrics = false
+}) {
+  const hasOfficialMeta = metaConfigured(brand) && process.env.DEMO_MODE !== 'true';
+
+  // 1. Pour des métriques réelles, l'API Meta officielle est la source de vérité.
+  if (hasOfficialMeta) {
     try {
-      if (/instagram/i.test(platform) || /instagram\.com/i.test(finalUrl)) {
-        return await syncInstagram(brand, finalUrl);
-      }
-      return await syncFacebook(brand, finalUrl);
+      const synced = (/instagram/i.test(platform) || /instagram\.com/i.test(finalUrl))
+        ? await syncInstagram(brand, finalUrl)
+        : await syncFacebook(brand, finalUrl);
+      return { ...synced, metricsVerified: true, metricsSource: 'meta-api' };
     } catch (apiError) {
-      console.warn('Meta Graph API indisponible, tentative de lecture publique:', apiError.message);
+      console.warn('Meta Graph API n’a pas pu identifier ce contenu:', apiError.message);
+      if (requireVerifiedMetrics) {
+        throw new Error(`Impossible de récupérer les métriques officielles Meta pour ce lien : ${apiError.message}`);
+      }
     }
+  } else if (requireVerifiedMetrics) {
+    if (process.env.DEMO_MODE === 'true') {
+      throw new Error('DEMO_MODE=true : les métriques officielles Meta sont désactivées. Mettez DEMO_MODE=false sur Coolify.');
+    }
+    throw new Error('Meta API n’est pas configurée pour cette marque.');
   }
 
-  // 2. Extraction publique en temps réel des métadonnées et vrais likes/commentaires
+  // 2. Lecture publique uniquement pour enrichir le contenu.
+  // Les chiffres Facebook/Instagram trouvés dans les métadonnées HTML ne sont
+  // PAS considérés comme des Insights réels et ne doivent pas être présentés comme tels.
   try {
     const scraped = await scrapeSocialPost(finalUrl);
-    if (scraped.success && scraped.metrics) {
+    if (scraped.success) {
       return {
         source: /instagram/i.test(platform || finalUrl) ? 'instagram' : 'facebook',
-        externalMediaId: `scraped_${Date.now()}`,
+        externalMediaId: null,
         permalink: scraped.cleanUrl || finalUrl,
         isDemo: false,
-        metrics: scraped.metrics,
+        metricsVerified: false,
+        metricsSource: 'public-unverified',
+        warning: 'Métadonnées publiques uniquement : chiffres non certifiés par Meta API.',
+        metrics: null,
         title: scraped.title,
         caption: scraped.caption,
         format: scraped.format,
@@ -289,11 +333,20 @@ export async function syncContentFromUrl({ brand, finalUrl, platform }) {
       };
     }
   } catch (scrapeErr) {
-    console.warn('Scraping public échoué:', scrapeErr.message);
+    console.warn('Lecture publique échouée:', scrapeErr.message);
   }
 
-  // 3. Fallback mode démo si tout échoue
-  return demoContentMetrics(finalUrl, platform);
+  // 3. Ne plus inventer de métriques quand la synchronisation réelle échoue.
+  return {
+    source: /instagram/i.test(platform || finalUrl) ? 'instagram' : 'facebook',
+    externalMediaId: null,
+    permalink: finalUrl,
+    isDemo: false,
+    metricsVerified: false,
+    metricsSource: 'unavailable',
+    warning: 'Aucune métrique réelle disponible pour ce lien.',
+    metrics: null
+  };
 }
 
 async function syncInstagram(brand, finalUrl) {
@@ -316,7 +369,7 @@ async function syncInstagram(brand, finalUrl) {
   if (!insights) throw lastError;
   const values = Object.fromEntries((insights.data || []).map(item => [item.name, item.values?.[0]?.value ?? item.value ?? 0]));
   return {
-    source: 'instagram', externalMediaId: target.id, permalink: target.permalink, isDemo: false,
+    source: 'instagram', externalMediaId: target.id, permalink: target.permalink, isDemo: false, metricsVerified: true, metricsSource: 'meta-api',
     metrics: {
       portee: Number(values.reach || 0),
       reactions: Number(values.likes ?? target.like_count ?? 0),
@@ -331,23 +384,67 @@ async function syncInstagram(brand, finalUrl) {
 
 async function syncFacebook(brand, finalUrl) {
   const pageId = brandEnv('META_PAGE_ID', brand);
-  if (!pageId) throw new Error(`Page Facebook non configuree pour ${brand}`);
-  const posts = await pageGraph(brand, `${pageId}/published_posts`, { fields: 'id,permalink_url,message,created_time,shares,reactions.limit(0).summary(true),comments.limit(0).summary(true)', limit: 100 });
-  const target = posts.data?.find(item => normalizedUrl(item.permalink_url) === normalizedUrl(finalUrl));
-  if (!target) throw new Error('Publication Facebook introuvable dans les 100 posts recents');
+  if (!pageId) throw new Error(`Page Facebook non configurée pour ${brand}`);
+
+  const ref = facebookObjectRef(finalUrl);
+  const posts = await pageGraph(brand, `${pageId}/published_posts`, {
+    fields: 'id,permalink_url,message,created_time,shares,reactions.limit(0).summary(true),comments.limit(0).summary(true),attachments{target,url,type}',
+    limit: 100
+  });
+
+  const target = (posts.data || []).find(item => {
+    if (normalizedUrl(item.permalink_url) === normalizedUrl(finalUrl)) return true;
+
+    if (ref?.id) {
+      if (String(item.id) === String(ref.id)) return true;
+      const attachments = item.attachments?.data || [];
+      if (attachments.some(att => String(att.target?.id || '') === String(ref.id))) return true;
+      if (attachments.some(att => normalizedUrl(att.url || '') === normalizedUrl(finalUrl))) return true;
+    }
+
+    return false;
+  });
+
+  if (!target) {
+    const suffix = ref?.id ? ` (identifiant ${ref.id})` : '';
+    throw new Error(`Publication Facebook introuvable dans les 100 publications récentes${suffix}`);
+  }
+
   const metrics = process.env.META_PAGE_POST_METRICS || 'post_media_view,post_total_media_view_unique';
-  const insights = await pageGraph(brand, `${target.id}/insights`, { metric: metrics });
-  const values = Object.fromEntries((insights.data || []).map(item => [item.name, item.values?.[0]?.value ?? 0]));
+  let values = {};
+  let insightsError = null;
+  try {
+    const insights = await pageGraph(brand, `${target.id}/insights`, { metric: metrics });
+    values = Object.fromEntries((insights.data || []).map(item => [
+      item.name,
+      Number(item.values?.[0]?.value ?? item.total_value?.value ?? item.value ?? 0)
+    ]));
+  } catch (error) {
+    // Likes/commentaires/partages restent exacts même si une métrique Insight
+    // particulière n'est plus disponible dans la version courante de Meta.
+    insightsError = error.message;
+  }
+
   return {
-    source: 'facebook', externalMediaId: target.id, permalink: target.permalink_url, isDemo: false,
+    source: 'facebook',
+    externalMediaId: target.id,
+    permalink: target.permalink_url,
+    isDemo: false,
+    metricsVerified: true,
+    metricsSource: 'meta-api',
+    insightsWarning: insightsError,
     metrics: {
-      portee: Number(values.post_total_media_view_unique || 0),
+      portee: Object.prototype.hasOwnProperty.call(values, 'post_total_media_view_unique')
+        ? Number(values.post_total_media_view_unique)
+        : null,
       reactions: Number(target.reactions?.summary?.total_count || 0),
       commentaires: Number(target.comments?.summary?.total_count || 0),
       partages: Number(target.shares?.count || 0),
-      enregistrements: 0,
+      enregistrements: null,
       clics: null,
-      vues: Number(values.post_media_view || 0)
+      vues: Object.prototype.hasOwnProperty.call(values, 'post_media_view')
+        ? Number(values.post_media_view)
+        : null
     }
   };
 }
