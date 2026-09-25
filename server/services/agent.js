@@ -816,6 +816,7 @@ function buildUserPrompt(briefData = {}, context = '') {
 - Chaque nouveau contenu doit avoir un visuel réellement différent des contenus précédents : change au minimum 4 éléments parmi le lieu, l'action, le nombre de personnes, l'âge/groupe, le cadrage, l'angle caméra, la focale, la lumière, les accessoires, l'arrière-plan et la composition.
 - Le sujet principal et l'action doivent illustrer directement l'idée du post. Exemple : sciences → expérience concrète ; sport → mouvement réel ; lecture → interaction avec un livre ; créativité → atelier artistique ; rentrée → accueil/arrivée ; technologie → manipulation d'outil numérique.
 - Ne recopie jamais mot pour mot le début d'un Prompt image IA déjà présent dans le contexte.
+- SCÈNE PAR DÉFAUT INTERDITE : une enseignante / un enseignant debout devant des élèves assis à des tables ou bureaux dans une salle de classe. N'utilise cette scène QUE si le sujet parle explicitement d'un cours en classe ou du métier d'enseignant.
 - Évite de commencer systématiquement par "A modern classroom", "A vibrant classroom", "smiling students" ou une formule équivalente.
 - Le prompt final doit contenir : sujet précis, action précise, lieu précis, composition, cadrage, lumière, ambiance, détails de décor, palette Nidal, style photographique/illustratif, focale ou rendu, résolution et ratio.
 - Pour un calendrier/planning avec plusieurs publications : CHAQUE publication doit avoir son propre Prompt image IA entièrement distinct. Aucun copier-coller entre les jours.
@@ -880,49 +881,119 @@ export function shouldAutoSave(brief = '') {
   return /\b(crée|cree|créer|creer|ajoute|ajouter|planifie|planifier|enregistre|enregistrer)\b/i.test(normalized);
 }
 
-function buildFallbackImagePrompt(title, agentKey = 'studio-junior') {
-  const source = String(title || 'Nidal');
-  const seed = [...source].reduce((sum, char) => sum + char.charCodeAt(0), 0);
+function visualSceneForTopic(title, agentKey = 'studio-junior') {
+  const topic = String(title || '').toLowerCase();
+  const junior = agentKey === 'studio-junior';
 
-  const juniorScenes = [
-    'a hands-on discovery table with colorful learning materials and child-safe science objects',
-    'a cozy storytelling corner with floor cushions, picture books and soft window light',
-    'a creative art workshop with paper, paint, clay and children actively making something',
-    'a sunny school garden exploration with magnifying glasses, plants and nature details',
-    'a playful movement activity in a bright multipurpose room with hoops and balance games'
+  const rules = [
+    {
+      re: /science|scientif|expérien|experience|chimie|physique|biolog|laboratoire|lab/,
+      scene: junior
+        ? 'a child-safe discovery lab with magnifying glasses, colorful liquids, leaves and simple experiment tools, children observing closely, no teacher visible, no desks'
+        : 'a real school science laboratory with students actively running a hands-on experiment around lab equipment, close interaction with materials, no teacher posing, no classroom desks'
+    },
+    {
+      re: /robot|technolog|numéri|digital|cod|programm|informat|ia|intelligence artificielle/,
+      scene: junior
+        ? 'a playful digital discovery corner with floor-level interactive screens, coding toys and building blocks, children exploring technology in motion, no classroom desks'
+        : 'a robotics makerspace with students standing around a prototype robot and large digital display, tools and components visible, student-led action, no teacher-at-desk scene'
+    },
+    {
+      re: /lecture|livre|biblioth|lire|conte|histoire/,
+      scene: junior
+        ? 'a cozy reading nook with floor cushions, picture books opened around one child reading with expressive curiosity, warm intimate composition, no tables'
+        : 'a contemporary school library aisle with one student selecting a book while another reads near a window, layered shelves and natural depth, no classroom setup'
+    },
+    {
+      re: /sport|football|basket|athl|motric|mouvement|gym/,
+      scene: junior
+        ? 'an outdoor movement course with hoops, cones and balance elements, children captured mid-action in a sunny play area'
+        : 'an outdoor school sports field with students in dynamic motion during a team drill, energetic candid moment, no posed group'
+    },
+    {
+      re: /art|créativ|dessin|peinture|artist|atelier|couleur/,
+      scene: junior
+        ? 'a creative studio with easels, large paper sheets, paint marks and children creating standing or on floor mats, tactile handmade atmosphere'
+        : 'an art studio with students working at easels and pinning finished pieces on a gallery wall, expressive materials and bold composition'
+    },
+    {
+      re: /musique|chant|théâtre|theatre|scène|scene|spectacle|concert/,
+      scene: junior
+        ? 'a small school stage with children rehearsing movement and music under soft stage lights, playful expressive performance'
+        : 'a school auditorium rehearsal with students on stage presenting or performing, dramatic side lighting and audience seats softly blurred'
+    },
+    {
+      re: /nature|jardin|écolog|environnement|plante|vert/,
+      scene: junior
+        ? 'a school garden exploration with children kneeling near plants, magnifying glasses and watering cans, vivid natural textures'
+        : 'an outdoor school garden project with students examining plants and documenting observations, greenery filling the frame'
+    },
+    {
+      re: /rentrée|accueil|inscription|portes ouvertes|visite|bienvenue/,
+      scene: junior
+        ? 'the colorful Nidal Junior entrance during arrival, child walking in with a parent, welcoming signage, balloons and natural movement'
+        : 'the GS Nidal entrance and reception area during arrival, students and families walking through the campus, architectural perspective and welcoming atmosphere'
+    },
+    {
+      re: /réussite|diplôme|diplome|succès|succes|excellence|prix|cérémonie|ceremonie/,
+      scene: junior
+        ? 'a joyful achievement moment with a child proudly holding a handmade certificate in a decorated school hall, candid family emotion'
+        : 'a student achievement moment on a clean school stage, certificate or project award in hand, confident portrait with audience softly out of focus'
+    },
+    {
+      re: /équipe|equipe|collabor|coopér|cooper|valeur|entraide|leadership/,
+      scene: junior
+        ? 'a cooperative outdoor game where children build something large together on the ground, teamwork visible through action'
+        : 'a student-led teamwork challenge in the courtyard, standing participants solving a practical task together, no desks or teacher-led pose'
+    }
   ];
-  const nidalScenes = [
-    'a collaborative project table where students actively solve a practical challenge',
-    'a modern science laboratory during a supervised hands-on experiment',
-    'a bright library study scene with students researching and discussing together',
-    'an outdoor school courtyard activity focused on teamwork and student leadership',
-    'a technology-rich learning space with students presenting a digital project'
-  ];
+
+  const match = rules.find(rule => rule.re.test(topic));
+  if (match) return match.scene;
+
+  return junior
+    ? 'a lively Nidal Junior school moment outside the standard classroom: children moving through a colorful activity zone with topic-specific props, candid action, no teacher standing over tables'
+    : 'a contemporary GS Nidal campus scene outside the standard classroom: student-led real activity in a corridor, courtyard, library, lab or project zone chosen to match the topic, candid action, no teacher standing over seated students';
+}
+
+function isGenericClassroomPrompt(prompt = '') {
+  const text = String(prompt || '').toLowerCase();
+  const teacher = /(teacher|enseignant|enseignante|professeur|prof)/.test(text);
+  const students = /(student|students|élève|élèves|eleve|eleves|children|enfants)/.test(text);
+  const tables = /(table|tables|desk|desks|bureau|bureaux)/.test(text);
+  const classroom = /(classroom|classe|salle de classe)/.test(text);
+  return teacher && students && (tables || classroom);
+}
+
+function buildFallbackImagePrompt(title, agentKey = 'studio-junior') {
+  const source = String(title || 'Nidal').trim();
+  const seed = [...source].reduce((sum, char) => sum + char.charCodeAt(0), 0);
+  const scene = visualSceneForTopic(source, agentKey);
+
   const shots = [
-    'wide environmental editorial shot',
-    'medium candid documentary shot',
-    'over-the-shoulder composition',
-    'slight top-down storytelling composition',
-    'low-angle dynamic editorial composition'
+    'wide environmental editorial shot with strong foreground depth',
+    'medium candid documentary shot captured at eye level',
+    'close storytelling composition focused on hands, faces and the activity',
+    'over-the-shoulder composition that places the viewer inside the action',
+    'slight top-down editorial composition with graphic spatial organization',
+    'low-angle dynamic composition emphasizing movement and confidence'
   ];
   const lights = [
-    'warm morning sunlight',
-    'soft diffused daylight',
+    'warm early-morning natural light',
+    'soft diffused daylight with realistic shadows',
     'golden late-afternoon light',
-    'clean bright natural window light',
-    'balanced cinematic indoor daylight'
+    'clean bright window light with subtle contrast',
+    'cinematic side light with natural skin tones',
+    'open-shade outdoor light with crisp realistic detail'
   ];
+  const shot = shots[seed % shots.length];
+  const light = lights[(seed * 3 + 2) % lights.length];
 
-  const scenes = agentKey === 'studio-junior' ? juniorScenes : nidalScenes;
-  const scene = scenes[seed % scenes.length];
-  const shot = shots[(seed * 3) % shots.length];
-  const light = lights[(seed * 5 + 1) % lights.length];
+  const base = agentKey === 'studio-junior'
+    ? `Nidal Junior visual specifically illustrating "${source}". Scene: ${scene}. ${shot}. ${light}. Nounou appears only if genuinely relevant to the topic, never as a forced decoration. Rich topic-specific props, authentic Moroccan preschool atmosphere, royal blue #1746d1, magenta #d91b5c and yellow #ffc928 accents, premium educational editorial photography / polished 3D hybrid aesthetic, realistic depth, 8k, portrait --ar 4:5.`
+    : `Groupe Scolaire Nidal visual specifically illustrating "${source}". Scene: ${scene}. ${shot}. ${light}. Authentic Moroccan private-school atmosphere, student-led action, topic-specific props, no generic teacher-with-students-at-desks composition, royal blue #1746d1, yellow #ffc928 and magenta #d91b5c accents, Canon EOS R5 editorial photography, realistic depth of field, 8k, portrait --ar 4:5.`;
 
-  if (agentKey === 'studio-junior') {
-    return `Nidal Junior visual specifically illustrating "${source}", ${scene}, Nounou used only if relevant to the subject, children shown naturally and respectfully, ${shot}, ${light}, rich contextual props tied to the topic, royal blue #1746d1, magenta #d91b5c and yellow #ffc928 accents, polished educational editorial photography / premium 3D hybrid aesthetic, realistic depth, 8k, portrait --ar 4:5`;
-  }
-
-  return `Groupe Scolaire Nidal visual specifically illustrating "${source}", ${scene}, authentic Moroccan school environment, students and teacher engaged in a concrete action tied to the topic, ${shot}, ${light}, contextual props that directly communicate the post idea, royal blue #1746d1, yellow #ffc928 and magenta #d91b5c accents, Canon EOS R5 editorial photography, realistic depth of field, 8k, portrait --ar 4:5`;
+  return base;
 }
 
 export function parseStructuredEditorial(text, agentKey = 'studio-junior', defaultBrand = 'nidal-junior') {
@@ -976,7 +1047,9 @@ export function parseStructuredEditorial(text, agentKey = 'studio-junior', defau
     || find(/(?:^|\n)Idée visuelle\s*:\s*(.+)/i);
 
   const defaultPromptImage = buildFallbackImagePrompt(titre, agentKey);
-  const promptImage = promptImageBlock || defaultPromptImage;
+  const promptImage = !promptImageBlock || isGenericClassroomPrompt(promptImageBlock)
+    ? defaultPromptImage
+    : promptImageBlock;
 
   const auteur = find(/(?:^|\n)(?:Auteur|Responsable)\s*:\s*(.+)/i) || 'Équipe Nidal';
   const dateRaw = find(/(?:^|\n)(?:Date proposée|Date)\s*:\s*(.+)/i);
