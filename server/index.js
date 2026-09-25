@@ -1050,7 +1050,11 @@ const server = app.listen(port, '0.0.0.0', () => {
     await initAuth();
     if (process.env.META_HOURLY_SYNC_ENABLED !== 'false') {
       await runHourlyAudienceSync();
-      setInterval(() => runHourlyAudienceSync().catch(err => console.warn('Sync horaire:', err.message)), 60 * 60 * 1000);
+      const metaSyncSeconds = Math.max(120, Number(process.env.META_BACKGROUND_SYNC_SECONDS || 300));
+      setInterval(
+        () => runHourlyAudienceSync().catch(err => console.warn('Sync Meta automatique:', err.message)),
+        metaSyncSeconds * 1000
+      );
     }
     await runPublishQueue();
     setInterval(() => runPublishQueue().catch(err => console.warn('File publication:', err.message)), 60 * 1000);
