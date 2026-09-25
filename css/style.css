@@ -1639,3 +1639,350 @@ textarea.form-control { resize: vertical; }
     grid-template-columns: 1fr;
   }
 }
+
+
+/* ── Social composer simplifié (style Facebook / Instagram) ───────── */
+.modal:has(.social-composer-form) {
+  width: min(1180px, 100%);
+}
+
+.social-composer-form {
+  display: grid;
+  gap: 14px;
+}
+
+.social-composer {
+  display: grid;
+  grid-template-columns: minmax(0, 1.65fr) minmax(280px, .65fr);
+  gap: 18px;
+  align-items: start;
+}
+
+.social-composer__main,
+.composer-side-card {
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  background: var(--panel);
+}
+
+.social-composer__main {
+  padding: 18px;
+}
+
+.social-composer__identity {
+  display: flex;
+  align-items: center;
+  gap: 11px;
+  padding-bottom: 14px;
+  margin-bottom: 12px;
+  border-bottom: 1px solid var(--line);
+}
+
+.social-composer__identity img {
+  width: 42px;
+  height: 42px;
+  border-radius: 50%;
+  object-fit: contain;
+  background: #fff;
+  border: 1px solid var(--line);
+}
+
+.social-composer__identity strong,
+.social-composer__identity small {
+  display: block;
+}
+
+.social-composer__identity strong {
+  font-size: 13px;
+  color: var(--ink);
+}
+
+.social-composer__identity small {
+  margin-top: 2px;
+  font-size: 10px;
+  color: var(--muted);
+}
+
+.social-composer__caption label {
+  color: var(--ink);
+  font-size: 12px;
+  font-weight: 800;
+}
+
+.social-composer__caption textarea {
+  min-height: 260px;
+  padding: 14px;
+  border: 0;
+  border-radius: 10px;
+  background: var(--surface);
+  font-size: 14.5px;
+  line-height: 1.65;
+}
+
+.composer-help {
+  display: block;
+  margin-top: 6px;
+  color: var(--muted);
+  font-size: 9.5px;
+}
+
+.social-composer__media {
+  margin-top: 12px;
+  border-style: solid;
+  background: var(--surface);
+}
+
+.social-composer__media-actions {
+  display: flex;
+  gap: 10px;
+  align-items: center;
+  flex-wrap: wrap;
+}
+
+.social-composer__preview {
+  justify-content: center;
+}
+
+.social-composer__preview img,
+.social-composer__preview video {
+  width: 100%;
+  max-width: 540px;
+  max-height: 420px;
+  object-fit: contain;
+}
+
+.social-composer__sidebar {
+  display: grid;
+  gap: 12px;
+  position: sticky;
+  top: 0;
+}
+
+.composer-side-card {
+  padding: 16px;
+}
+
+.composer-side-card > strong {
+  display: block;
+  margin-bottom: 12px;
+  font-size: 12px;
+  color: var(--ink);
+}
+
+.composer-action-note {
+  padding: 14px;
+  border-radius: 12px;
+  background: #eef4ff;
+  border: 1px solid #cddcff;
+}
+
+.composer-action-note strong,
+.composer-action-note small {
+  display: block;
+}
+
+.composer-action-note strong {
+  color: var(--blue);
+  font-size: 11.5px;
+}
+
+.composer-action-note small {
+  margin-top: 4px;
+  color: var(--muted);
+  font-size: 9.5px;
+  line-height: 1.45;
+}
+
+.composer-details,
+.agent-advanced {
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  background: var(--panel);
+  overflow: hidden;
+}
+
+.composer-details > summary,
+.agent-advanced > summary {
+  list-style: none;
+  cursor: pointer;
+  padding: 12px 15px;
+  font-size: 11px;
+  font-weight: 850;
+  color: var(--ink);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.composer-details > summary::-webkit-details-marker,
+.agent-advanced > summary::-webkit-details-marker {
+  display: none;
+}
+
+.composer-details > summary span,
+.agent-advanced > summary span {
+  color: var(--muted);
+  font-size: 9px;
+  font-weight: 700;
+}
+
+.composer-details[open] > summary,
+.agent-advanced[open] > summary {
+  border-bottom: 1px solid var(--line);
+  background: var(--surface);
+}
+
+.composer-details__body,
+.agent-advanced__body {
+  padding: 14px 15px;
+}
+
+.composer-details__body h4 {
+  margin: 8px 0 10px;
+  font-size: 11px;
+  color: var(--ink);
+}
+
+.composer-inline-head {
+  display: flex;
+  justify-content: space-between;
+  gap: 10px;
+  align-items: center;
+  margin-bottom: 5px;
+}
+
+.composer-checks {
+  margin-top: 12px;
+}
+
+/* ── Agents IA : brief ultra simple ───────────────────────────────── */
+.agent-layout {
+  grid-template-columns: minmax(300px, .52fr) minmax(0, 1.48fr);
+  gap: 22px;
+}
+
+.agent-brief--simple {
+  padding: 18px;
+  border-radius: 12px;
+  position: sticky;
+  top: 12px;
+  align-self: start;
+}
+
+.agent-simple-head {
+  display: flex;
+  justify-content: space-between;
+  gap: 10px;
+  align-items: flex-start;
+  margin-bottom: 14px;
+}
+
+.agent-simple-head h2 {
+  margin: 3px 0 4px;
+  font-size: 18px;
+}
+
+.agent-simple-head p {
+  margin: 0;
+  color: var(--muted);
+  font-size: 10px;
+  line-height: 1.45;
+}
+
+.agent-topic-toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  margin-bottom: 6px;
+}
+
+.agent-topic-toolbar label {
+  margin: 0;
+  color: var(--ink);
+  font-size: 11px;
+}
+
+.compact-select {
+  min-height: 30px;
+  padding: 4px 8px;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  background: var(--surface);
+  color: var(--ink);
+  font-size: 9.5px;
+  font-weight: 800;
+}
+
+.agent-topic-input {
+  min-height: 170px;
+  padding: 13px;
+  font-size: 13px;
+  line-height: 1.55;
+}
+
+.agent-topic-group > small {
+  display: block;
+  margin-top: 5px;
+  color: var(--muted);
+  font-size: 9px;
+}
+
+.agent-quick-options {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 0;
+}
+
+.agent-generate-btn {
+  min-height: 46px;
+  margin-top: 14px;
+  border-radius: 10px;
+  font-size: 12px;
+}
+
+.agent-output {
+  min-width: 0;
+  border-radius: 12px;
+}
+
+.post-caption-box {
+  min-height: 240px;
+  max-height: none;
+  padding: 20px;
+  font-size: 14px;
+  line-height: 1.75;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+.post-preview-card {
+  padding: 20px;
+  border-radius: 12px;
+}
+
+.image-prompt-card {
+  border-radius: 12px;
+}
+
+@media (max-width: 1024px) {
+  .social-composer,
+  .agent-layout {
+    grid-template-columns: 1fr;
+  }
+
+  .social-composer__sidebar,
+  .agent-brief--simple {
+    position: static;
+  }
+}
+
+@media (max-width: 720px) {
+  .social-composer__caption textarea {
+    min-height: 210px;
+  }
+
+  .modal:has(.social-composer-form) {
+    width: 100%;
+  }
+}
