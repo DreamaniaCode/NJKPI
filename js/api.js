@@ -14,9 +14,6 @@ const NidalAPI = (() => {
   }
 
   function getAuthToken() {
-    // Toujours préférer le JWT de la session utilisateur.
-    // Le champ accessToken de la config peut contenir un ancien token legacy
-    // ou être vide après un changement de configuration.
     try {
       if (typeof NidalAuth !== 'undefined') {
         const jwt = NidalAuth.getToken?.();
@@ -26,11 +23,22 @@ const NidalAPI = (() => {
     return getConfig().accessToken || '';
   }
 
+  function getAuthHeaders() {
+    const token = getAuthToken();
+    if (!token) return {};
+
+    // Un JWT contient 3 segments séparés par des points.
+    // APP_ACCESS_TOKEN legacy ne doit PAS être envoyé comme Bearer JWT.
+    if (String(token).split('.').length === 3) {
+      return { Authorization: `Bearer ${token}` };
+    }
+    return { 'X-Access-Token': token };
+  }
+
   async function request(path, options = {}, auth = true) {
     const config = getConfig();
     const headers = { 'Content-Type': 'application/json', ...(options.headers || {}) };
-    const authToken = getAuthToken();
-    if (auth && authToken) headers.Authorization = `Bearer ${authToken}`;
+    if (auth) Object.assign(headers, getAuthHeaders());
     const response = await fetch(`${config.baseUrl}${path}`, { ...options, headers });
     const text = await response.text();
     let payload;
@@ -46,8 +54,7 @@ const NidalAPI = (() => {
       'Content-Type': file.type || 'application/octet-stream',
       'X-File-Name': encodeURIComponent(file.name || 'media')
     };
-    const authToken = getAuthToken();
-    if (authToken) headers.Authorization = `Bearer ${authToken}`;
+    Object.assign(headers, getAuthHeaders());
 
     const response = await fetch(`${config.baseUrl}/api/uploads`, {
       method: 'POST',
