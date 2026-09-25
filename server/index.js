@@ -98,7 +98,7 @@ async function getAiKpiContext(brand) {
 
 app.get('/api/version', (_req, res) => {
   res.setHeader('Cache-Control', 'no-store, max-age=0, must-revalidate');
-  res.json({ build: '20260925-34', appVersion: process.env.APP_VERSION || null, now: new Date().toISOString() });
+  res.json({ build: '20260925-35', appVersion: process.env.APP_VERSION || null, now: new Date().toISOString() });
 });
 
 app.get('/api/health', async (_req, res) => {
@@ -884,6 +884,7 @@ async function buildProfessionalPlan(body = {}) {
     const targetBrand = brand === 'nidal-junior' ? 'nidal-junior' : 'nidal';
     const agentKey = targetBrand === 'nidal' ? 'planning-nidal' : 'studio-junior';
     const horizon = [7, 14, 30].includes(Number(days)) ? Number(days) : 30;
+    const planAiConfig = { ...aiConfig, planMode: true };
 
     const [contents, targetsRecord, socialProfiles, audienceRows, ads] = await Promise.all([
       listContents(targetBrand).catch(() => []),
@@ -1125,7 +1126,9 @@ N'ajoute AUCUN commentaire dans le JSON et assure-toi qu'il contient exactement 
     const dataContextText = `=== DONNÉES NJKPI À ANALYSER ===\n${JSON.stringify(dataContext, null, 2)}`;
 
     // Étape 1 : diagnostic stratégique court.
-    const analysisGenerated = await generateEditorialOutput({
+    let analysisGenerated;
+    try {
+      analysisGenerated = await generateEditorialOutput({
       agentKey,
       brand: targetBrand,
       briefData: {
@@ -1152,14 +1155,21 @@ Réponse concise mais profonde, sans JSON.
         notes
       },
       context: dataContextText,
-      aiConfig
+      aiConfig: planAiConfig
     });
+    } catch (error) {
+      const activeProvider = planAiConfig.provider || 'auto';
+      const activeModel = planAiConfig.model || 'auto';
+      throw new Error(
+        `Diagnostic stratégique — ${activeProvider}/${activeModel} : ${error?.message || error}`
+      );
+    }
 
     // Si Gemini 3.8 est saturé et que l'étape diagnostic a réussi via un
     // modèle de secours, conserver ce modèle pour tous les lots suivants.
     // Même logique si la génération a dû basculer vers OpenRouter côté serveur.
-    const effectivePlanAiConfig = {
-      ...aiConfig,
+    let effectivePlanAiConfig = {
+      ...planAiConfig,
       provider: analysisGenerated.provider || aiConfig.provider,
       model: analysisGenerated.model || aiConfig.model,
       apiKey: analysisGenerated.provider && aiConfig.provider
@@ -1194,21 +1204,45 @@ Réponds UNIQUEMENT avec :
 JSON valide, sans commentaire avant ou après.
 `;
 
-      const batchGenerated = await generateEditorialOutput({
-        agentKey,
-        brand: targetBrand,
-        briefData: {
-          topic: `Planning Social Media jours ${offset + 1}-${offset + count}`,
-          brief: batchBrief,
-          format: 'planning stratégique batch',
-          platform: 'Instagram + Facebook + Stories + Reels + Vidéos',
-          objective,
-          language: 'Français',
-          notes
-        },
-        context: `${dataContextText}\n\n=== DIAGNOSTIC STRATÉGIQUE ===\n${analysisGenerated.output.slice(0, 12000)}`,
-        aiConfig: effectivePlanAiConfig
-      });
+      let batchGenerated;
+      try {
+        batchGenerated = await generateEditorialOutput({
+          agentKey,
+          brand: targetBrand,
+          briefData: {
+            topic: `Planning Social Media jours ${offset + 1}-${offset + count}`,
+            brief: batchBrief,
+            format: 'planning stratégique batch',
+            platform: 'Instagram + Facebook + Stories + Reels + Vidéos',
+            objective,
+            language: 'Français',
+            notes
+          },
+          context: `${dataContextText}\n\n=== DIAGNOSTIC STRATÉGIQUE ===\n${analysisGenerated.output.slice(0, 12000)}`,
+          aiConfig: effectivePlanAiConfig
+        });
+      } catch (error) {
+        const activeProvider = effectivePlanAiConfig.provider || 'auto';
+        const activeModel = effectivePlanAiConfig.model || 'auto';
+        throw new Error(
+          `Planning jours ${offset + 1}-${offset + count} — ${activeProvider}/${activeModel} : ${error?.message || error}`
+        );
+      }
+
+      // Si un lot a dû changer de modèle/fournisseur, conserver ce choix pour
+      // les lots suivants afin de ne pas retenter un modèle déjà saturé.
+      if (batchGenerated.provider || batchGenerated.model) {
+        const providerChanged = batchGenerated.provider
+          && effectivePlanAiConfig.provider
+          && batchGenerated.provider !== effectivePlanAiConfig.provider;
+        effectivePlanAiConfig = {
+          ...effectivePlanAiConfig,
+          provider: batchGenerated.provider || effectivePlanAiConfig.provider,
+          model: batchGenerated.model || effectivePlanAiConfig.model,
+          apiKey: providerChanged ? '' : (effectivePlanAiConfig.apiKey || ''),
+          planMode: true
+        };
+      }
 
       const batchItems = extractProfessionalPlanItems(batchGenerated.output);
       for (let i = 0; i < batchItems.length && i < count; i++) {
@@ -1552,7 +1586,7 @@ app.use((req, res, next) => {
     res.setHeader('Surrogate-Control', 'no-store');
     res.setHeader('Pragma', 'no-cache');
     res.setHeader('Expires', '0');
-    res.setHeader('X-Nidal-Build', '20260925-34');
+    res.setHeader('X-Nidal-Build', '20260925-35');
   }
   next();
 });
