@@ -139,6 +139,7 @@ const NidalAPI = (() => {
   const listEditorialAgents = () => request('/api/editorial/agents');
   const listEditorialProviders = () => request('/api/editorial/providers');
   const listEditorialGenerations = (agent = '', brand = '') => request(`/api/editorial/generations?agent=${encodeURIComponent(agent)}&brand=${encodeURIComponent(brand)}`);
+  const generateProfessionalPlan = body => request('/api/editorial/pro-plan', { method: 'POST', body: JSON.stringify(body) });
   const generateEditorial = body => request('/api/editorial/generate', { method: 'POST', body: JSON.stringify(body) });
   const saveToPlanning = body => request('/api/editorial/save-to-planning', { method: 'POST', body: JSON.stringify(body) });
   const transferEditorial = body => request('/api/editorial/transfer', { method: 'POST', body: JSON.stringify(body) });
@@ -149,7 +150,7 @@ const NidalAPI = (() => {
     listContents, upsertContent, deleteContent, syncContent,
     generate, listAds, syncAds, getKpiTargets, saveKpiTargets, getSocialProfiles, getSocialLive, getAudienceConversions, getAudienceHistory,
     listPublishJobs, createPublishJob, runPublishJob,
-    listEditorialAgents, listEditorialProviders, listEditorialGenerations, generateEditorial,
+    listEditorialAgents, listEditorialProviders, listEditorialGenerations, generateProfessionalPlan, generateEditorial,
     saveToPlanning, transferEditorial, deleteEditorialGeneration
   };
 })();
