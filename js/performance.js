@@ -150,7 +150,7 @@ const PerformanceView = (() => {
   }
 
   function _renderGoalCard(icon, title, metric = {}, color, unit, platform = '') {
-    const cur = metric.current ?? 0;
+    const cur = metric.current;
     const tgt = metric.target ?? 0;
     const hasTarget = Number(tgt) > 0;
     const pct = hasTarget ? (metric.pct ?? Math.round((cur / tgt) * 100)) : 0;
@@ -175,17 +175,17 @@ const PerformanceView = (() => {
         </div>
         <div class="kpi-goal-card__body">
           <div class="kpi-goal-card__values">
-            <strong>${formatNumber(cur)}</strong>
-            <span class="target">${hasTarget ? `/ ${formatNumber(tgt)} ${unit}` : '· objectif à définir'}</span>
+            <strong>${cur === null || cur === undefined ? '—' : formatNumber(cur)}</strong>
+            <span class="target">${metric.source === 'meta-unavailable' ? '· indisponible via Meta' : (hasTarget ? `/ ${formatNumber(tgt)} ${unit}` : '· objectif à définir')}</span>
           </div>
-          <span class="kpi-goal-card__pct ${hasTarget ? pctColorClass : 'kpi-goal-card__pct--muted'}">${hasTarget ? `${pct}%` : '—'}</span>
+          <span class="kpi-goal-card__pct ${hasTarget && cur !== null && cur !== undefined ? pctColorClass : 'kpi-goal-card__pct--muted'}">${hasTarget && cur !== null && cur !== undefined ? `${pct}%` : '—'}</span>
         </div>
         <div class="progress-track--lg" title="${hasTarget ? `${pct}% de l\'objectif atteint` : 'Objectif à définir'}">
-          <i style="width:${hasTarget ? cappedPct : 0}%;"></i>
+          <i style="width:${hasTarget && cur !== null && cur !== undefined ? cappedPct : 0}%;"></i>
         </div>
         <div class="kpi-goal-card__footer">
           <span class="kpi-goal-card__remaining">
-            ${!hasTarget ? '<b>Définissez une cible</b>' : (metric.remaining > 0 ? `Reste : <b>${formatNumber(metric.remaining)}</b>` : '<b>Objectif atteint ! 🎉</b>')}
+            ${metric.source === 'meta-unavailable' ? '<b>Donnée non retournée par Meta</b>' : (!hasTarget ? '<b>Définissez une cible</b>' : (metric.remaining > 0 ? `Reste : <b>${formatNumber(metric.remaining)}</b>` : '<b>Objectif atteint ! 🎉</b>'))}
           </span>
           <span class="eta-badge ${etaInfo.badgeClass}" title="Date cible ETA">⏱️ ${escapeHtml(etaInfo.label)}</span>
         </div>
