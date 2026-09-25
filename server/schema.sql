@@ -53,20 +53,6 @@ ON CONFLICT (slug) DO NOTHING;
 
 ALTER TABLE contents ALTER COLUMN brand_slug SET NOT NULL;
 
-DO $
-BEGIN
-  IF NOT EXISTS (
-    SELECT 1
-    FROM pg_constraint
-    WHERE conname = 'contents_brand_slug_fkey'
-      AND conrelid = 'contents'::regclass
-  ) THEN
-    ALTER TABLE contents
-      ADD CONSTRAINT contents_brand_slug_fkey
-      FOREIGN KEY (brand_slug) REFERENCES brands(slug);
-  END IF;
-END $;
-
 CREATE INDEX IF NOT EXISTS contents_brand_idx ON contents (brand_slug, updated_at DESC);
 
 CREATE TABLE IF NOT EXISTS content_metrics (
