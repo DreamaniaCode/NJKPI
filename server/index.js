@@ -267,7 +267,7 @@ app.get('/api/export/:format', async (req, res, next) => {
 // ── URL import ────────────────────────────────────────────────────────
 app.post('/api/import/url', async (req, res, next) => {
   try {
-    const { url, brand } = req.body;
+    const { url, brand, requireVerifiedMetrics = false } = req.body;
     if (!url) return res.status(400).json({ error: 'URL requise' });
     const parsed = parseContentUrl(url);
     if (!parsed.isValid) return res.status(400).json({ error: 'URL non reconnue', parsed });
@@ -276,13 +276,33 @@ app.post('/api/import/url', async (req, res, next) => {
     // 1. Synchroniser / extraire les métadonnées et métriques en temps réel
     let syncData = null;
     try {
-      syncData = await syncContentFromUrl({ brand: brandSlug, finalUrl: parsed.normalizedUrl, platform: parsed.platform });
+      syncData = await syncContentFromUrl({
+        brand: brandSlug,
+        finalUrl: parsed.normalizedUrl,
+        platform: parsed.platform,
+        requireVerifiedMetrics: Boolean(requireVerifiedMetrics)
+      });
     } catch (e) {
       console.warn('Sync URL metrics différé:', e.message);
+      if (requireVerifiedMetrics) {
+        return res.status(422).json({
+          error: e.message,
+          verified: false,
+          parsed
+        });
+      }
     }
 
     const skeleton = buildContentFromUrl(parsed);
-    const metricsObj = syncData?.metrics || { portee: 0, reactions: 0, commentaires: 0, partages: 0, enregistrements: 0, vues: 0 };
+    const metricsObj = syncData?.metrics || {
+      portee: null,
+      reactions: null,
+      commentaires: null,
+      partages: null,
+      enregistrements: null,
+      vues: null,
+      clics: null
+    };
 
     const contentData = {
       ...skeleton,
@@ -309,7 +329,19 @@ app.post('/api/import/url', async (req, res, next) => {
       await saveMetrics(content.id, syncData.source || 'meta', syncData.metrics, Boolean(syncData.isDemo));
     }
 
-    res.json({ ok: true, content: { ...content, data: contentData }, metrics: metricsObj, parsed });
+    res.json({
+      ok: true,
+      content: { ...content, data: contentData },
+      metrics: metricsObj,
+      sync: syncData ? {
+        source: syncData.metricsSource || syncData.source,
+        verified: syncData.metricsVerified === true,
+        warning: syncData.warning || syncData.insightsWarning || null,
+        externalMediaId: syncData.externalMediaId || null,
+        permalink: syncData.permalink || null
+      } : null,
+      parsed
+    });
   } catch (error) { next(error); }
 });
 
@@ -345,7 +377,7 @@ app.post('/api/contents/:id/sync', async (req, res, next) => {
     const finalUrl = req.body.finalUrl || existing?.final_url || data.finalUrl;
     const platform = req.body.platform || existing?.platform || data.plateforme || '';
     if (!finalUrl) return res.status(400).json({ error: 'Lien final obligatoire' });
-    const sync = await syncContentFromUrl({ brand, finalUrl, platform });
+    const sync = await syncContentFromUrl({ brand, finalUrl, platform, requireVerifiedMetrics: true });
     const updatedData = { ...data, brand, finalUrl, resultats: { ...(data.resultats || {}), ...sync.metrics }, externalMediaId: sync.externalMediaId, syncStatus: sync.isDemo ? 'demo' : 'connected', lastSyncedAt: new Date().toISOString() };
     const record = await upsertContent({ id: req.params.id, brand, data: updatedData, finalUrl, externalMediaId: sync.externalMediaId, platform, syncStatus: updatedData.syncStatus, lastSyncedAt: updatedData.lastSyncedAt });
     await saveMetrics(req.params.id, sync.source, sync.metrics, sync.isDemo);
