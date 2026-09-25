@@ -13,10 +13,24 @@ const NidalAPI = (() => {
     localStorage.setItem(CONFIG_KEY, JSON.stringify({ baseUrl: String(config.baseUrl || '').replace(/\/$/, ''), accessToken: config.accessToken || '' }));
   }
 
+  function getAuthToken() {
+    // Toujours préférer le JWT de la session utilisateur.
+    // Le champ accessToken de la config peut contenir un ancien token legacy
+    // ou être vide après un changement de configuration.
+    try {
+      if (typeof NidalAuth !== 'undefined') {
+        const jwt = NidalAuth.getToken?.();
+        if (jwt) return jwt;
+      }
+    } catch { /* NidalAuth pas encore initialisé */ }
+    return getConfig().accessToken || '';
+  }
+
   async function request(path, options = {}, auth = true) {
     const config = getConfig();
     const headers = { 'Content-Type': 'application/json', ...(options.headers || {}) };
-    if (auth && config.accessToken) headers.Authorization = `Bearer ${config.accessToken}`;
+    const authToken = getAuthToken();
+    if (auth && authToken) headers.Authorization = `Bearer ${authToken}`;
     const response = await fetch(`${config.baseUrl}${path}`, { ...options, headers });
     const text = await response.text();
     let payload;
@@ -32,7 +46,8 @@ const NidalAPI = (() => {
       'Content-Type': file.type || 'application/octet-stream',
       'X-File-Name': encodeURIComponent(file.name || 'media')
     };
-    if (config.accessToken) headers.Authorization = `Bearer ${config.accessToken}`;
+    const authToken = getAuthToken();
+    if (authToken) headers.Authorization = `Bearer ${authToken}`;
 
     const response = await fetch(`${config.baseUrl}/api/uploads`, {
       method: 'POST',
@@ -42,7 +57,15 @@ const NidalAPI = (() => {
     const text = await response.text();
     let payload;
     try { payload = text ? JSON.parse(text) : {}; } catch { throw new Error('Le serveur upload ne renvoie pas du JSON'); }
-    if (!response.ok) throw new Error(payload.error || `Upload ${response.status}`);
+    if (!response.ok) {
+      if (response.status === 401) {
+        throw new Error('Session expirée ou token de connexion absent. Reconnectez-vous puis réessayez.');
+      }
+      if (response.status === 403) {
+        throw new Error('Votre compte doit avoir le rôle Admin ou Éditeur pour envoyer des médias.');
+      }
+      throw new Error(payload.error || `Upload ${response.status}`);
+    }
     return payload;
   }
 
