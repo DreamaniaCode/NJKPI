@@ -49,7 +49,7 @@ const AgentView = (() => {
       [62, 'Analyse Meta Ads', 'Dépenses, reach, impressions, clics, CTR, CPC et actions sont examinés.'],
       [74, 'Détection des manques', 'L’agent identifie les trous éditoriaux et les priorités.'],
       [86, 'Construction du planning', `Création d’un calendrier précis sur ${days} jours.`],
-      [94, 'Rédaction des livrables', 'Captions, scripts vidéo, prompts visuels, CTA et KPI sont finalisés.']
+      [94, 'Rédaction des livrables', 'Captions, scripts vidéo, prompts visuels, CTA et KPI sont finalisés. Cette étape peut prendre 1 à 2 minutes selon le modèle.']
     ];
     const contentSteps = [
       [12, 'Lecture du brief', 'Le sujet, le format et la plateforme sont vérifiés.'],
@@ -71,7 +71,7 @@ const AgentView = (() => {
       if (index < steps.length - 1) index += 1;
       const step = steps[index];
       _setAgentProgress({ visible: true, percent: step[0], title: step[1], detail: step[2], state: 'running' });
-    }, kind === 'plan' ? 2600 : 1800);
+    }, kind === 'plan' ? 12000 : 3500);
 
     return {
       success(message = 'Terminé avec succès') {
