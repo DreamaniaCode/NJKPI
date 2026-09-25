@@ -335,7 +335,13 @@ const ContentsView = (() => {
       automationMode: mode === 'schedule' ? 'scheduled' : 'manual'
     });
 
-    if (mode === 'now') return NidalAPI.runPublishJob(job.id);
+    if (mode === 'now') {
+      const result = await NidalAPI.runPublishJob(job.id);
+      if (result.status !== 'published') {
+        throw new Error(result.error || `Publication Meta incomplète (statut: ${result.status || 'inconnu'}).`);
+      }
+      return result;
+    }
     return job;
   }
 
