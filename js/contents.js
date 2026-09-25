@@ -258,9 +258,16 @@ const ContentsView = (() => {
       try {
         const uploaded = await NidalAPI.uploadMedia(file);
         urlInput.value = uploaded.url || '';
-        if (status) status.textContent = `${file.name} · prêt`;
-        renderPreview(uploaded.url, file.type);
-        showToast('Média envoyé et prêt pour Meta.', 'success');
+        if (status) status.textContent = uploaded.convertedForMeta
+          ? `${file.name} · converti automatiquement en JPG · prêt`
+          : `${file.name} · prêt`;
+        renderPreview(uploaded.url, uploaded.mime || file.type);
+        showToast(
+          uploaded.convertedForMeta
+            ? 'Image convertie automatiquement en JPG et prête pour Facebook + Instagram.'
+            : 'Média envoyé et prêt pour Meta.',
+          'success'
+        );
       } catch (error) {
         if (status) status.textContent = 'Échec du téléversement';
         showToast('Upload impossible : ' + error.message, 'error');
@@ -372,13 +379,22 @@ const ContentsView = (() => {
       throw new Error('Ajoutez une URL média publique pour publier sur Instagram.');
     }
 
+    const mediaType = _mediaTypeForContent(values);
+    let mediaUrl = values.mediaUrl || '';
+
+    if (platforms.includes('instagram') && mediaUrl && mediaType === 'image') {
+      const prepared = await NidalAPI.ensureInstagramCompatibleImage(mediaUrl, mediaType);
+      mediaUrl = prepared.url || mediaUrl;
+      if (prepared.converted) values.mediaUrl = mediaUrl;
+    }
+
     const scheduledAt = mode === 'schedule' ? _scheduledAtFromContent(values) : new Date();
     const job = await NidalAPI.createPublishJob({
       brand: getActiveBrand(),
       message: _captionForContent(values),
-      mediaUrl: values.mediaUrl || '',
+      mediaUrl,
       linkUrl: values.linkUrl || '',
-      mediaType: _mediaTypeForContent(values),
+      mediaType,
       platforms,
       scheduledAt: scheduledAt.toISOString(),
       automationMode: mode === 'schedule' ? 'scheduled' : 'manual'
