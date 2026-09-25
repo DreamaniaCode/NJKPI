@@ -762,6 +762,60 @@ app.get('/api/editorial/generations', async (req, res, next) => {
   } catch (error) { next(error); }
 });
 
+function extractProfessionalPlanItems(output = '') {
+  const text = String(output || '');
+  const marker = text.indexOf('===PLAN_JSON===');
+  const candidates = [];
+
+  if (marker >= 0) {
+    const tail = text.slice(marker + '===PLAN_JSON==='.length);
+    const fenced = tail.match(/```(?:json)?\s*([\s\S]*?)```/i);
+    if (fenced?.[1]) candidates.push(fenced[1]);
+    candidates.push(tail);
+  }
+
+  const generic = text.match(/```json\s*([\s\S]*?)```/i);
+  if (generic?.[1]) candidates.push(generic[1]);
+
+  for (const raw of candidates) {
+    try {
+      const start = raw.indexOf('{');
+      const end = raw.lastIndexOf('}');
+      if (start < 0 || end <= start) continue;
+      const parsed = JSON.parse(raw.slice(start, end + 1));
+      const items = Array.isArray(parsed?.planItems) ? parsed.planItems : [];
+      if (!items.length) continue;
+
+      return items.map((item, index) => ({
+        dayNumber: Number(item.dayNumber || index + 1),
+        date: String(item.date || ''),
+        publishTime: String(item.publishTime || '18:30'),
+        title: String(item.title || `Contenu jour ${index + 1}`),
+        format: String(item.format || 'post').toLowerCase(),
+        platform: String(item.platform || 'Instagram + Facebook'),
+        funnelStage: String(item.funnelStage || ''),
+        objective: String(item.objective || ''),
+        topic: String(item.topic || item.title || ''),
+        angle: String(item.angle || ''),
+        hook: String(item.hook || ''),
+        caption: String(item.caption || ''),
+        cta: String(item.cta || ''),
+        visualType: String(item.visualType || (/reel|video|vidéo/i.test(item.format || '') ? 'video' : 'photo')),
+        imagePrompt: String(item.imagePrompt || ''),
+        videoScript: String(item.videoScript || ''),
+        storyboard: Array.isArray(item.storyboard) ? item.storyboard : [],
+        companionStory: item.companionStory || null,
+        hashtags: Array.isArray(item.hashtags) ? item.hashtags.slice(0, 5) : [],
+        primaryKpi: String(item.primaryKpi || ''),
+        rationale: String(item.rationale || ''),
+        basedOnData: Array.isArray(item.basedOnData) ? item.basedOnData : []
+      }));
+    } catch {}
+  }
+
+  return [];
+}
+
 app.post('/api/editorial/pro-plan', async (req, res, next) => {
   try {
     const {
@@ -834,14 +888,49 @@ app.post('/api/editorial/pro-plan', async (req, res, next) => {
     const igProfile = socialProfiles?.instagram?.profile || socialProfiles?.instagram || null;
     const fbProfile = socialProfiles?.facebook?.profile || socialProfiles?.facebook || null;
 
-    const adsSummary = (ads || []).slice(0, 10).map(row => ({
-      name: row.name || row.insights?.campaign_name || 'Campagne',
-      spend: Number(row.insights?.spend || 0),
-      reach: Number(row.insights?.reach || 0),
-      impressions: Number(row.insights?.impressions || 0),
-      clicks: Number(row.insights?.clicks || 0),
-      actions: row.insights?.actions || []
-    }));
+    const adsSummary = (ads || []).slice(0, 20).map(row => {
+      const insight = row.insights || {};
+      const spend = Number(insight.spend || 0);
+      const reach = Number(insight.reach || 0);
+      const impressions = Number(insight.impressions || 0);
+      const clicks = Number(insight.clicks || 0);
+      const actions = Array.isArray(insight.actions) ? insight.actions : [];
+      return {
+        name: row.name || insight.campaign_name || 'Campagne',
+        status: row.status || insight.status || null,
+        spend,
+        reach,
+        impressions,
+        clicks,
+        ctr: impressions > 0 ? Number(((clicks / impressions) * 100).toFixed(2)) : null,
+        cpc: clicks > 0 ? Number((spend / clicks).toFixed(2)) : null,
+        cpm: impressions > 0 ? Number(((spend / impressions) * 1000).toFixed(2)) : null,
+        frequency: reach > 0 ? Number((impressions / reach).toFixed(2)) : null,
+        actions
+      };
+    });
+
+    const paidTotals = adsSummary.reduce((acc, campaign) => {
+      acc.spend += campaign.spend;
+      acc.reach += campaign.reach;
+      acc.impressions += campaign.impressions;
+      acc.clicks += campaign.clicks;
+      for (const action of campaign.actions || []) {
+        const key = String(action.action_type || action.type || 'other');
+        acc.actions[key] = (acc.actions[key] || 0) + Number(action.value || 0);
+      }
+      return acc;
+    }, { spend: 0, reach: 0, impressions: 0, clicks: 0, actions: {} });
+
+    paidTotals.ctr = paidTotals.impressions > 0
+      ? Number(((paidTotals.clicks / paidTotals.impressions) * 100).toFixed(2))
+      : null;
+    paidTotals.cpc = paidTotals.clicks > 0
+      ? Number((paidTotals.spend / paidTotals.clicks).toFixed(2))
+      : null;
+    paidTotals.cpm = paidTotals.impressions > 0
+      ? Number(((paidTotals.spend / paidTotals.impressions) * 1000).toFixed(2))
+      : null;
 
     const dataContext = {
       generatedAt: new Date().toISOString(),
@@ -873,54 +962,109 @@ app.post('/api/editorial/pro-plan', async (req, res, next) => {
         } : null
       },
       audienceSnapshot: audience,
-      ads: adsSummary
+      paidMedia: {
+        totals: paidTotals,
+        campaigns: adsSummary
+      }
     };
 
+    const startDate = new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString().slice(0, 10);
+
     const strategyBrief = `
-MISSION : Agis comme un Directeur Social Media senior spécialisé dans l'éducation privée au Maroc.
+MISSION : Tu es le Directeur Social Media & Growth senior de Nidal. Tu ne fournis pas seulement des idées : tu fournis des SOLUTIONS, un calendrier exécutable et des contenus quasiment prêts à programmer.
 
-Tu dois AUDITER les données réellement collectées par NJKPI, identifier ce qui manque dans la stratégie actuelle, puis créer un PLAN DE TRAVAIL PROFESSIONNEL sur ${horizon} jours.
-
+PÉRIODE : ${horizon} jours à partir du ${startDate}.
 OBJECTIF BUSINESS : ${objective}
 ${notes ? `NOTES DU RESPONSABLE : ${notes}` : ''}
 
-RÈGLES IMPÉRATIVES :
-1. Commence par un diagnostic factuel : ce qui fonctionne, ce qui manque, les formats sous-utilisés, les trous éditoriaux et les KPI à améliorer.
-2. N'invente jamais une métrique absente. Écris "donnée indisponible" lorsqu'elle n'existe pas.
-3. Utilise les performances des contenus existants pour décider quoi renforcer, arrêter ou tester.
-4. Le plan doit mélanger intelligemment : POSTS, CARROUSELS, REELS, STORIES et VIDÉOS.
-5. Ne fais pas un calendrier répétitif. Chaque contenu doit avoir un rôle précis dans le tunnel :
-   - Notoriété
-   - Preuve / confiance
-   - Engagement
-   - Éducation / valeur
-   - Conversion / inscription
-   - Communauté / coulisses
-6. Pour chaque contenu du plan donne :
-   - Jour/date relative
-   - Format
-   - Plateforme
-   - Objectif
-   - Sujet / angle
-   - Hook
-   - Contenu ou script détaillé
-   - CTA
-   - Visuel / séquence vidéo recommandée
-   - Prompt image IA si image
-   - Plan de scènes si Reel/Vidéo
-   - Story interactive associée quand pertinent
-   - 5 hashtags
-   - KPI principal à surveiller
-7. Les Reels/Vidéos doivent avoir une durée conseillée et un storyboard court.
-8. Les Stories doivent utiliser sondage, quiz, question, curseur ou CTA DM quand pertinent.
-9. Termine par :
-   - fréquence hebdomadaire recommandée par format
-   - 3 tests A/B
-   - 5 actions prioritaires de la semaine
-   - ce qu'il faut mesurer lors de la prochaine analyse
-10. Évite la scène générique "enseignante + élèves assis à des tables". Les visuels doivent varier selon le sujet.
+ANALYSE PROFONDE OBLIGATOIRE :
+1. Audite les contenus organiques existants : formats, fréquence, sujets, meilleurs résultats, contenus faibles, répétitions et manques.
+2. Analyse séparément Instagram et Facebook avec uniquement les métriques réellement disponibles.
+3. Analyse PROFONDÉMENT Meta Ads / Audience / Conversions présents dans les données :
+   - audience par âge, sexe, zone géographique, plateforme/placement si disponible ;
+   - spend, reach, impressions, clicks, CTR, CPC, CPM, fréquence et actions/conversions ;
+   - campagnes qui apportent le meilleur signal et campagnes faibles ;
+   - comparaison paid vs organic lorsque les données le permettent.
+4. Pour CHAQUE problème identifié, donne : PROBLÈME → PREUVE DANS LES DONNÉES → CAUSE PROBABLE (présentée comme hypothèse) → SOLUTION CONCRÈTE → KPI DE VALIDATION.
+5. N'invente JAMAIS de métrique. Si elle manque, écris « donnée indisponible ».
+6. Donne des priorités : urgent / cette semaine / à tester.
 
-Présente le résultat comme un document opérationnel de direction marketing, clair, précis, directement exécutable par une équipe social media.
+CALENDRIER :
+- Crée EXACTEMENT ${horizon} entrées, une pour CHAQUE JOUR, même si certains jours sont plus légers.
+- Chaque jour doit avoir un TITRE explicite qui permet de comprendre immédiatement le sujet.
+- Mélange selon les besoins réels : Post photo, Carrousel, Reel, Story, Vidéo.
+- Le plan doit corriger les manques détectés, pas répartir les formats au hasard.
+- Chaque jour doit préciser une heure de publication conseillée. Si les données ne permettent pas de connaître la meilleure heure, indique que l'heure est une recommandation éditoriale à tester.
+
+POUR CHAQUE JOUR, FOURNIS :
+- date réelle ISO YYYY-MM-DD
+- heure HH:MM
+- titre clair
+- format
+- plateforme
+- étape du tunnel
+- objectif
+- sujet + angle
+- hook
+- CAPTION COMPLÈTE prête à publier
+- CTA
+- exactement 5 hashtags
+- KPI principal
+- justification reliée aux données
+- si PHOTO/CARROUSEL : concept visuel + prompt image IA complet et spécifique
+- si REEL/VIDÉO : durée + SCRIPT VIDÉO COMPLET + storyboard scène par scène (temps, visuel, action, voix/texte, transition)
+- si STORY : chaque écran + sticker/interactivité + CTA
+- si pertinent, une Story d'accompagnement du post/reel.
+
+QUALITÉ :
+- Aucun contenu vague du type « partager un moment ».
+- Aucun calendrier répétitif.
+- Pas de scène visuelle générique enseignante + élèves assis aux tables sauf nécessité du sujet.
+- Chaque caption doit être rédigée, pas seulement décrite.
+- Chaque script doit être exploitable directement par l'équipe vidéo.
+- Les recommandations publicitaires doivent se baser sur les chiffres Ads disponibles et ne jamais promettre un résultat.
+
+À LA FIN DU TEXTE HUMAIN :
+- 5 décisions prioritaires
+- ce qu'il faut arrêter/réduire
+- ce qu'il faut amplifier
+- 3 tests A/B précis
+- budget/ads : recommandations de réallocation UNIQUEMENT si les données le justifient
+- données manquantes à collecter
+
+FORMAT MACHINE OBLIGATOIRE :
+Après l'analyse humaine, ajoute exactement le marqueur ===PLAN_JSON=== puis un bloc JSON valide avec cette structure :
+{
+  "planItems": [
+    {
+      "dayNumber": 1,
+      "date": "YYYY-MM-DD",
+      "publishTime": "HH:MM",
+      "title": "Titre compréhensible",
+      "format": "post|carrousel|reel|story|video",
+      "platform": "Instagram + Facebook",
+      "funnelStage": "Notoriété|Confiance|Engagement|Valeur|Conversion|Communauté",
+      "objective": "...",
+      "topic": "...",
+      "angle": "...",
+      "hook": "...",
+      "caption": "caption complète prête à publier",
+      "cta": "...",
+      "visualType": "photo|carousel|video|story",
+      "imagePrompt": "prompt complet ou chaîne vide si vidéo pure",
+      "videoScript": "script complet ou chaîne vide si photo",
+      "storyboard": [
+        {"time":"00:00-00:03","visual":"...","action":"...","voiceOrText":"...","transition":"..."}
+      ],
+      "companionStory": {"frames":["..."],"interaction":"...","cta":"..."},
+      "hashtags": ["#1","#2","#3","#4","#5"],
+      "primaryKpi": "...",
+      "rationale": "...",
+      "basedOnData": ["constat data 1","constat data 2"]
+    }
+  ]
+}
+N'ajoute AUCUN commentaire dans le JSON et assure-toi qu'il contient exactement ${horizon} éléments.
 `;
 
     const generated = await generateEditorialOutput({
@@ -939,6 +1083,7 @@ Présente le résultat comme un document opérationnel de direction marketing, c
       aiConfig
     });
 
+    const planItems = extractProfessionalPlanItems(generated.output);
     const generationId = crypto.randomUUID();
     const record = {
       id: generationId,
@@ -956,7 +1101,9 @@ Présente le résultat comme un document opérationnel de direction marketing, c
         ...(generated.structuredData || {}),
         strategyPlan: true,
         horizonDays: horizon,
-        dataAudit: dataContext
+        startDate,
+        dataAudit: dataContext,
+        planItems
       },
       storyboard: generated.storyboard,
       qualityCheck: generated.qualityCheck,
@@ -968,7 +1115,7 @@ Présente le résultat comme un document opérationnel de direction marketing, c
     };
 
     await saveEditorialGeneration(record);
-    res.json({ ...record, dataAudit: dataContext });
+    res.json({ ...record, dataAudit: dataContext, planItems });
   } catch (error) { next(error); }
 });
 
@@ -1101,7 +1248,7 @@ app.post('/api/editorial/generate', async (req, res, next) => {
 
 app.post('/api/editorial/save-to-planning', async (req, res, next) => {
   try {
-    const { generationId, structuredData, brand, targetStatus = 'brouillon' } = req.body;
+    const { generationId, structuredData, brand, targetStatus = 'brouillon', validated = false } = req.body;
     let data = structuredData;
     let targetBrand = brand;
 
@@ -1124,7 +1271,7 @@ app.post('/api/editorial/save-to-planning', async (req, res, next) => {
         id: contentId,
         brand: targetBrand || 'nidal-junior',
         statut: targetStatus,
-        validation: targetStatus === 'publie' ? 'approuve' : 'a-valider'
+        validation: validated || targetStatus === 'publie' ? 'approuve' : 'a-valider'
       },
       finalUrl: '',
       platform: data.canal || data.plateforme || 'Instagram + Facebook',
