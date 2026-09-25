@@ -797,7 +797,7 @@ export async function generateEditorialOutput({
 
     const transientGeminiError = (status, message = '') =>
       [429, 500, 502, 503, 504].includes(Number(status))
-      || /high demand|overload|temporar|try again later|resource exhausted|rate.?limit|capacity|unavailable/i.test(String(message));
+      || /high demand|overload|temporar|try again later|resource exhausted|rate.?limit|capacity|unavailable|aucun en-tête HTTP|connexion réseau|timed?\s*out|timeout/i.test(String(message));
 
     const candidates = [requestedModel];
     let response = null;
