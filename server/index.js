@@ -90,6 +90,11 @@ async function getAiKpiContext(brand) {
   return buildKpiContext({ brand, targetsRecord, contents, socialProfiles });
 }
 
+app.get('/api/version', (_req, res) => {
+  res.setHeader('Cache-Control', 'no-store, max-age=0, must-revalidate');
+  res.json({ build: '20260925-13', appVersion: process.env.APP_VERSION || null, now: new Date().toISOString() });
+});
+
 app.get('/api/health', async (_req, res) => {
   const hasMeta = metaConfigured('nidal') || metaConfigured('nidal-junior');
   res.json({
@@ -886,9 +891,13 @@ app.delete('/api/editorial/generations/:id', async (req, res, next) => {
 app.use((req, res, next) => {
   if (/^\/(?:server\/|package\.json$|Dockerfile$|\.env)/.test(req.path)) return res.sendStatus(404);
   if (req.path.endsWith('.html') || req.path.endsWith('.js') || req.path.endsWith('.css') || req.path === '/') {
-    res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate');
+    res.setHeader('Cache-Control', 'no-store, no-cache, max-age=0, must-revalidate, proxy-revalidate');
+    res.setHeader('CDN-Cache-Control', 'no-store');
+    res.setHeader('Cloudflare-CDN-Cache-Control', 'no-store');
+    res.setHeader('Surrogate-Control', 'no-store');
     res.setHeader('Pragma', 'no-cache');
     res.setHeader('Expires', '0');
+    res.setHeader('X-Nidal-Build', '20260925-13');
   }
   next();
 });
@@ -897,7 +906,7 @@ app.use('/uploads', express.static(uploadsDir, {
   fallthrough: true,
   maxAge: process.env.NODE_ENV === 'production' ? '7d' : 0
 }));
-app.use(express.static(root, { index: 'index.html', extensions: ['html'] }));
+app.use(express.static(root, { index: 'index.html', extensions: ['html'], etag: false, lastModified: false, maxAge: 0 }));
 app.use((_req, res) => {
   res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate');
   res.sendFile(path.join(root, 'index.html'));
