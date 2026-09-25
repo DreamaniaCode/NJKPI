@@ -1,4 +1,5 @@
 import crypto from 'node:crypto';
+import dns from 'node:dns';
 import fs from 'node:fs/promises';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -28,6 +29,11 @@ import { initAuth, authenticate, authorize, loginUser, listUsers, createUser, up
 import { generatePdfExport, generateExcelExport, generateMarkdownExport, generateCsvExport } from './services/export.js';
 import { parseContentUrl, buildContentFromUrl } from './services/url-parser.js';
 import { buildKpiContext, formatKpiContext, buildKpiAutomationBrief } from './services/kpi-ai.js';
+
+const dnsResultOrder = ['ipv4first', 'ipv6first', 'verbatim'].includes(String(process.env.DNS_RESULT_ORDER || '').trim())
+  ? String(process.env.DNS_RESULT_ORDER).trim()
+  : 'ipv4first';
+dns.setDefaultResultOrder(dnsResultOrder);
 
 const app = express();
 const port = Number(process.env.PORT || 3000);
@@ -92,7 +98,7 @@ async function getAiKpiContext(brand) {
 
 app.get('/api/version', (_req, res) => {
   res.setHeader('Cache-Control', 'no-store, max-age=0, must-revalidate');
-  res.json({ build: '20260925-32', appVersion: process.env.APP_VERSION || null, now: new Date().toISOString() });
+  res.json({ build: '20260925-33', appVersion: process.env.APP_VERSION || null, now: new Date().toISOString() });
 });
 
 app.get('/api/health', async (_req, res) => {
@@ -101,6 +107,7 @@ app.get('/api/health', async (_req, res) => {
     ok: true,
     database: await databaseHealth(),
     demoMode: process.env.DEMO_MODE === 'true',
+    runtime: { node: process.version, dnsResultOrder: dns.getDefaultResultOrder() },
     integrations: {
       ai: agentConfigured(),
       aiProvider: getAiProvider(),
@@ -1532,7 +1539,7 @@ app.use((req, res, next) => {
     res.setHeader('Surrogate-Control', 'no-store');
     res.setHeader('Pragma', 'no-cache');
     res.setHeader('Expires', '0');
-    res.setHeader('X-Nidal-Build', '20260925-32');
+    res.setHeader('X-Nidal-Build', '20260925-33');
   }
   next();
 });
