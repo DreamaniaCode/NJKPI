@@ -486,6 +486,47 @@ export function getAiProvider(aiConfig = {}) {
 // ============================================================================
 // APPEL MULTI-FOURNISSEURS IA (OPENROUTER, OPENAI, GEMINI, ANTHROPIC, GROQ, DEEPSEEK, DEMO)
 // ============================================================================
+async function resolveCloudflareAccountId(apiToken) {
+  const configured = String(process.env.CLOUDFLARE_ACCOUNT_ID || '').trim();
+  if (configured) return configured;
+
+  // Réduire la configuration manuelle : si le token voit exactement un compte
+  // Cloudflare, utiliser automatiquement son Account ID.
+  const response = await fetchAiWithTimeout(
+    'https://api.cloudflare.com/client/v4/accounts?per_page=50',
+    {
+      method: 'GET',
+      headers: {
+        Authorization: `Bearer ${apiToken}`,
+        'Content-Type': 'application/json'
+      }
+    },
+    15000
+  );
+
+  const payload = await response.json().catch(() => null);
+  if (!response.ok || !payload?.success) {
+    throw new Error(
+      payload?.errors?.[0]?.message ||
+      'CLOUDFLARE_ACCOUNT_ID non configuré et détection automatique du compte Cloudflare impossible.'
+    );
+  }
+
+  const accounts = Array.isArray(payload.result) ? payload.result : [];
+  if (accounts.length === 1 && accounts[0]?.id) return String(accounts[0].id);
+
+  if (!accounts.length) {
+    throw new Error(
+      'CLOUDFLARE_ACCOUNT_ID non configuré et aucun compte Cloudflare accessible avec ce token.'
+    );
+  }
+
+  throw new Error(
+    'CLOUDFLARE_ACCOUNT_ID non configuré et plusieurs comptes Cloudflare sont accessibles. ' +
+    'Ajoutez explicitement CLOUDFLARE_ACCOUNT_ID dans Coolify.'
+  );
+}
+
 async function fetchAiWithTimeout(url, options = {}, timeoutMs = Number(process.env.AI_REQUEST_TIMEOUT_MS || 45000)) {
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), Math.max(5000, timeoutMs));
@@ -778,8 +819,7 @@ export async function generateEditorialOutput({
 
   // 5. CLOUDFLARE WORKERS AI (OpenAI-compatible)
   if (provider === 'cloudflare') {
-    const accountId = String(process.env.CLOUDFLARE_ACCOUNT_ID || '').trim();
-    if (!accountId) throw new Error('CLOUDFLARE_ACCOUNT_ID non configuré');
+    const accountId = await resolveCloudflareAccountId(apiKey);
     const model = (aiConfig.model || process.env.CLOUDFLARE_MODEL || '@cf/qwen/qwen3.8-27b').trim();
     const baseUrl = `https://api.cloudflare.com/client/v4/accounts/${encodeURIComponent(accountId)}/ai/v1`;
     const response = await fetchAiWithTimeout(`${baseUrl}/chat/completions`, {
