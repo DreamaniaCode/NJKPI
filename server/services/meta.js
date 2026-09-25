@@ -25,6 +25,19 @@ async function graph(path, params = {}, accessToken = process.env.META_ACCESS_TO
   return payload;
 }
 
+async function graphPost(path, params = {}, accessToken = process.env.META_ACCESS_TOKEN) {
+  const token = accessToken;
+  if (!token) throw new Error('META_ACCESS_TOKEN non configure');
+  const url = new URL(`${GRAPH_URL}/${path.replace(/^\//, '')}`);
+  Object.entries({ ...params, access_token: token }).forEach(([key, value]) => {
+    if (value !== undefined && value !== null && value !== '') url.searchParams.set(key, String(value));
+  });
+  const response = await fetch(url, { method: 'POST' });
+  const payload = await response.json();
+  if (!response.ok || payload.error) throw new Error(payload.error?.message || `Meta API ${response.status}`);
+  return payload;
+}
+
 const PAGE_TOKEN_CACHE = new Map();
 
 async function resolvePageAccessToken(brand) {
@@ -591,40 +604,95 @@ async function publishFacebookPost(brand, job) {
   if (!pageId) throw new Error(`META_PAGE_ID non configuré pour ${brand}`);
   const pageToken = await resolvePageAccessToken(brand);
 
+  let published;
   if (job.media_url && job.media_type === 'image') {
-    return graph(`${pageId}/photos`, {
+    published = await graphPost(`${pageId}/photos`, {
       url: job.media_url,
       caption: job.message || '',
       published: 'true'
     }, pageToken);
+  } else {
+    published = await graphPost(`${pageId}/feed`, {
+      message: job.message || '',
+      link: job.link_url || undefined
+    }, pageToken);
   }
 
-  return graph(`${pageId}/feed`, {
-    message: job.message || '',
-    link: job.link_url || undefined
-  }, pageToken);
+  const publishedId = published.post_id || published.id || null;
+  let verification = null;
+  if (publishedId) {
+    try {
+      verification = await graph(publishedId, {
+        fields: 'id,created_time,permalink_url'
+      }, pageToken);
+    } catch {
+      verification = { id: publishedId };
+    }
+  }
+
+  return {
+    ...published,
+    verified: Boolean(publishedId),
+    permalink: verification?.permalink_url || null,
+    verification
+  };
+}
+
+async function waitForInstagramContainer(containerId, maxAttempts = 15) {
+  for (let attempt = 1; attempt <= maxAttempts; attempt++) {
+    const status = await graph(containerId, { fields: 'status_code' });
+    const code = String(status.status_code || '').toUpperCase();
+    if (!code || code === 'FINISHED') return status;
+    if (code === 'ERROR' || code === 'EXPIRED') {
+      throw new Error(`Traitement Instagram du média en échec (statut: ${code}).`);
+    }
+    await new Promise(resolve => setTimeout(resolve, 3000));
+  }
+  throw new Error('Instagram traite encore la vidéo. Réessayez dans une minute.');
 }
 
 async function publishInstagramPost(brand, job) {
   const igUserId = brandEnv('META_IG_USER_ID', brand);
   if (!igUserId) throw new Error(`META_IG_USER_ID non configuré pour ${brand}`);
-  if (!job.media_url) throw new Error('Instagram exige une URL média publique (image ou vidéo).');
+  if (!job.media_url) throw new Error('Instagram exige une photo ou vidéo.');
 
   const mediaType = String(job.media_type || 'image').toLowerCase();
   const createParams = { caption: job.message || '' };
+  const isVideo = mediaType === 'video' || mediaType === 'reel';
 
-  if (mediaType === 'video' || mediaType === 'reel') {
+  if (isVideo) {
     createParams.media_type = 'REELS';
     createParams.video_url = job.media_url;
   } else {
     createParams.image_url = job.media_url;
   }
 
-  const container = await graph(`${igUserId}/media`, createParams);
+  const container = await graphPost(`${igUserId}/media`, createParams);
   if (!container?.id) throw new Error('Meta n’a pas retourné de conteneur Instagram.');
 
-  const published = await graph(`${igUserId}/media_publish`, { creation_id: container.id });
-  return { ...published, creation_id: container.id };
+  if (isVideo) await waitForInstagramContainer(container.id);
+
+  const published = await graphPost(`${igUserId}/media_publish`, {
+    creation_id: container.id
+  });
+  if (!published?.id) throw new Error('Instagram n’a pas confirmé la publication.');
+
+  let verification = null;
+  try {
+    verification = await graph(published.id, {
+      fields: 'id,permalink,media_type,timestamp'
+    });
+  } catch {
+    verification = { id: published.id };
+  }
+
+  return {
+    ...published,
+    creation_id: container.id,
+    verified: Boolean(published.id),
+    permalink: verification?.permalink || null,
+    verification
+  };
 }
 
 export async function publishSocialJob(job) {
