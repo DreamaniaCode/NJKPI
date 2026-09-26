@@ -534,10 +534,19 @@ app.get('/api/publish/jobs', async (req, res, next) => {
 app.post('/api/publish/jobs', authenticate, authorize('admin', 'editor'), async (req, res, next) => {
   try {
     const brand = req.body.brand === 'nidal' ? 'nidal' : 'nidal-junior';
-    const platforms = Array.isArray(req.body.platforms)
+    const requestedPlatforms = Array.isArray(req.body.platforms)
       ? req.body.platforms.filter(p => ['instagram', 'facebook'].includes(p))
       : [];
-    if (!platforms.length) return res.status(400).json({ error: 'Sélectionnez Instagram et/ou Facebook.' });
+    const platforms = brand === 'nidal-junior'
+      ? requestedPlatforms.filter(p => p === 'instagram')
+      : requestedPlatforms;
+    if (!platforms.length) {
+      return res.status(400).json({
+        error: brand === 'nidal-junior'
+          ? 'Nidal Junior publie uniquement sur Instagram.'
+          : 'Sélectionnez Instagram et/ou Facebook.'
+      });
+    }
     if (!String(req.body.message || '').trim() && !req.body.mediaUrl && !req.body.linkUrl) {
       return res.status(400).json({ error: 'Ajoutez un texte, un média ou un lien.' });
     }
