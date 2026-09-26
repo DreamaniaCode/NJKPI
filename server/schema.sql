@@ -193,6 +193,7 @@ CREATE TABLE IF NOT EXISTS social_publish_jobs (
   scheduled_at TIMESTAMPTZ NOT NULL,
   status TEXT NOT NULL DEFAULT 'scheduled',
   automation_mode TEXT NOT NULL DEFAULT 'manual',
+  metadata JSONB NOT NULL DEFAULT '{}'::jsonb,
   result JSONB NOT NULL DEFAULT '{}'::jsonb,
   error TEXT,
   created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
