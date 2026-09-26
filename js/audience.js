@@ -279,6 +279,74 @@ const AudienceView = (() => {
     const fb = _data?.facebook || {};
     const igTotals = _contentTotals(ig.topContent || []);
     const fbTotals = _contentTotals(fb.topContent || []);
+    const isNidalJunior = getActiveBrand() === 'nidal-junior';
+
+    if (isNidalJunior) {
+      view.innerHTML = `
+        <header class="view__header workspace-header">
+          <div>
+            <span class="section-kicker">Instagram Nidal Junior</span>
+            <h1 class="view__title">Audience & performances Instagram</h1>
+            <p class="view__subtitle">Uniquement les données du compte Instagram professionnel Nidal Junior · ${escapeHtml(brandLabel)}</p>
+          </div>
+          <div class="header-actions">
+            <button class="btn btn--secondary btn--sm" id="audience-refresh-btn" ${_loading ? 'disabled' : ''}>${_loading ? 'Synchronisation…' : '↻ Actualiser Instagram'}</button>
+          </div>
+        </header>
+
+        ${_error ? '<div style="padding:12px 16px;border:1px solid #fecaca;background:#fef2f2;border-radius:8px;color:#991b1b;margin-bottom:16px;">' + escapeHtml(_error) + '</div>' : ''}
+
+        ${!_data && !_loading
+          ? '<div class="empty-state" style="padding:36px;text-align:center;"><strong>Instagram Nidal Junior non synchronisé</strong><p style="color:var(--muted);">Vérifiez le token Instagram Login puis cliquez sur Actualiser Instagram.</p></div>'
+          : ''}
+
+        ${_data ? `
+          <section style="margin-bottom:24px;">
+            <div class="section-heading">
+              <div><span class="section-kicker">Compte Instagram</span><h2>Données Nidal Junior uniquement</h2></div>
+            </div>
+            <div class="kpi-strip">
+              ${_summaryCard('Médias analysés', formatNumber(ig.analyzedMedia || 0), ig.error ? 'Accès partiel / erreur' : 'Instagram historique')}
+              ${_summaryCard('Reach analysé', formatNumber(igTotals.reach), 'Instagram uniquement')}
+              ${_summaryCard('Vues analysées', formatNumber(igTotals.views), 'Instagram uniquement')}
+              ${_summaryCard('Interactions', formatNumber(igTotals.interactions), 'Likes + commentaires + partages + enregistrements')}
+              ${_summaryCard('Enregistrements', formatNumber(igTotals.saves), 'Instagram uniquement')}
+            </div>
+            ${ig.error ? '<div style="margin-top:12px;padding:10px 12px;background:#fff8e6;border:1px solid #f2d58a;border-radius:8px;font-size:11px;"><strong>Instagram :</strong> ' + escapeHtml(ig.error) + '</div>' : ''}
+          </section>
+
+          <section class="analysis-panel audience-chart-panel" style="margin-bottom:24px;">
+            <div class="section-heading">
+              <div><span class="section-kicker">Instagram</span><h2>Top contenus par Reach</h2></div>
+              <small style="color:var(--muted);">Classement des contenus Nidal Junior</small>
+            </div>
+            ${(ig.topContent || []).some(item => _num(item.metrics?.reach) > 0)
+              ? '<div id="audience-chart-ig" class="chart-wrapper"></div>'
+              : '<div class="audience-empty">Aucun Reach Instagram exploitable pour le classement.</div>'}
+            ${_topContentLegend(ig.topContent || [], 'instagram', 8)}
+          </section>
+
+          <section style="margin-bottom:26px;">
+            <div class="section-heading">
+              <div><span class="section-kicker">Instagram · historique</span><h2>Publications les plus performantes</h2></div>
+              <span class="badge badge--planifie">${formatNumber(ig.analyzedMedia || 0)} médias analysés</span>
+            </div>
+            ${_contentTable(ig.topContent || [], 'instagram')}
+          </section>
+        ` : ''}
+      `;
+
+      if (_data && typeof NidalCharts !== 'undefined' && (ig.topContent || []).some(item => _num(item.metrics?.reach) > 0)) {
+        NidalCharts.barChart('audience-chart-ig', _contentChartData(ig.topContent, 8), { layout: 'vertical' });
+      }
+
+      const refreshJunior = document.getElementById('audience-refresh-btn');
+      if (refreshJunior) refreshJunior.onclick = () => _load(true);
+      if (!_data && !_loading && NidalAPI.isOnline()) {
+        setTimeout(() => _load(false), 0);
+      }
+      return;
+    }
 
     view.innerHTML = `
       <header class="view__header workspace-header">
