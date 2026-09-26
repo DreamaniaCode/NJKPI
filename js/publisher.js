@@ -3,6 +3,7 @@ const PublisherView = (() => {
   let _jobs = [];
   let _loading = false;
   let _metaDiagnostic = null;
+  let _loadedBrand = null;
 
   function _fmtDate(value) {
     if (!value) return '—';
@@ -33,6 +34,7 @@ const PublisherView = (() => {
       ]);
       _jobs = Array.isArray(jobs) ? jobs : [];
       _metaDiagnostic = diagnostic || null;
+      _loadedBrand = brand;
     } catch (error) {
       showToast(error.message || 'Impossible de charger la file de publication', 'error');
     }
@@ -78,8 +80,12 @@ const PublisherView = (() => {
     const activeBrand = getActiveBrand();
     const isNidalJunior = activeBrand === 'nidal-junior';
 
-    if (!_loading && !_jobs.length && NidalAPI.isOnline()) {
+    if (!_loading && NidalAPI.isOnline() && (_loadedBrand !== activeBrand || !_jobs.length)) {
       _loading = true;
+      if (_loadedBrand !== activeBrand) {
+        _jobs = [];
+        _metaDiagnostic = null;
+      }
       await _load();
       _loading = false;
     }
