@@ -6,6 +6,11 @@ const App = (() => {
   const VIEWS = ['dashboard', 'planning', 'contents', 'agent', 'performance', 'insights', 'audience', 'publisher', 'quality', 'settings'];
 
   async function init() {
+    // Vérifier AVANT le rendu que le navigateur n'a pas assemblé des assets
+    // provenant de builds différents (cas observé avec un ancien dashboard.js).
+    const frontendOk = await _ensureFrontendBuild();
+    if (!frontendOk) return;
+
     // 1. Initialisation locale et affichage immédiat (0ms) pour éviter tout écran blanc
     NidalStore.init();
     _initTheme();
@@ -47,6 +52,68 @@ const App = (() => {
     } catch (err) {
       console.warn('Synchronisation initiale différée:', err);
     }
+  }
+
+  async function _ensureFrontendBuild() {
+    const htmlBuild = document.querySelector('meta[name="nidal-build"]')?.content || '';
+    const dashboardBuild = typeof DashboardView !== 'undefined' ? (DashboardView.build || '') : '';
+    let serverBuild = '';
+
+    try {
+      const response = await fetch('/api/version?ts=' + Date.now(), {
+        cache: 'no-store',
+        headers: { 'Cache-Control': 'no-cache' }
+      });
+      if (response.ok) {
+        const payload = await response.json();
+        serverBuild = String(payload.build || '');
+      }
+    } catch {
+      // Ne pas bloquer l'application si le serveur est momentanément inaccessible.
+    }
+
+    const expectedBuild = serverBuild || htmlBuild;
+    const mismatch = Boolean(
+      expectedBuild
+      && (
+        (htmlBuild && htmlBuild !== expectedBuild)
+        || !dashboardBuild
+        || dashboardBuild !== expectedBuild
+      )
+    );
+
+    if (!mismatch) return true;
+
+    const reloadKey = 'nidal_frontend_reload_' + expectedBuild;
+    if (sessionStorage.getItem(reloadKey) === '1') {
+      console.error('Frontend toujours incohérent après rechargement', {
+        htmlBuild, dashboardBuild, serverBuild
+      });
+      document.body.innerHTML = `
+        <main style="max-width:760px;margin:60px auto;padding:24px;font-family:Arial,sans-serif;">
+          <h1>Frontend NJKPI non synchronisé</h1>
+          <p>Le serveur utilise le build <strong>${serverBuild || '—'}</strong>, mais le navigateur a chargé le dashboard <strong>${dashboardBuild || 'ancien/inconnu'}</strong>.</p>
+          <p>Rechargez cette page depuis l'URL ci-dessous pour contourner tout cache intermédiaire.</p>
+          <p><a href="/?build=${encodeURIComponent(expectedBuild)}&fresh=${Date.now()}">Recharger NJKPI ${expectedBuild}</a></p>
+        </main>
+      `;
+      return false;
+    }
+
+    sessionStorage.setItem(reloadKey, '1');
+
+    try {
+      if ('caches' in window) {
+        const names = await caches.keys();
+        await Promise.all(names.map(name => caches.delete(name)));
+      }
+    } catch {}
+
+    const url = new URL(window.location.href);
+    url.searchParams.set('build', expectedBuild);
+    url.searchParams.set('fresh', String(Date.now()));
+    window.location.replace(url.toString());
+    return false;
   }
 
   function _startRemoteSyncPolling() {
