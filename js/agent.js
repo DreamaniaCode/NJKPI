@@ -964,9 +964,11 @@ const AgentView = (() => {
       return `
         <div class="strategy-analysis-view">
           <div class="strategy-analysis-hero">
-            <span class="section-kicker">Diagnostic NJKPI + Meta Ads</span>
+            <span class="section-kicker">${isJunior ? 'Diagnostic Instagram Nidal Junior' : 'Diagnostic NJKPI + Meta Ads'}</span>
             <h3>Analyse profonde & plan de travail prêt à exécuter</h3>
-            <p>L'agent croise contenus organiques, KPI, audience, conversions et campagnes Meta disponibles. Vous validez ensuite chaque contenu pour l'ajouter au planning.</p>
+            <p>${isJunior
+              ? "L’agent analyse uniquement les contenus, KPI et audience Instagram Nidal Junior."
+              : "L'agent croise contenus organiques, KPI, audience, conversions et campagnes Meta disponibles."} Vous validez ensuite chaque contenu pour l'ajouter au planning.</p>
           </div>
 
           <div class="strategy-audit-grid">
@@ -985,6 +987,7 @@ const AgentView = (() => {
               <div>Reach : <b>${ig?.reach ?? '—'}</b></div>
               <div>Comptes engagés : <b>${ig?.accountsEngaged ?? '—'}</b></div>
             </div>
+            ${!isJunior ? `
             <div class="strategy-social-card">
               <strong>Facebook</strong>
               <div>Followers : <b>${fb?.followers ?? '—'}</b></div>
@@ -1000,6 +1003,7 @@ const AgentView = (() => {
               <div>CTR : <b>${paid.ctr != null ? paid.ctr + '%' : '—'}</b></div>
               <div>CPC : <b>${paid.cpc != null ? paid.cpc : '—'}</b></div>
             </div>
+            ` : ''}
           </div>
 
           <div class="strategy-plan-output">
