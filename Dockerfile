@@ -8,9 +8,9 @@ COPY . .
 ENV NODE_ENV=production
 ENV PORT=3000
 ENV NODE_OPTIONS=--dns-result-order=ipv4first
-ENV APP_VERSION=0.6.0
-ENV BUILD_ID=20260925-38
-LABEL version="0.6.0"
+ENV APP_VERSION=0.6.1
+ENV BUILD_ID=20260925-39
+LABEL version="0.6.1"
 EXPOSE 3000
 
 CMD ["npm", "start"]
