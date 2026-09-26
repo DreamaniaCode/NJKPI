@@ -294,7 +294,7 @@ export async function diagnoseMetaAccess(brand) {
   if (directToken) {
     try {
       const identity = await directInstagramGraph(brand, 'me', {
-        fields: 'id,username,name,account_type'
+        fields: 'id,username'
       });
       result.instagramIdentity = identity;
       result.instagramDirectTokenValid = Boolean(identity?.id);
@@ -376,7 +376,17 @@ async function syncInstagramProfile(brand) {
   if (!igUserId) throw new Error(`META_IG_USER_ID non configuré pour ${brand}`);
 
   const fields = 'id,username,name,biography,website,followers_count,follows_count,media_count,profile_picture_url';
-  const profile = await instagramGraph(brand, igUserId, { fields });
+  let profile;
+  try {
+    profile = await instagramGraph(brand, igUserId, { fields });
+  } catch (error) {
+    if (!usesInstagramLogin(brand)) throw error;
+    // Instagram Login peut exposer un jeu de champs différent selon la version
+    // et le type de compte. Ne pas invalider tout le compte pour un champ optionnel.
+    profile = await instagramGraph(brand, igUserId, {
+      fields: 'id,username,media_count'
+    });
+  }
   const insights = await syncInstagramAccountInsights(brand, igUserId);
   const hasInsights = [insights.profileViews, insights.reach, insights.accountsEngaged].some(value => value !== null);
 
@@ -1101,6 +1111,16 @@ async function publishInstagramPost(brand, job) {
       'Configurez META_IG_ACCESS_TOKEN_NIDAL_JUNIOR avec un token obtenu via Instagram Login ' +
       '(permissions instagram_business_basic et instagram_business_content_publish).'
     );
+  }
+
+  if (brand === 'nidal-junior' && usesInstagramLogin(brand)) {
+    const identity = await directInstagramGraph(brand, 'me', { fields: 'id,username' });
+    if (identity?.id && String(identity.id) !== String(igUserId)) {
+      throw new Error(
+        `Le token Instagram Nidal Junior appartient au compte ${identity.id} (@${identity.username || 'inconnu'}), ` +
+        `mais META_IG_USER_ID_NIDAL_JUNIOR vaut ${igUserId}. Corrigez l’ID du compte.`
+      );
+    }
   }
 
   const mediaType = String(job.media_type || 'image').toLowerCase();
