@@ -6,9 +6,8 @@ function rawBrandEnv(prefix, brand) {
 }
 
 function nidalJuniorSharesMeta() {
-  // Nidal Junior publie sur les mêmes comptes officiels @gsnidal que GS Nidal.
-  // Mettre META_NIDAL_JUNIOR_SHARE_NIDAL=false uniquement si un jour la marque
-  // dispose réellement de comptes Facebook/Instagram séparés.
+  // Compatibilité optionnelle seulement. Par défaut Nidal Junior conserve
+  // sa propre configuration Instagram et ne dépend d'aucune Page Facebook.
   return String(process.env.META_NIDAL_JUNIOR_SHARE_NIDAL ?? 'false').toLowerCase() === 'true';
 }
 
