@@ -2,6 +2,7 @@
 const PublisherView = (() => {
   let _jobs = [];
   let _loading = false;
+  let _metaDiagnostic = null;
 
   function _fmtDate(value) {
     if (!value) return '—';
@@ -22,11 +23,52 @@ const PublisherView = (() => {
 
   async function _load() {
     if (!NidalAPI.isOnline()) return;
+    const brand = getActiveBrand();
     try {
-      _jobs = await NidalAPI.listPublishJobs(getActiveBrand());
+      const [jobs, diagnostic] = await Promise.all([
+        NidalAPI.listPublishJobs(brand),
+        NidalAPI.request('/api/meta/diagnostics?brand=' + encodeURIComponent(brand)).catch(error => ({
+          errors: [error.message || String(error)]
+        }))
+      ]);
+      _jobs = Array.isArray(jobs) ? jobs : [];
+      _metaDiagnostic = diagnostic || null;
     } catch (error) {
       showToast(error.message || 'Impossible de charger la file de publication', 'error');
     }
+  }
+
+  function _juniorMetaStatusHtml() {
+    if (getActiveBrand() !== 'nidal-junior') return '';
+    const d = _metaDiagnostic || {};
+    const valid = Boolean(d.instagramDirectTokenValid);
+    const identity = d.instagramIdentity || {};
+    const problems = [
+      ...(Array.isArray(d.configurationWarnings) ? d.configurationWarnings : []),
+      ...(Array.isArray(d.errors) ? d.errors : [])
+    ].filter(Boolean);
+
+    return `
+      <section class="analysis-panel" style="margin-bottom:18px;border-left:4px solid ${valid ? '#0f8871' : '#d91b5c'};">
+        <div style="display:flex;justify-content:space-between;gap:16px;align-items:flex-start;flex-wrap:wrap;">
+          <div>
+            <span class="section-kicker">Connexion Instagram Nidal Junior</span>
+            <h3 style="margin:4px 0;">${valid ? 'Instagram Login connecté' : 'Instagram Login à corriger'}</h3>
+            <p style="margin:0;color:var(--muted);">
+              ${valid
+                ? `Compte : @${escapeHtml(identity.username || 'Instagram')} · ID ${escapeHtml(identity.id || d.instagramUserId || '—')}`
+                : 'Nidal Junior est Instagram-only. La publication nécessite son token Instagram Login direct.'}
+            </p>
+            ${problems.length ? `<ul style="margin:8px 0 0;padding-left:18px;">${problems.map(item => `<li>${escapeHtml(item)}</li>`).join('')}</ul>` : ''}
+          </div>
+          <span class="badge ${valid ? 'badge--green' : 'badge--magenta'}">${valid ? 'PRÊT À PUBLIER' : 'NON CONNECTÉ'}</span>
+        </div>
+      </section>
+    `;
+  }
+
+  function _jobMetadata(job = {}) {
+    return job.metadata && typeof job.metadata === 'object' ? job.metadata : {};
   }
 
   async function render() {
@@ -57,6 +99,8 @@ const PublisherView = (() => {
         </div>
       </header>
 
+      ${_juniorMetaStatusHtml()}
+
       <section class="analysis-panel" style="margin-bottom:22px;">
         <div class="section-heading">
           <div>
@@ -67,8 +111,16 @@ const PublisherView = (() => {
 
         <div style="display:grid;grid-template-columns:1.3fr .7fr;gap:18px;align-items:start;">
           <div>
+            <div class="form-group">
+              <label class="form-label" for="publisher-title">Titre interne</label>
+              <input id="publisher-title" class="form-control" placeholder="Titre visible dans NJKPI">
+            </div>
             <label class="form-label" for="publisher-message">Texte / légende</label>
-            <textarea id="publisher-message" class="form-control" rows="8" placeholder="Écrivez le texte de la publication…"></textarea>
+            <textarea id="publisher-message" class="form-control" rows="7" placeholder="Écrivez le texte de la publication…"></textarea>
+            <div class="form-group" style="margin-top:10px;">
+              <label class="form-label" for="publisher-hashtags">Hashtags</label>
+              <input id="publisher-hashtags" class="form-control" placeholder="#NidalJunior #Marrakech #Education">
+            </div>
           </div>
           <div style="display:grid;gap:12px;">
             <div>
@@ -141,7 +193,26 @@ const PublisherView = (() => {
                 <tr>
                   <td><strong>${escapeHtml(_fmtDate(job.scheduled_at))}</strong></td>
                   <td>${(job.platforms || []).map(p => '<span class="badge badge--planifie" style="margin-right:4px;">' + escapeHtml(p) + '</span>').join('')}</td>
-                  <td style="min-width:240px;">${escapeHtml(String(job.message || '').slice(0,120) || job.media_url || job.link_url || '—')}</td>
+                  <td style="min-width:300px;">
+                    ${(() => {
+                      const meta = _jobMetadata(job);
+                      const title = meta.title || String(job.message || '').split(/\n+/)[0] || 'Publication';
+                      const tags = Array.isArray(meta.hashtags) ? meta.hashtags : [];
+                      return `
+                        <div style="display:flex;gap:10px;align-items:flex-start;">
+                          ${job.media_url ? `<img src="${escapeHtml(job.media_url)}" alt="" style="width:54px;height:54px;object-fit:cover;border-radius:6px;border:1px solid var(--line);" onerror="this.style.display='none'">` : ''}
+                          <div style="min-width:0;">
+                            <strong>${escapeHtml(title)}</strong>
+                            <small style="display:block;margin-top:3px;">${escapeHtml(String(job.message || '').slice(0,160))}</small>
+                            ${tags.length ? `<small style="display:block;margin-top:4px;color:var(--primary);">${escapeHtml(tags.join(' '))}</small>` : ''}
+                            ${meta.imagePrompt || meta.videoScript
+                              ? `<details style="margin-top:5px;"><summary style="cursor:pointer;font-size:10px;">Script / prompt de production</summary><pre style="white-space:pre-wrap;font-size:10px;max-width:420px;">${escapeHtml(meta.videoScript || meta.imagePrompt || '')}</pre></details>`
+                              : ''}
+                          </div>
+                        </div>
+                      `;
+                    })()}
+                  </td>
                   <td>${escapeHtml(job.media_type || 'text')}</td>
                   <td>${_statusBadge(job.status)}</td>
                   <td style="max-width:300px;"><small>${escapeHtml(job.error || (job.result && Object.keys(job.result).length ? 'Publication Meta enregistrée' : '—'))}</small></td>
@@ -232,15 +303,31 @@ const PublisherView = (() => {
         if (prepared.converted && mediaUrlInput) mediaUrlInput.value = preparedMediaUrl;
       }
 
+      const rawHashtags = document.getElementById('publisher-hashtags')?.value || '';
+      const hashtags = rawHashtags
+        .split(/[\s,;]+/)
+        .map(tag => tag.trim())
+        .filter(Boolean)
+        .map(tag => tag.startsWith('#') ? tag : '#' + tag);
+      const baseMessage = document.getElementById('publisher-message')?.value || '';
+      const message = [baseMessage, hashtags.join(' ')].filter(Boolean).join('\n\n');
+
       const body = {
         brand: getActiveBrand(),
-        message: document.getElementById('publisher-message')?.value || '',
+        message,
         mediaUrl: preparedMediaUrl,
         linkUrl: document.getElementById('publisher-link-url')?.value || '',
         mediaType,
         platforms,
         scheduledAt: mode === 'schedule' ? new Date(scheduledRaw).toISOString() : new Date().toISOString(),
-        automationMode: mode === 'schedule' ? 'scheduled' : 'manual'
+        automationMode: mode === 'schedule' ? 'scheduled' : 'manual',
+        metadata: {
+          title: document.getElementById('publisher-title')?.value?.trim() || '',
+          hashtags,
+          timezone: Intl.DateTimeFormat().resolvedOptions().timeZone || '',
+          localDate: scheduledRaw ? scheduledRaw.slice(0, 10) : '',
+          localTime: scheduledRaw ? scheduledRaw.slice(11, 16) : ''
+        }
       };
 
       const buttons = [
@@ -267,8 +354,15 @@ const PublisherView = (() => {
       }
     };
 
-    document.getElementById('publisher-publish-now-btn')?.addEventListener('click', () => submitPublication('now'));
-    document.getElementById('publisher-schedule-btn')?.addEventListener('click', () => submitPublication('schedule'));
+    const juniorReady = !isNidalJunior || Boolean(_metaDiagnostic?.instagramDirectTokenValid);
+    const publishNowBtn = document.getElementById('publisher-publish-now-btn');
+    const scheduleBtn = document.getElementById('publisher-schedule-btn');
+    if (!juniorReady) {
+      if (publishNowBtn) publishNowBtn.disabled = true;
+      if (scheduleBtn) scheduleBtn.disabled = true;
+    }
+    publishNowBtn?.addEventListener('click', () => submitPublication('now'));
+    scheduleBtn?.addEventListener('click', () => submitPublication('schedule'));
 
     document.getElementById('publisher-refresh-btn')?.addEventListener('click', async () => {
       await _load();
