@@ -1088,6 +1088,14 @@ async function buildProfessionalPlan(body = {}, onProgress = () => {}) {
         ? Object.fromEntries(
             Object.entries(targetsRecord?.targets || {})
               .filter(([key]) => !/^facebook/i.test(key))
+              .map(([key, value]) => [
+                key,
+                {
+                  target: value?.target ?? null,
+                  eta: value?.eta ?? null,
+                  note: value?.note || ''
+                }
+              ])
           )
         : (targetsRecord?.targets || {}),
       contentInventory: {
