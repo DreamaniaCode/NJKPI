@@ -42,6 +42,7 @@ const PerformanceView = (() => {
     const view = document.getElementById('view-performance');
     if (!view) return;
     const brand = getActiveBrand();
+    const isNidalJunior = brand === 'nidal-junior';
     const brandLabel = getActiveBrandLabel();
     const stats = NidalStore.getStats();
     const contents = NidalStore.getAll(brand);
@@ -52,7 +53,9 @@ const PerformanceView = (() => {
         <div>
           <span class="section-kicker">Mesure & Objectifs</span>
           <h1 class="view__title">Performance & Objectifs KPI</h1>
-          <p class="view__subtitle">Suivi des objectifs stratégiques et des échéances cibles (ETA) pour ${escapeHtml(brandLabel)}</p>
+          <p class="view__subtitle">${isNidalJunior
+            ? 'KPI Instagram Nidal Junior uniquement · aucun KPI Facebook mélangé.'
+            : `Suivi des objectifs stratégiques et des échéances cibles (ETA) pour ${escapeHtml(brandLabel)}`}</p>
         </div>
         <div class="header-actions">
           <button class="btn btn--secondary btn--sm" id="btn-refresh-all-kpi">↻ Actualiser tous les KPI</button>
@@ -81,7 +84,7 @@ const PerformanceView = (() => {
         </div>
       </section>
 
-      <section class="kpi-goals-section kpi-goals-section--facebook" aria-label="Objectifs KPI Facebook">
+      ${!isNidalJunior ? `      <section class="kpi-goals-section kpi-goals-section--facebook" aria-label="Objectifs KPI Facebook">
         <div class="section-heading" style="margin-bottom:12px;">
           <div>
             <span class="section-kicker">Facebook · ${escapeHtml(brandLabel)}</span>
@@ -102,7 +105,7 @@ const PerformanceView = (() => {
           ${_renderGoalCard('♥', 'Interactions Facebook', targets.facebookInteractions, '#1877f2', 'interactions', 'facebook')}
           ${_renderGoalCard('💬', 'Commentaires Facebook', targets.facebookComments, '#1877f2', 'commentaires', 'facebook')}
         </div>
-      </section>
+      </section>` : ''}
       <!-- Section 2 : Synthèse cumulée de la marque -->
       <section class="summary-strip" style="grid-template-columns: repeat(6, minmax(0, 1fr));">
         ${_summary('Portée cumulée', formatNumber(stats.totalReach))}
@@ -326,7 +329,7 @@ const PerformanceView = (() => {
       { group: 'Facebook', key: 'facebookViews', icon: '▶', label: 'Vues Facebook', unit: 'vues', color: '#1877f2', hint: 'Vues des publications Facebook analysées par Meta' },
       { group: 'Facebook', key: 'facebookInteractions', icon: '♥', label: 'Interactions Facebook', unit: 'interactions', color: '#1877f2', hint: 'Réactions + commentaires + partages Facebook' },
       { group: 'Facebook', key: 'facebookComments', icon: '💬', label: 'Commentaires Facebook', unit: 'commentaires', color: '#1877f2', hint: 'Commentaires des publications Facebook analysées' }
-    ];
+    ].filter(field => brand !== 'nidal-junior' || field.group !== 'Facebook');
 
     const contentHtml = `
       <div style="margin-bottom:14px;">
