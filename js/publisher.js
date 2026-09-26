@@ -100,7 +100,7 @@ const PublisherView = (() => {
               <small style="color:var(--muted);">Laissez vide pour publier maintenant.</small>
             </div>
             <div style="display:flex;gap:14px;flex-wrap:wrap;">
-              <label><input type="checkbox" id="publisher-instagram" checked disabled=${isNidalJunior ? '"disabled"' : 'false'}> Instagram</label>
+              <label><input type="checkbox" id="publisher-instagram" checked ${isNidalJunior ? 'disabled' : ''}> Instagram</label>
               ${isNidalJunior
                 ? '<span class="badge badge--blue">Instagram uniquement · pas de Page Facebook</span>'
                 : '<label><input type="checkbox" id="publisher-facebook" checked> Facebook</label>'}
