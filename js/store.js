@@ -60,16 +60,17 @@ const NidalStore = (() => {
   function _normalize(content = {}) {
     const legacyTypeMap = { article: 'post', interview: 'video', dossier: 'carrousel', breve: 'story', chronique: 'post', infographie: 'carrousel', quiz: 'story' };
     const legacyStatusMap = { 'en-cours': 'en-production', relecture: 'pret' };
+    const resolvedBrand = BRANDS.some(item => item.id === content.brand) ? content.brand : getActiveBrand();
     return {
       id: content.id || generateId(),
-      brand: BRANDS.some(item => item.id === content.brand) ? content.brand : getActiveBrand(),
+      brand: resolvedBrand,
       titre: content.titre || 'Sans titre',
       format: CONTENT_TYPES.some(t => t.id === content.format) ? content.format : (CONTENT_TYPES.some(t => t.id === content.type) ? content.type : 'article'),
       statut: STATUSES.some(s => s.id === content.statut) ? content.statut : (STATUSES.some(s => s.id === content.status) ? content.status : 'brouillon'),
       niveau: LEVELS.some(level => level.id === content.niveau) ? content.niveau : 'tous',
       classes: content.classes || 'Toutes les classes',
       album: content.album || '',
-      plateforme: content.plateforme || 'Instagram + Facebook',
+      plateforme: content.plateforme || (resolvedBrand === 'nidal-junior' ? 'Instagram (IG)' : 'Instagram + Facebook (IG + FB)'),
       pilier: content.pilier || 'Pedagogie',
       objectif: content.objectif || '',
       accroche: content.accroche || content.titre || '',
@@ -622,7 +623,7 @@ const NidalStore = (() => {
   function subscribe(fn) { _subscribers.push(fn); return () => { _subscribers = _subscribers.filter(item => item !== fn); }; }
 
   function _seedContents() {
-    const base = { brand: 'nidal-junior', responsable: 'Equipe contenu', plateforme: 'Instagram + Facebook', validation: 'a-valider', checks: { logo: true, valeurs: true, footer: true, autorisation: true } };
+    const base = { brand: 'nidal-junior', responsable: 'Equipe contenu', plateforme: 'Instagram (IG)', validation: 'a-valider', checks: { logo: true, valeurs: true, footer: true, autorisation: true } };
     const nidal = { ...base, brand: 'nidal', classes: 'Tous les cycles', album: '', plateforme: 'Instagram + Facebook' };
     return [
       { ...base, titre: 'Qui va ouvrir le livre des histoires ?', format: 'story', statut: 'brouillon', niveau: 'tous', classes: 'Toutes les classes', album: 'Le jardin des histoires', pilier: 'Notoriete', objectif: 'Creer l’attente', message: 'Une silhouette, un livre jaune et un nouveau rendez-vous arrivent chez Nidal Junior.', cta: 'Repondez a la devinette', livrable: 'Story teaser de Nounou', datePublication: '2026-09-21', heure: '18:30', objectifs: { portee: 800, interactions: 40, clics: 5 } },
