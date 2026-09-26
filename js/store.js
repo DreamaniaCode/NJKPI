@@ -417,16 +417,30 @@ const NidalStore = (() => {
         };
 
         // Pour les KPI de performance Junior, utiliser les médias réellement
-        // récupérés depuis Instagram. Cela ne dépend pas d'un import manuel NJKPI.
-        applyInstagramMetric('views', igInsights.mediaViews);
-        applyInstagramMetric('comments', igInsights.mediaComments);
-        applyInstagramMetric('reach', igInsights.mediaReach);
-        applyInstagramMetric('interactions', igInsights.mediaInteractions);
+        // récupérés depuis Instagram. Reach/Vues nécessitent les Insights média,
+        // alors que commentaires et une partie des interactions restent lisibles
+        // depuis les objets média eux-mêmes.
+        if (igInsights.mediaInsightsAvailable) {
+          applyInstagramMetric('views', igInsights.mediaViews);
+          applyInstagramMetric('reach', igInsights.mediaReach);
+        } else if (Number(igInsights.analyzedMedia || 0) > 0 && igInsights.mediaError) {
+          merged.views = { ...(merged.views || fallback.views), current: null, source: 'meta-unavailable', syncedAt };
+          merged.reach = { ...(merged.reach || fallback.reach), current: null, source: 'meta-unavailable', syncedAt };
+        }
 
-        // Si aucun média n'a encore été analysé, le reach du compte reste utile.
+        if (Number(igInsights.analyzedMedia || 0) > 0) {
+          applyInstagramMetric('comments', igInsights.mediaComments);
+          applyInstagramMetric('interactions', igInsights.mediaInteractions);
+        }
+
+        // Si aucun média n'a encore été analysé, les insights du compte restent utiles.
         if (!Number(igInsights.analyzedMedia || 0)) {
           applyInstagramMetric('reach', igInsights.reach, 'instagram-account');
           applyInstagramMetric('interactions', igInsights.accountsEngaged, 'instagram-account');
+        }
+
+        if (ig.followersAvailable === false) {
+          merged.followers = { ...(merged.followers || fallback.followers), current: null, source: 'meta-unavailable', syncedAt };
         }
       }
     }
