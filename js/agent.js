@@ -496,6 +496,9 @@ const AgentView = (() => {
       _activeAgentKey = expectedAgent;
       localStorage.setItem(ACTIVE_AGENT_KEY, expectedAgent);
     }
+    if (_activeAgentKey === 'studio-junior' && !/instagram/i.test(_state['studio-junior'].brief.platform || '')) {
+      _state['studio-junior'].brief.platform = 'Instagram (IG)';
+    }
 
     const view = document.getElementById('view-agent');
     if (!view) return;
@@ -659,8 +662,10 @@ const AgentView = (() => {
             <div class="form-group">
               <label for="brief-platform">Plateforme</label>
               <select id="brief-platform" class="form-control">
-                ${['Instagram + Facebook (IG + FB)', 'Instagram (IG)', 'Facebook (FB)', 'Instagram Reel + Facebook Story', 'Instagram Story', 'Facebook Reel', 'LinkedIn + Facebook', 'TikTok', 'Multi-plateformes']
-                  .map(p => `<option value="${p}" ${currentAgent.brief.platform === p || (!currentAgent.brief.platform && p.startsWith('Instagram + Facebook')) ? 'selected' : ''}>${p}</option>`).join('')}
+                ${(isJunior
+                  ? ['Instagram (IG)', 'Instagram Story', 'Instagram Reel']
+                  : ['Instagram + Facebook (IG + FB)', 'Instagram (IG)', 'Facebook (FB)', 'Instagram Reel + Facebook Story', 'Instagram Story', 'Facebook Reel', 'LinkedIn + Facebook', 'TikTok', 'Multi-plateformes'])
+                  .map(p => `<option value="${p}" ${currentAgent.brief.platform === p || (isJunior && !currentAgent.brief.platform && p === 'Instagram (IG)') || (!isJunior && !currentAgent.brief.platform && p.startsWith('Instagram + Facebook')) ? 'selected' : ''}>${p}</option>`).join('')}
               </select>
             </div>
           </div>
@@ -1582,7 +1587,7 @@ const AgentView = (() => {
       format,
       duration: get('brief-duration')?.value || undefined,
       slideCount: get('brief-slides')?.value || undefined,
-      platform: get('brief-platform')?.value || 'Instagram + Facebook (IG + FB)',
+      platform: get('brief-platform')?.value || (getActiveBrand() === 'nidal-junior' ? 'Instagram (IG)' : 'Instagram + Facebook (IG + FB)'),
       audience: get('brief-audience')?.value.trim() || '',
       targetDate: get('brief-target-date')?.value || '',
       objective: get('brief-objective')?.value.trim() || '',
@@ -1974,7 +1979,8 @@ const AgentView = (() => {
   }
 
   function _planItemToStructuredData(item = {}) {
-    const hashtags = Array.isArray(item.hashtags) ? item.hashtags.slice(0, 5) : [];
+    const hashtags = Array.isArray(item.hashtags) ? item.hashtags.slice(0, 30) : [];
+    const junior = _activeAgentKey === 'studio-junior';
     const storyboardText = Array.isArray(item.storyboard) && item.storyboard.length
       ? item.storyboard.map(s => `${s.time || ''} | ${s.visual || ''} | ${s.action || ''} | ${s.voiceOrText || ''} | ${s.transition || ''}`).join('\n')
       : '';
@@ -1986,22 +1992,30 @@ const AgentView = (() => {
       titre: item.title || item.topic || 'Contenu du planning IA',
       datePublication: item.date || '',
       heure: item.publishTime || '18:30',
-      plateforme: item.platform || 'Instagram + Facebook',
-      canal: item.platform || 'Instagram + Facebook',
+      plateforme: junior ? 'Instagram (IG)' : (item.platform || 'Instagram + Facebook (IG + FB)'),
+      canal: junior ? 'Instagram' : (item.platform || 'Instagram + Facebook'),
       format: item.format || 'post',
       pilier: item.funnelStage || '',
       objectif: item.objective || '',
       message: item.caption || '',
       postComplet: item.caption || '',
       cta: item.cta || '',
+      mediaUrl: item.mediaUrl || item.media_url || '',
       imagePrompt: item.imagePrompt || '',
       promptImage: item.imagePrompt || '',
+      videoScript: item.videoScript || '',
       livrable: production,
       notes: [item.rationale, item.basedOnData?.length ? `Basé sur : ${item.basedOnData.join(' | ')}` : ''].filter(Boolean).join('\n'),
       tags: hashtags,
+      hashtags,
       kpiPrincipal: item.primaryKpi || '',
       storyboard: item.storyboard || [],
       companionStory: item.companionStory || null,
+      funnelStage: item.funnelStage || '',
+      angle: item.angle || '',
+      hook: item.hook || '',
+      rationale: item.rationale || '',
+      basedOnData: Array.isArray(item.basedOnData) ? item.basedOnData : [],
       sourceAgent: 'professional-plan'
     };
   }
