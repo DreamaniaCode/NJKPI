@@ -939,6 +939,7 @@ async function buildProfessionalPlan(body = {}, onProgress = () => {}) {
     } = body || {};
 
     const targetBrand = brand === 'nidal-junior' ? 'nidal-junior' : 'nidal';
+    const juniorInstagramOnly = targetBrand === 'nidal-junior';
     const agentKey = targetBrand === 'nidal' ? 'planning-nidal' : 'studio-junior';
     const horizon = [7, 14, 30].includes(Number(days)) ? Number(days) : 30;
     const planAiConfig = { ...aiConfig, planMode: true };
@@ -1021,9 +1022,19 @@ async function buildProfessionalPlan(body = {}, onProgress = () => {}) {
       .sort((a, b) => String(b.date || '').localeCompare(String(a.date || '')))
       .slice(0, 25);
 
-    const audience = audienceRows?.[0]?.payload || null;
+    const rawAudience = audienceRows?.[0]?.payload || null;
+    const audience = juniorInstagramOnly && rawAudience
+      ? {
+          brand: targetBrand,
+          syncedAt: rawAudience.syncedAt || null,
+          instagram: rawAudience.instagram || null,
+          facebook: null
+        }
+      : rawAudience;
     const igProfile = socialProfiles?.instagram?.profile || socialProfiles?.instagram || null;
-    const fbProfile = socialProfiles?.facebook?.profile || socialProfiles?.facebook || null;
+    const fbProfile = juniorInstagramOnly
+      ? null
+      : (socialProfiles?.facebook?.profile || socialProfiles?.facebook || null);
 
     const adsSummary = (ads || []).slice(0, 20).map(row => {
       const insight = row.insights || {};
@@ -1073,7 +1084,12 @@ async function buildProfessionalPlan(body = {}, onProgress = () => {}) {
       generatedAt: new Date().toISOString(),
       horizonDays: horizon,
       brand: targetBrand,
-      kpiTargets: targetsRecord?.targets || {},
+      kpiTargets: juniorInstagramOnly
+        ? Object.fromEntries(
+            Object.entries(targetsRecord?.targets || {})
+              .filter(([key]) => !/^facebook/i.test(key))
+          )
+        : (targetsRecord?.targets || {}),
       contentInventory: {
         total: normalized.length,
         published: published.length,
@@ -1089,7 +1105,7 @@ async function buildProfessionalPlan(body = {}, onProgress = () => {}) {
           mediaCount: igProfile.mediaCount ?? igProfile.media_count ?? null,
           syncedAt: socialProfiles?.instagram?.synced_at || null
         } : null,
-        facebook: fbProfile ? {
+        facebook: !juniorInstagramOnly && fbProfile ? {
           followers: fbProfile.followers ?? fbProfile.followers_count ?? null,
           reach: fbProfile.insights?.reach ?? null,
           views: fbProfile.insights?.views ?? null,
@@ -1112,11 +1128,15 @@ MISSION : Tu es le Directeur Social Media & Growth senior de Nidal. Tu ne fourni
 
 PÉRIODE : ${horizon} jours à partir du ${startDate}.
 OBJECTIF BUSINESS : ${objective}
+PLATEFORME : ${juniorInstagramOnly ? 'Instagram Nidal Junior UNIQUEMENT' : 'Instagram + Facebook'}
+${juniorInstagramOnly ? 'RÈGLE ABSOLUE : ne propose jamais Facebook, ne mélange aucun KPI GS Nidal, et chaque contenu doit être publiable sur Instagram.' : ''}
 ${notes ? `NOTES DU RESPONSABLE : ${notes}` : ''}
 
 ANALYSE PROFONDE OBLIGATOIRE :
 1. Audite les contenus organiques existants : formats, fréquence, sujets, meilleurs résultats, contenus faibles, répétitions et manques.
-2. Analyse séparément Instagram et Facebook avec uniquement les métriques réellement disponibles.
+2. ${juniorInstagramOnly
+  ? 'Analyse UNIQUEMENT Instagram Nidal Junior. Ignore totalement Facebook : cette marque n’a pas de Page Facebook.'
+  : 'Analyse séparément Instagram et Facebook avec uniquement les métriques réellement disponibles.'}
 3. Analyse PROFONDÉMENT Meta Ads / Audience / Conversions présents dans les données :
    - audience par âge, sexe, zone géographique, plateforme/placement si disponible ;
    - spend, reach, impressions, clicks, CTR, CPC, CPM, fréquence et actions/conversions ;
@@ -1232,12 +1252,12 @@ Livre un diagnostic professionnel, concret et priorisé :
 - hypothèses clairement signalées ;
 - solutions ;
 - KPI de validation ;
-- Meta Ads / Audience / Conversions ;
+- ${juniorInstagramOnly ? 'Audience et performance Instagram uniquement' : 'Meta Ads / Audience / Conversions'} ;
 - 5 priorités opérationnelles.
 Réponse concise mais profonde, sans JSON.
 `,
         format: 'analyse stratégique',
-        platform: 'Instagram + Facebook + Meta Ads',
+        platform: juniorInstagramOnly ? 'Instagram' : 'Instagram + Facebook + Meta Ads',
         objective,
         language: 'Français',
         notes
@@ -1289,9 +1309,10 @@ Réponse concise mais profonde, sans JSON.
       const batchStartIso = batchStartDate.toISOString().slice(0, 10);
 
       const batchBrief = `
-Tu construis les jours ${offset + 1} à ${offset + count} du calendrier Social Media Nidal.
+Tu construis les jours ${offset + 1} à ${offset + count} du calendrier Social Media ${juniorInstagramOnly ? 'Nidal Junior' : 'Nidal'}.
 Le diagnostic stratégique est fourni dans le contexte.
 Crée EXACTEMENT ${count} contenus à partir du ${batchStartIso}.
+${juniorInstagramOnly ? 'PLATEFORME OBLIGATOIRE POUR CHAQUE CONTENU : Instagram uniquement. Ne mentionne jamais Facebook.' : ''}
 
 Pour chaque jour : date, heure, titre clair, format, plateforme, tunnel, objectif,
 sujet, angle, hook, caption complète prête à publier, CTA, 5 hashtags, KPI,
@@ -1327,7 +1348,7 @@ JSON valide, sans commentaire avant ou après.
             topic: `Planning Social Media jours ${offset + 1}-${offset + count}`,
             brief: batchBrief,
             format: 'planning stratégique batch',
-            platform: 'Instagram + Facebook + Stories + Reels + Vidéos',
+            platform: juniorInstagramOnly ? 'Instagram + Stories + Reels + Vidéos' : 'Instagram + Facebook + Stories + Reels + Vidéos',
             objective,
             language: 'Français',
             notes
@@ -1366,6 +1387,9 @@ JSON valide, sans commentaire avant ou après.
           const d = new Date(startDate + 'T00:00:00Z');
           d.setUTCDate(d.getUTCDate() + offset + i);
           item.date = d.toISOString().slice(0, 10);
+        }
+        if (juniorInstagramOnly) {
+          item.platform = 'Instagram';
         }
         planItems.push(item);
       }
