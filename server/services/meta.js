@@ -455,6 +455,8 @@ async function syncInstagramProfile(brand) {
   const insights = {
     ...accountInsights,
     analyzedMedia: mediaItems.length,
+    mediaInsightsAvailable: mediaItems.some(item => item.metrics?.insightsAvailable),
+    mediaInsightsFailures: Number(mediaPerformance.insightsFailures || 0),
     mediaReach: mediaTotals.reach,
     mediaViews: mediaTotals.views,
     mediaLikes: mediaTotals.likes,
