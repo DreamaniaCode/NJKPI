@@ -280,8 +280,16 @@ ${facebookCardHtml}
       btnMetaRefresh.onclick = async () => {
         btnMetaRefresh.disabled = true;
         btnMetaRefresh.textContent = 'Synchronisation…';
-        await NidalStore.syncMetaLive(getActiveBrand(), true);
-        showToast('Données Meta actualisées', 'success');
+        const live = await NidalStore.syncMetaLive(getActiveBrand(), true);
+        if (getActiveBrand() === 'nidal-junior' && !live?.instagram) {
+          const diagnostic = await NidalAPI.request('/api/meta/diagnostics?brand=nidal-junior').catch(() => null);
+          const detail = diagnostic?.errors?.[0]
+            || diagnostic?.configurationWarnings?.[0]
+            || 'Le compte Instagram Nidal Junior n’a pas renvoyé de profil/KPI.';
+          showToast('KPI Instagram indisponibles : ' + detail, 'error', 9000);
+        } else {
+          showToast('KPI Instagram actualisés depuis Meta.', 'success');
+        }
         DashboardView.render();
       };
     }
