@@ -284,6 +284,10 @@ const NidalStore = (() => {
           _data.socialProfiles[brand] = brand === 'nidal-junior'
             ? { ...liveMeta, brand, facebook: null }
             : liveMeta;
+        } else if (includeMeta && brand === 'nidal-junior' && _data.socialProfiles) {
+          // Mieux vaut afficher "non synchronisé" qu'un ancien compte GS Nidal
+          // récupéré avant l'isolation stricte de Nidal Junior.
+          delete _data.socialProfiles[brand];
         }
       }
 
@@ -309,6 +313,10 @@ const NidalStore = (() => {
       return live;
     } catch (error) {
       console.warn('Synchronisation Meta live différée:', error.message);
+      if (slug === 'nidal-junior' && _data?.socialProfiles) {
+        delete _data.socialProfiles[slug];
+        _save();
+      }
       return null;
     }
   }
@@ -413,8 +421,12 @@ const NidalStore = (() => {
       }
     }
 
-    // Calculate actual aggregates from contents
-    const contents = getAll(slug);
+    // Calculate actual aggregates from contents.
+    // Nidal Junior = Instagram uniquement, y compris pour les agrégats locaux.
+    const contents = getAll(slug).filter(content =>
+      slug !== 'nidal-junior'
+      || /instagram|\big\b/i.test(String(content.plateforme || ''))
+    );
     const sumViews = contents.reduce((sum, c) => sum + (_number(c.resultats?.vues) || 0), 0);
     const sumComments = contents.reduce((sum, c) => sum + (_number(c.resultats?.commentaires) || 0), 0);
     const sumConversions = contents.reduce((sum, c) => sum + (_number(c.resultats?.conversions) || 0), 0);
