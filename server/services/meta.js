@@ -298,10 +298,27 @@ export async function diagnoseMetaAccess(brand) {
       });
       result.instagramIdentity = identity;
       result.instagramDirectTokenValid = Boolean(identity?.id);
+      result.instagramInsightsReadable = false;
+      result.instagramInsightsError = null;
+
       if (igUserId && identity?.id && String(identity.id) !== String(igUserId)) {
         result.configurationWarnings.push(
           `Le token Instagram correspond au compte ${identity.id}, mais META_IG_USER_ID vaut ${igUserId}.`
         );
+      } else if (igUserId && identity?.id) {
+        try {
+          await directInstagramGraph(brand, `${igUserId}/insights`, {
+            metric: 'reach',
+            period: 'day',
+            metric_type: 'total_value'
+          });
+          result.instagramInsightsReadable = true;
+        } catch (insightError) {
+          result.instagramInsightsError = insightError.message;
+          result.configurationWarnings.push(
+            `Token Instagram valide pour le compte, mais lecture des Insights refusée : ${insightError.message}`
+          );
+        }
       }
     } catch (error) {
       result.errors.push(`instagram login: ${error.message}`);
@@ -446,17 +463,20 @@ async function syncInstagramProfile(brand) {
     mediaSaves: mediaTotals.saves,
     mediaInteractions: mediaTotals.interactions,
     topContent: mediaItems.slice(0, 8),
-    mediaError: mediaPerformance.error || null
+    mediaError: mediaPerformance.error || mediaPerformance.insightsWarning || null
   };
 
-  const hasInsights = [
+  const hasAccountInsights = [
     insights.profileViews,
     insights.reach,
-    insights.accountsEngaged,
-    insights.mediaReach,
-    insights.mediaViews,
-    insights.mediaInteractions
+    insights.accountsEngaged
   ].some(value => value !== null && value !== undefined);
+  const hasMediaInsights = mediaItems.length > 0 && (
+    mediaItems.some(item => item.metrics?.insightsAvailable)
+    || mediaTotals.interactions > 0
+    || mediaTotals.comments > 0
+  );
+  const hasInsights = hasAccountInsights || hasMediaInsights;
 
   return {
     platform: 'instagram',
@@ -832,9 +852,12 @@ async function getInstagramTopContent(brand, limit = 50) {
 
     const candidates = (media.data || []).slice(0, Math.max(1, Math.min(Number(limit) || 50, 100)));
     const items = [];
+    let insightsFailures = 0;
+    let lastInsightsError = null;
 
     for (const item of candidates) {
       let metricValues = {};
+      let itemInsightsError = null;
       const metricSets = [
         'reach,views,saved,shares,total_interactions',
         'reach,plays,saved,shares,total_interactions',
@@ -847,8 +870,16 @@ async function getInstagramTopContent(brand, limit = 50) {
             metricItem.name,
             Number(metricItem.values?.[0]?.value ?? metricItem.total_value?.value ?? metricItem.value ?? 0)
           ]));
+          itemInsightsError = null;
           break;
-        } catch {}
+        } catch (error) {
+          itemInsightsError = error.message;
+          lastInsightsError = error.message;
+        }
+      }
+
+      if (!Object.keys(metricValues).length && itemInsightsError) {
+        insightsFailures++;
       }
 
       const likes = Number(item.like_count || 0);
@@ -872,7 +903,9 @@ async function getInstagramTopContent(brand, limit = 50) {
           comments,
           shares,
           saves,
-          interactions
+          interactions,
+          insightsAvailable: Object.keys(metricValues).length > 0,
+          insightsError: itemInsightsError
         }
       });
     }
@@ -883,7 +916,14 @@ async function getInstagramTopContent(brand, limit = 50) {
       return bScore - aScore;
     });
 
-    return { items, error: null };
+    return {
+      items,
+      error: null,
+      insightsFailures,
+      insightsWarning: insightsFailures && insightsFailures === items.length
+        ? (lastInsightsError || 'Les médias sont accessibles mais leurs Insights ne le sont pas.')
+        : null
+    };
   } catch (error) {
     return { items: [], error: error.message };
   }
