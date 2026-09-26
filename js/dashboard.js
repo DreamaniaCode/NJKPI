@@ -102,7 +102,7 @@ const DashboardView = (() => {
         ${_kpi('A controler', stats.controls, 'Validation ou charte', '#172033')}
       </section>
 
-      ${(liveInstagram || liveFacebook) ? `
+      ${(isNidalJunior || liveInstagram || liveFacebook) ? `
         <section class="meta-live-panel" aria-label="KPI Meta Live">
           <div class="meta-live-panel__header">
             <div>
@@ -113,7 +113,7 @@ const DashboardView = (() => {
                 : 'Vue séparée des performances de chaque plateforme, sans additionner leurs audiences.'}</p>
             </div>
             <div class="meta-live-panel__sync">
-              <span class="meta-live-status"><i></i> API Meta connectée</span>
+              <span class="meta-live-status"><i></i>${liveInstagram ? 'Instagram connecté' : (isNidalJunior ? 'Instagram non synchronisé' : 'API Meta connectée')}</span>
               <small>${liveMeta?.syncedAt ? `Dernière synchro · ${new Date(liveMeta.syncedAt).toLocaleTimeString('fr-FR', { hour:'2-digit', minute:'2-digit', second:'2-digit' })}` : 'Synchronisation Meta'}</small>
               <button class="btn btn--secondary btn--sm" id="dashboard-meta-refresh-btn">↻ Actualiser</button>
             </div>
