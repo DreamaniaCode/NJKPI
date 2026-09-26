@@ -1883,7 +1883,7 @@ const server = app.listen(port, '0.0.0.0', () => {
       );
     }
     await runPublishQueue();
-    const publishQueueSeconds = Math.max(5, Number(process.env.PUBLISH_QUEUE_SECONDS || 10));
+    const publishQueueSeconds = Math.max(2, Number(process.env.PUBLISH_QUEUE_SECONDS || 5));
     setInterval(
       () => runPublishQueue().catch(err => console.warn('File publication:', err.message)),
       publishQueueSeconds * 1000
