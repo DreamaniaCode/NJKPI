@@ -33,6 +33,9 @@ const PublisherView = (() => {
     const view = document.getElementById('view-publisher');
     if (!view) return;
 
+    const activeBrand = getActiveBrand();
+    const isNidalJunior = activeBrand === 'nidal-junior';
+
     if (!_loading && !_jobs.length && NidalAPI.isOnline()) {
       _loading = true;
       await _load();
@@ -44,7 +47,9 @@ const PublisherView = (() => {
         <div>
           <span class="section-kicker">Publication Meta</span>
           <h1 class="view__title">Publier & programmer</h1>
-          <p class="view__subtitle">Publiez depuis NJKPI vers Instagram, Facebook ou les deux. Les publications planifiées sont exécutées automatiquement par le serveur.</p>
+          <p class="view__subtitle">${isNidalJunior
+            ? 'Nidal Junior publie directement sur Instagram. Aucune Page Facebook n’est requise.'
+            : 'Publiez depuis NJKPI vers Instagram, Facebook ou les deux. Les publications planifiées sont exécutées automatiquement par le serveur.'}</p>
         </div>
         <div class="header-actions">
           <button class="btn btn--secondary" id="publisher-week-btn">📅 Planifier 7 jours</button>
@@ -95,8 +100,10 @@ const PublisherView = (() => {
               <small style="color:var(--muted);">Laissez vide pour publier maintenant.</small>
             </div>
             <div style="display:flex;gap:14px;flex-wrap:wrap;">
-              <label><input type="checkbox" id="publisher-instagram" checked> Instagram</label>
-              <label><input type="checkbox" id="publisher-facebook" checked> Facebook</label>
+              <label><input type="checkbox" id="publisher-instagram" checked disabled=${isNidalJunior ? '"disabled"' : 'false'}> Instagram</label>
+              ${isNidalJunior
+                ? '<span class="badge badge--blue">Instagram uniquement · pas de Page Facebook</span>'
+                : '<label><input type="checkbox" id="publisher-facebook" checked> Facebook</label>'}
             </div>
             <div style="display:flex;gap:8px;flex-wrap:wrap;">
               <button class="btn btn--primary" id="publisher-publish-now-btn">🚀 Publier maintenant</button>
@@ -183,7 +190,9 @@ const PublisherView = (() => {
           document.getElementById('publisher-media-type').value = (uploaded.mime || file.type).startsWith('video/') ? 'reel' : 'image';
           showToast(
             uploaded.convertedForMeta
-              ? 'Image convertie automatiquement en JPG et prête pour Facebook + Instagram.'
+              ? (isNidalJunior
+                  ? 'Image convertie automatiquement en JPG et prête pour Instagram.'
+                  : 'Image convertie automatiquement en JPG et prête pour Facebook + Instagram.')
               : 'Média envoyé et prêt pour publication.',
             'success'
           );
@@ -199,8 +208,12 @@ const PublisherView = (() => {
 
     const submitPublication = async mode => {
       const platforms = [];
-      if (document.getElementById('publisher-instagram')?.checked) platforms.push('instagram');
-      if (document.getElementById('publisher-facebook')?.checked) platforms.push('facebook');
+      if (isNidalJunior) {
+        platforms.push('instagram');
+      } else {
+        if (document.getElementById('publisher-instagram')?.checked) platforms.push('instagram');
+        if (document.getElementById('publisher-facebook')?.checked) platforms.push('facebook');
+      }
       if (!platforms.length) return showToast('Sélectionnez Instagram et/ou Facebook.', 'error');
 
       const scheduledRaw = document.getElementById('publisher-scheduled-at')?.value || '';
