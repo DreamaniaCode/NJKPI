@@ -74,11 +74,15 @@ const ContentsView = (() => {
     const objectifs = content.objectifs || { portee: 1000, interactions: 50, clics: 5 };
     const resultats = content.resultats || {};
     const includePublishActions = Boolean(options.includePublishActions);
-    const platformList = typeof PLATFORMS !== 'undefined' ? PLATFORMS : [
+    const allPlatforms = typeof PLATFORMS !== 'undefined' ? PLATFORMS : [
       { id: 'instagram-facebook', label: 'Instagram + Facebook (IG + FB)', icon: '🌐' },
       { id: 'instagram', label: 'Instagram (IG)', icon: '📷' },
       { id: 'facebook', label: 'Facebook (FB)', icon: '📘' }
     ];
+    const isNidalJunior = getActiveBrand() === 'nidal-junior';
+    const platformList = isNidalJunior
+      ? allPlatforms.filter(p => p.id === 'instagram' || /Instagram \(IG\)/i.test(p.label || ''))
+      : allPlatforms;
 
     return `<form id="content-form" class="social-composer-form" onsubmit="return false;">
       <div class="social-composer">
@@ -110,7 +114,7 @@ const ContentsView = (() => {
             <strong>Diffusion</strong>
             <div class="form-group">
               <label for="form-platform">Publier sur</label>
-              <select id="form-platform" class="form-control">${platformList.map(p => `<option value="${p.label}" ${content.plateforme === p.label || content.plateforme === p.id || content.plateforme === p.short || (!content.plateforme && p.id === 'instagram-facebook') ? 'selected' : ''}>${p.icon} ${p.label}</option>`).join('')}</select>
+              <select id="form-platform" class="form-control">${platformList.map(p => `<option value="${p.label}" ${content.plateforme === p.label || content.plateforme === p.id || content.plateforme === p.short || (!content.plateforme && p.id === (isNidalJunior ? 'instagram' : 'instagram-facebook')) ? 'selected' : ''}>${p.icon} ${p.label}</option>`).join('')}</select>
             </div>
             <div class="form-row">
               <div class="form-group"><label for="form-date">Date</label><input type="date" id="form-date" class="form-control" value="${toISODate(content.datePublication)}"></div>
@@ -147,6 +151,28 @@ const ContentsView = (() => {
             <div class="form-group"><label for="form-pillar">Pilier</label><input id="form-pillar" class="form-control" value="${_value(content.pilier)}"></div>
             <div class="form-group"><label for="form-objective">Objectif</label><input id="form-objective" class="form-control" value="${_value(content.objectif)}"></div>
           </div>
+          <div class="form-group">
+            <label for="form-tags">Hashtags</label>
+            <input id="form-tags" class="form-control" value="${_value((content.tags || content.hashtags || []).join(' '))}" placeholder="#NidalJunior #Education #Marrakech">
+            <small>Ils seront conservés avec le contenu et ajoutés à la légende lors de la publication.</small>
+          </div>
+
+          <div class="form-group">
+            <label for="form-image-prompt">Script / prompt photo IA</label>
+            <textarea id="form-image-prompt" class="form-control" rows="5" placeholder="Description complète du visuel à produire…">${_value(content.imagePrompt || content.promptImage || '')}</textarea>
+          </div>
+
+          <div class="form-group">
+            <label for="form-video-script">Script vidéo / Reel</label>
+            <textarea id="form-video-script" class="form-control" rows="6" placeholder="Script complet de la vidéo…">${_value(content.videoScript || '')}</textarea>
+          </div>
+
+          <div class="form-group">
+            <label for="form-storyboard">Storyboard</label>
+            <textarea id="form-storyboard" class="form-control" rows="6" placeholder='[{"time":"00:00-00:03","visual":"…"}]'>${_value(Array.isArray(content.storyboard) && content.storyboard.length ? JSON.stringify(content.storyboard, null, 2) : '')}</textarea>
+            <small>Conservé avec le post pour la production photo/vidéo.</small>
+          </div>
+
           <div class="form-group"><label for="form-deliverable">Livrable / note de production</label><input id="form-deliverable" class="form-control" value="${_value(content.livrable)}"></div>
           <div class="form-group"><label for="form-notes">Notes internes</label><textarea id="form-notes" class="form-control" rows="2">${_value(content.notes)}</textarea></div>
         </div>
@@ -197,6 +223,27 @@ const ContentsView = (() => {
     const message = value('form-message');
     const explicitTitle = value('form-title');
     const autoTitle = (message.split(/\n+/).find(Boolean) || 'Publication').replace(/[#*_]/g, '').trim().slice(0, 80);
+
+    const tags = value('form-tags')
+      .split(/[\s,;]+/)
+      .map(tag => tag.trim())
+      .filter(Boolean)
+      .map(tag => tag.startsWith('#') ? tag : '#' + tag);
+
+    let storyboard = [];
+    const storyboardRaw = value('form-storyboard');
+    if (storyboardRaw) {
+      try {
+        const parsed = JSON.parse(storyboardRaw);
+        storyboard = Array.isArray(parsed) ? parsed : [];
+      } catch {
+        storyboard = storyboardRaw
+          .split(/\n+/)
+          .filter(Boolean)
+          .map(line => ({ visual: line.trim() }));
+      }
+    }
+
     return {
       titre: explicitTitle || autoTitle,
       datePublication: value('form-date'),
@@ -204,7 +251,7 @@ const ContentsView = (() => {
       mediaUrl: value('form-media-url'),
       linkUrl: value('form-link-url'),
       finalUrl: value('form-final-url'),
-      plateforme: value('form-platform', 'Instagram + Facebook (IG + FB)'),
+      plateforme: value('form-platform', getActiveBrand() === 'nidal-junior' ? 'Instagram (IG)' : 'Instagram + Facebook (IG + FB)'),
       format: value('form-format', 'post'),
       statut: value('form-status', 'planifie'),
       validation: value('form-validation', 'a-valider'),
@@ -215,6 +262,12 @@ const ContentsView = (() => {
       objectif: value('form-objective'),
       message,
       cta: value('form-cta'),
+      tags,
+      hashtags: tags,
+      imagePrompt: value('form-image-prompt'),
+      promptImage: value('form-image-prompt'),
+      videoScript: value('form-video-script'),
+      storyboard,
       livrable: value('form-deliverable'),
       notes: value('form-notes'),
       objectifs: {
@@ -359,7 +412,19 @@ const ContentsView = (() => {
   }
 
   function _captionForContent(values = {}) {
-    return [values.message, values.cta].filter(Boolean).join('\n\n').trim();
+    const tags = Array.isArray(values.tags)
+      ? values.tags
+      : (Array.isArray(values.hashtags) ? values.hashtags : []);
+    const hashtagLine = tags
+      .map(tag => String(tag || '').trim())
+      .filter(Boolean)
+      .map(tag => tag.startsWith('#') ? tag : '#' + tag)
+      .join(' ');
+
+    return [values.message, values.cta, hashtagLine]
+      .filter(Boolean)
+      .join('\n\n')
+      .trim();
   }
 
   function _scheduledAtFromContent(values = {}) {
@@ -372,7 +437,9 @@ const ContentsView = (() => {
 
   async function _queueContentPublication(values, mode) {
     if (!NidalAPI.isOnline()) throw new Error('Le serveur NJKPI doit être connecté pour publier via Meta.');
-    const platforms = _platformsFromValue(values.plateforme);
+    const platforms = getActiveBrand() === 'nidal-junior'
+      ? ['instagram']
+      : _platformsFromValue(values.plateforme);
     if (!platforms.length) throw new Error('Choisissez Instagram, Facebook ou les deux.');
 
     if (platforms.includes('instagram') && !values.mediaUrl) {
@@ -397,7 +464,18 @@ const ContentsView = (() => {
       mediaType,
       platforms,
       scheduledAt: scheduledAt.toISOString(),
-      automationMode: mode === 'schedule' ? 'scheduled' : 'manual'
+      automationMode: mode === 'schedule' ? 'scheduled' : 'manual',
+      metadata: {
+        title: values.titre || '',
+        hashtags: Array.isArray(values.tags) ? values.tags : (values.hashtags || []),
+        contentId: values.id || null,
+        imagePrompt: values.imagePrompt || values.promptImage || '',
+        videoScript: values.videoScript || '',
+        storyboard: Array.isArray(values.storyboard) ? values.storyboard : [],
+        timezone: Intl.DateTimeFormat().resolvedOptions().timeZone || '',
+        localDate: values.datePublication || '',
+        localTime: values.heure || ''
+      }
     });
 
     if (mode === 'now') {
@@ -410,13 +488,13 @@ const ContentsView = (() => {
     return job;
   }
 
-  function _bulkPlatformOptions(selected = 'Instagram + Facebook (IG + FB)') {
-    const items = [
-      'Instagram + Facebook (IG + FB)',
-      'Instagram (IG)',
-      'Facebook (FB)'
-    ];
-    return items.map(item => `<option value="${escapeHtml(item)}" ${item === selected ? 'selected' : ''}>${escapeHtml(item)}</option>`).join('');
+  function _bulkPlatformOptions(selected = '') {
+    const junior = getActiveBrand() === 'nidal-junior';
+    const items = junior
+      ? ['Instagram (IG)']
+      : ['Instagram + Facebook (IG + FB)', 'Instagram (IG)', 'Facebook (FB)'];
+    const effective = selected || (junior ? 'Instagram (IG)' : 'Instagram + Facebook (IG + FB)');
+    return items.map(item => `<option value="${escapeHtml(item)}" ${item === effective ? 'selected' : ''}>${escapeHtml(item)}</option>`).join('');
   }
 
   function _localISODate(date) {
@@ -621,7 +699,7 @@ const ContentsView = (() => {
 
   function openCreateForm(defaultDate = '') {
     const today = defaultDate || new Date().toISOString().slice(0, 10);
-    const initial = { datePublication: today, heure: '18:30', format: 'post', statut: 'planifie', niveau: 'tous', validation: 'a-valider', plateforme: 'Instagram + Facebook (IG + FB)', mediaUrl: '', checks: { logo: true, valeurs: true, footer: true, autorisation: true }, objectifs: { portee: 1000, vues: 1500, commentaires: 15, interactions: 50, clics: 10, conversions: 5, eta: today }, resultats: {} };
+    const initial = { datePublication: today, heure: '18:30', format: 'post', statut: 'planifie', niveau: 'tous', validation: 'a-valider', plateforme: getActiveBrand() === 'nidal-junior' ? 'Instagram (IG)' : 'Instagram + Facebook (IG + FB)', mediaUrl: '', checks: { logo: true, valeurs: true, footer: true, autorisation: true }, objectifs: { portee: 1000, vues: 1500, commentaires: 15, interactions: 50, clics: 10, conversions: 5, eta: today }, resultats: {} };
     openModal('Créer une publication', _formHtml(initial, { includePublishActions: true }), {
       footer: `
         <button type="button" class="btn btn--secondary" data-close-modal>Annuler</button>
