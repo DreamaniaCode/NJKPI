@@ -1,14 +1,15 @@
 /** Calendrier mensuel des publications sociales. */
 const PlanningView = (() => {
-  let _year = 2026;
-  let _month = 8;
+  const _now = new Date();
+  let _year = _now.getFullYear();
+  let _month = _now.getMonth();
 
   function render() {
     const view = document.getElementById('view-planning');
     if (!view) return;
     view.innerHTML = `
       <header class="view__header workspace-header">
-        <div><span class="section-kicker">Organisation</span><h1 class="view__title">Planning editorial</h1><p class="view__subtitle">Calendrier Facebook et Instagram · ${escapeHtml(getActiveBrandLabel())}</p></div>
+        <div><span class="section-kicker">Organisation</span><h1 class="view__title">Planning editorial</h1><p class="view__subtitle">${getActiveBrand() === 'nidal-junior' ? 'Calendrier Instagram uniquement' : 'Calendrier Facebook et Instagram'} · ${escapeHtml(getActiveBrandLabel())}</p></div>
         <button class="btn btn--primary" onclick="ContentsView.openCreateForm()">+ Planifier un contenu</button>
       </header>
       <section class="planning">
@@ -20,7 +21,12 @@ const PlanningView = (() => {
       </section>`;
     document.getElementById('plan-prev').onclick = () => _shift(-1);
     document.getElementById('plan-next').onclick = () => _shift(1);
-    document.getElementById('plan-today').onclick = () => { _year = 2026; _month = 8; _renderGrid(); };
+    document.getElementById('plan-today').onclick = () => {
+      const today = new Date();
+      _year = today.getFullYear();
+      _month = today.getMonth();
+      _renderGrid();
+    };
     _renderGrid();
   }
 
@@ -40,7 +46,8 @@ const PlanningView = (() => {
       const dayContents = contents.filter(content => content.datePublication && isSameDay(content.datePublication, date));
       const cell = document.createElement('button');
       cell.type = 'button';
-      cell.className = `planning__day ${_year === 2026 && _month === 8 && day === 23 ? 'planning__day--today' : ''}`;
+      const today = new Date();
+      cell.className = `planning__day ${_year === today.getFullYear() && _month === today.getMonth() && day === today.getDate() ? 'planning__day--today' : ''}`;
       cell.setAttribute('aria-label', `${day} ${MONTHS_FR[_month]} ${_year}, ${dayContents.length} contenu(s)`);
       cell.innerHTML = `<span class="planning__day-number">${day}</span><div class="planning__day-items">${dayContents.slice(0, 3).map(content => `<span style="--item-color:${getContentType(content.format).color}">${escapeHtml(content.titre)}</span>`).join('')}${dayContents.length > 3 ? `<small>+${dayContents.length - 3}</small>` : ''}</div>`;
       cell.onclick = () => _showDetail(date, dayContents);
@@ -54,7 +61,47 @@ const PlanningView = (() => {
       detail.innerHTML = `<div class="empty-state"><img src="./assets/mascot.png" alt=""><div><p>Aucun contenu planifie le <strong>${formatDate(toISODate(date), 'long')}</strong>.</p><button class="btn btn--primary btn--sm" onclick="ContentsView.openCreateForm('${toISODate(date)}')">+ Ajouter</button></div></div>`;
       return;
     }
-    detail.innerHTML = `<h3>${formatDate(toISODate(date), 'long')}</h3><div class="day-content-list">${contents.map(content => `<button onclick="ContentsView.openEditForm('${content.id}')"><span style="--item-color:${getContentType(content.format).color}"></span><div><strong>${escapeHtml(content.titre)}</strong><small>${escapeHtml(content.heure)} · ${escapeHtml(content.plateforme)} · ${escapeHtml(content.classes)}</small></div><i class="badge badge--${content.statut}">${escapeHtml(getStatus(content.statut).label)}</i></button>`).join('')}</div>`;
+
+    detail.innerHTML = `
+      <h3>${formatDate(toISODate(date), 'long')}</h3>
+      <div class="day-content-list">
+        ${contents.map(content => {
+          const tags = Array.isArray(content.tags)
+            ? content.tags
+            : (Array.isArray(content.hashtags) ? content.hashtags : []);
+          const productionText = content.videoScript
+            || content.imagePrompt
+            || content.promptImage
+            || content.livrable
+            || '';
+          const storyboardText = Array.isArray(content.storyboard) && content.storyboard.length
+            ? JSON.stringify(content.storyboard, null, 2)
+            : '';
+          return `
+            <article class="planning-content-detail" style="padding:10px;border:1px solid var(--line);border-radius:8px;margin-bottom:8px;">
+              <button type="button" onclick="ContentsView.openEditForm('${content.id}')" style="width:100%;border:0;background:transparent;text-align:left;display:flex;gap:10px;align-items:center;cursor:pointer;padding:0;">
+                <span style="width:8px;height:34px;border-radius:8px;background:${getContentType(content.format).color};flex:none;"></span>
+                ${content.mediaUrl ? `<img src="${escapeHtml(content.mediaUrl)}" alt="" style="width:48px;height:48px;object-fit:cover;border-radius:6px;" onerror="this.style.display='none'">` : ''}
+                <div style="flex:1;min-width:0;">
+                  <strong>${escapeHtml(content.titre)}</strong>
+                  <small style="display:block;">${escapeHtml(content.heure)} · ${escapeHtml(content.plateforme)} · ${escapeHtml(content.classes)}</small>
+                  ${tags.length ? `<small style="display:block;color:var(--primary);margin-top:3px;">${escapeHtml(tags.join(' '))}</small>` : ''}
+                </div>
+                <i class="badge badge--${content.statut}">${escapeHtml(getStatus(content.statut).label)}</i>
+              </button>
+
+              ${productionText || storyboardText ? `
+                <details style="margin:8px 0 0 18px;">
+                  <summary style="cursor:pointer;font-size:11px;font-weight:700;">Voir script / prompt de production</summary>
+                  ${productionText ? `<pre style="white-space:pre-wrap;margin:8px 0 0;font-size:10.5px;">${escapeHtml(productionText)}</pre>` : ''}
+                  ${storyboardText ? `<pre style="white-space:pre-wrap;margin:8px 0 0;font-size:10px;">${escapeHtml(storyboardText)}</pre>` : ''}
+                </details>
+              ` : ''}
+            </article>
+          `;
+        }).join('')}
+      </div>
+    `;
   }
 
   return { render };
