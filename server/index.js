@@ -547,12 +547,48 @@ app.post('/api/publish/jobs', authenticate, authorize('admin', 'editor'), async 
           : 'Sélectionnez Instagram et/ou Facebook.'
       });
     }
+
+    if (brand === 'nidal-junior' && platforms.includes('instagram')) {
+      const diagnostic = await diagnoseMetaAccess('nidal-junior');
+      if (!diagnostic.instagramDirectTokenConfigured) {
+        return res.status(400).json({
+          error: 'Instagram Nidal Junior non connecté : META_IG_ACCESS_TOKEN_NIDAL_JUNIOR n’est pas configuré sur le serveur.',
+          code: 'NIDAL_JUNIOR_INSTAGRAM_TOKEN_MISSING',
+          diagnostic
+        });
+      }
+      if (!diagnostic.instagramDirectTokenValid) {
+        return res.status(400).json({
+          error: 'Le token Instagram Login de Nidal Junior est invalide ou ne permet pas d’accéder au compte professionnel.',
+          code: 'NIDAL_JUNIOR_INSTAGRAM_TOKEN_INVALID',
+          diagnostic
+        });
+      }
+    }
+
     if (!String(req.body.message || '').trim() && !req.body.mediaUrl && !req.body.linkUrl) {
       return res.status(400).json({ error: 'Ajoutez un texte, un média ou un lien.' });
     }
 
     const scheduledAt = req.body.scheduledAt ? new Date(req.body.scheduledAt) : new Date();
     if (Number.isNaN(scheduledAt.getTime())) return res.status(400).json({ error: 'Date de publication invalide.' });
+
+    const rawMetadata = req.body.metadata && typeof req.body.metadata === 'object'
+      ? req.body.metadata
+      : {};
+    const metadata = {
+      title: String(rawMetadata.title || '').slice(0, 250),
+      hashtags: Array.isArray(rawMetadata.hashtags)
+        ? rawMetadata.hashtags.map(tag => String(tag).slice(0, 100)).slice(0, 30)
+        : [],
+      contentId: rawMetadata.contentId ? String(rawMetadata.contentId).slice(0, 150) : null,
+      imagePrompt: String(rawMetadata.imagePrompt || '').slice(0, 12000),
+      videoScript: String(rawMetadata.videoScript || '').slice(0, 20000),
+      storyboard: Array.isArray(rawMetadata.storyboard) ? rawMetadata.storyboard.slice(0, 100) : [],
+      timezone: String(rawMetadata.timezone || '').slice(0, 100),
+      localDate: String(rawMetadata.localDate || '').slice(0, 20),
+      localTime: String(rawMetadata.localTime || '').slice(0, 10)
+    };
 
     const job = await savePublishJob({
       id: crypto.randomUUID(),
@@ -564,7 +600,8 @@ app.post('/api/publish/jobs', authenticate, authorize('admin', 'editor'), async 
       platforms,
       scheduledAt: scheduledAt.toISOString(),
       status: 'scheduled',
-      automationMode: req.body.automationMode || 'manual'
+      automationMode: req.body.automationMode || 'manual',
+      metadata
     });
 
     res.status(201).json(job);
@@ -1774,22 +1811,30 @@ async function runHourlyAudienceSync() {
   }
 }
 
+let publishQueueRunning = false;
+
 async function runPublishQueue() {
-  const due = await listDuePublishJobs(10);
-  for (const job of due) {
-    const locked = await savePublishJob({ ...job, status: 'publishing', error: null });
-    try {
-      const outcome = await publishSocialJob(locked);
-      await savePublishJob({
-        ...locked,
-        status: Object.keys(outcome.errors || {}).length ? 'partial' : 'published',
-        result: outcome.result,
-        error: Object.entries(outcome.errors || {}).map(([p, m]) => `${p}: ${m}`).join(' | ') || null,
-        publishedAt: new Date().toISOString()
-      });
-    } catch (error) {
-      await savePublishJob({ ...locked, status: 'failed', error: error.message });
+  if (publishQueueRunning) return;
+  publishQueueRunning = true;
+  try {
+    const due = await listDuePublishJobs(20);
+    for (const job of due) {
+      const locked = await savePublishJob({ ...job, status: 'publishing', error: null });
+      try {
+        const outcome = await publishSocialJob(locked);
+        await savePublishJob({
+          ...locked,
+          status: Object.keys(outcome.errors || {}).length ? 'partial' : 'published',
+          result: outcome.result,
+          error: Object.entries(outcome.errors || {}).map(([p, m]) => `${p}: ${m}`).join(' | ') || null,
+          publishedAt: new Date().toISOString()
+        });
+      } catch (error) {
+        await savePublishJob({ ...locked, status: 'failed', error: error.message });
+      }
     }
+  } finally {
+    publishQueueRunning = false;
   }
 }
 
@@ -1806,7 +1851,12 @@ const server = app.listen(port, '0.0.0.0', () => {
       );
     }
     await runPublishQueue();
-    setInterval(() => runPublishQueue().catch(err => console.warn('File publication:', err.message)), 60 * 1000);
+    const publishQueueSeconds = Math.max(5, Number(process.env.PUBLISH_QUEUE_SECONDS || 10));
+    setInterval(
+      () => runPublishQueue().catch(err => console.warn('File publication:', err.message)),
+      publishQueueSeconds * 1000
+    );
+    console.log(`File de publication vérifiée toutes les ${publishQueueSeconds}s.`);
   }).catch(error => {
     console.error('Avertissement initialisation base:', error.message);
   });
