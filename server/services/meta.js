@@ -5,19 +5,9 @@ function rawBrandEnv(prefix, brand) {
   return process.env[`${prefix}_${brand === 'nidal-junior' ? 'NIDAL_JUNIOR' : 'NIDAL'}`];
 }
 
-function nidalJuniorSharesMeta() {
-  // Compatibilité optionnelle seulement. Par défaut Nidal Junior conserve
-  // sa propre configuration Instagram et ne dépend d'aucune Page Facebook.
-  return String(process.env.META_NIDAL_JUNIOR_SHARE_NIDAL ?? 'false').toLowerCase() === 'true';
-}
-
 function brandEnv(prefix, brand) {
-  if (brand === 'nidal-junior' && nidalJuniorSharesMeta()) {
-    // La configuration GS Nidal vérifiée est prioritaire pour éviter qu'une
-    // ancienne valeur Junior erronée (ID Instagram placé comme token, etc.)
-    // casse la publication du sous-univers Nidal Junior.
-    return rawBrandEnv(prefix, 'nidal') || rawBrandEnv(prefix, 'nidal-junior') || null;
-  }
+  // Isolation stricte : chaque marque ne lit que ses propres variables Meta.
+  // Nidal Junior ne doit jamais hériter des IDs/tokens/KPI de GS Nidal.
   return rawBrandEnv(prefix, brand) || null;
 }
 
@@ -964,9 +954,12 @@ async function getAdsAudienceBreakdowns(brand) {
 
 export async function syncAudienceConversions(brand) {
   const normalizedBrand = brand === 'nidal' ? 'nidal' : 'nidal-junior';
+  const juniorOnly = normalizedBrand === 'nidal-junior';
   const [topInstagram, topFacebook, ads] = await Promise.all([
     getInstagramTopContent(normalizedBrand, Number(process.env.META_MEDIA_ANALYSIS_LIMIT || 50)),
-    getFacebookTopContent(normalizedBrand, Number(process.env.META_MEDIA_ANALYSIS_LIMIT || 50)),
+    juniorOnly
+      ? Promise.resolve({ items: [], error: null })
+      : getFacebookTopContent(normalizedBrand, Number(process.env.META_MEDIA_ANALYSIS_LIMIT || 50)),
     getAdsAudienceBreakdowns(normalizedBrand)
   ]);
 
@@ -990,7 +983,7 @@ export async function syncAudienceConversions(brand) {
       topContent: topInstagram.items,
       error: topInstagram.error
     },
-    facebook: {
+    facebook: juniorOnly ? null : {
       analyzedMedia: topFacebook.items.length,
       topContent: topFacebook.items,
       error: topFacebook.error
