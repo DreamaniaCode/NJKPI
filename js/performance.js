@@ -76,11 +76,11 @@ const PerformanceView = (() => {
 
         <div class="kpi-goals-grid">
           ${_renderGoalCard('📸', 'Followers Instagram', targets.followers, '#1746d1', 'abonnés')}
-          ${_renderGoalCard('👁️', 'Vues Vidéos & Reels', targets.views, '#ffc928', 'vues')}
+          ${_renderGoalCard('📢', isNidalJunior ? 'Reach Instagram' : 'Portée globale (Reach)', targets.reach, '#0f8871', 'comptes')}
+          ${_renderGoalCard('👁️', isNidalJunior ? 'Vues Instagram' : 'Vues Vidéos & Reels', targets.views, '#ffc928', 'vues')}
+          ${_renderGoalCard('❤️', isNidalJunior ? 'Interactions Instagram' : 'Interactions totales', targets.interactions, '#6938ef', 'interactions')}
           ${_renderGoalCard('💬', 'Commentaires & Échanges', targets.comments, '#31b9cc', 'commentaires')}
-          ${_renderGoalCard('🎯', 'Conversions / Inscriptions', targets.conversions, '#d91b5c', 'inscriptions')}
-          ${_renderGoalCard('📢', 'Portée globale (Reach)', targets.reach, '#0f8871', 'comptes')}
-          ${_renderGoalCard('❤️', 'Interactions totales', targets.interactions, '#6938ef', 'interactions')}
+          ${!isNidalJunior ? _renderGoalCard('🎯', 'Conversions / Inscriptions', targets.conversions, '#d91b5c', 'inscriptions') : ''}
         </div>
       </section>
 
@@ -108,12 +108,29 @@ const PerformanceView = (() => {
       </section>` : ''}
       <!-- Section 2 : Synthèse cumulée de la marque -->
       <section class="summary-strip" style="grid-template-columns: repeat(6, minmax(0, 1fr));">
-        ${_summary('Portée cumulée', formatNumber(stats.totalReach))}
-        ${_summary('Vues vidéos', formatNumber(stats.totalViews))}
-        ${_summary('Commentaires', formatNumber(stats.totalComments))}
-        ${_summary('Conversions', formatNumber(stats.totalConversions))}
-        ${_summary('Interactions', formatNumber(stats.totalInteractions))}
-        ${_summary('Engagement global', formatPercent(stats.engagement))}
+        ${isNidalJunior
+          ? `
+            ${_summary('Followers IG', formatNumber(targets.followers.current))}
+            ${_summary('Reach Instagram', formatNumber(targets.reach.current))}
+            ${_summary('Vues Instagram', formatNumber(targets.views.current))}
+            ${_summary('Commentaires', formatNumber(targets.comments.current))}
+            ${_summary('Interactions', formatNumber(targets.interactions.current))}
+            ${_summary(
+              'Engagement IG',
+              targets.reach.current > 0
+                ? formatPercent(targets.interactions.current / targets.reach.current)
+                : '—'
+            )}
+          `
+          : `
+            ${_summary('Portée cumulée', formatNumber(stats.totalReach))}
+            ${_summary('Vues vidéos', formatNumber(stats.totalViews))}
+            ${_summary('Commentaires', formatNumber(stats.totalComments))}
+            ${_summary('Conversions', formatNumber(stats.totalConversions))}
+            ${_summary('Interactions', formatNumber(stats.totalInteractions))}
+            ${_summary('Engagement global', formatPercent(stats.engagement))}
+          `
+        }
       </section>
 
       <!-- Section 3 : Suivi par publication avec Objectifs & Échéance (ETA) -->
@@ -329,7 +346,10 @@ const PerformanceView = (() => {
       { group: 'Facebook', key: 'facebookViews', icon: '▶', label: 'Vues Facebook', unit: 'vues', color: '#1877f2', hint: 'Vues des publications Facebook analysées par Meta' },
       { group: 'Facebook', key: 'facebookInteractions', icon: '♥', label: 'Interactions Facebook', unit: 'interactions', color: '#1877f2', hint: 'Réactions + commentaires + partages Facebook' },
       { group: 'Facebook', key: 'facebookComments', icon: '💬', label: 'Commentaires Facebook', unit: 'commentaires', color: '#1877f2', hint: 'Commentaires des publications Facebook analysées' }
-    ].filter(field => brand !== 'nidal-junior' || field.group !== 'Facebook');
+    ].filter(field =>
+      brand !== 'nidal-junior'
+      || (field.group !== 'Facebook' && field.key !== 'conversions')
+    );
 
     const contentHtml = `
       <div style="margin-bottom:14px;">
