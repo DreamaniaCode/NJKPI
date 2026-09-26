@@ -15,6 +15,7 @@ const DashboardView = (() => {
     const liveFacebook = liveMeta?.facebook || null;
     const liveInsights = liveInstagram?.insights || {};
     const liveFacebookInsights = liveFacebook?.insights || {};
+    const kpiTargets = NidalStore.getKpiTargets(activeBrand);
 
     const facebookCardHtml = isNidalJunior ? '' : `
             <article class="social-platform-card social-platform-card--facebook">
@@ -140,16 +141,32 @@ const DashboardView = (() => {
               </div>
 
               <div class="social-metric-grid">
-                ${_socialMetric('Abonnés', liveInstagram ? formatNumber(liveInstagram.followers ?? 0) : '—', 'Communauté IG')}
-                ${_socialMetric('Abonnements', liveInstagram?.follows == null ? '—' : formatNumber(liveInstagram.follows), 'Comptes suivis')}
-                ${_socialMetric('Visites profil', liveInsights.profileViews == null ? '—' : formatNumber(liveInsights.profileViews), 'Insights Instagram')}
-                ${_socialMetric('Reach', liveInsights.reach == null ? '—' : formatNumber(liveInsights.reach), 'Comptes atteints · estimé')}
-                ${_socialMetric('Comptes engagés', liveInsights.accountsEngaged == null ? '—' : formatNumber(liveInsights.accountsEngaged), 'Interactions uniques')}
-                ${_socialMetric('Médias', liveInstagram?.mediaCount == null ? '—' : formatNumber(liveInstagram.mediaCount), 'Posts, Reels et vidéos')}
+                ${_socialMetric('Abonnés', liveInstagram?.followersAvailable === false ? '—' : (liveInstagram ? formatNumber(liveInstagram.followers ?? 0) : '—'), 'Communauté Instagram')}
+                ${_socialMetric('Reach compte', liveInsights.reach == null ? '—' : formatNumber(liveInsights.reach), 'Insight du compte')}
+                ${_socialMetric('Reach médias', liveInsights.mediaReach == null ? '—' : formatNumber(liveInsights.mediaReach), `${liveInsights.analyzedMedia || 0} médias analysés`)}
+                ${_socialMetric('Vues médias', liveInsights.mediaViews == null ? '—' : formatNumber(liveInsights.mediaViews), 'Posts, Reels et vidéos')}
+                ${_socialMetric('Interactions', liveInsights.mediaInteractions == null ? '—' : formatNumber(liveInsights.mediaInteractions), 'Likes + commentaires + partages + enregistrements')}
+                ${_socialMetric('Commentaires', liveInsights.mediaComments == null ? '—' : formatNumber(liveInsights.mediaComments), 'Commentaires des médias analysés')}
+                ${_socialMetric('Partages', liveInsights.mediaShares == null ? '—' : formatNumber(liveInsights.mediaShares), 'Partages des médias analysés')}
+                ${_socialMetric('Enregistrements', liveInsights.mediaSaves == null ? '—' : formatNumber(liveInsights.mediaSaves), 'Sauvegardes des médias analysés')}
+                ${_socialMetric('Visites profil', liveInsights.profileViews == null ? '—' : formatNumber(liveInsights.profileViews), 'Insight Instagram')}
+                ${_socialMetric('Médias du compte', liveInstagram?.mediaCountAvailable === false ? '—' : (liveInstagram?.mediaCount == null ? '—' : formatNumber(liveInstagram.mediaCount)), 'Posts, Reels et vidéos')}
               </div>
 
+              ${(!liveInstagram?.insightsAvailable || liveInsights.mediaError || (Array.isArray(liveInsights.errors) && liveInsights.errors.length)) ? `
+                <div style="margin-top:10px;padding:9px 11px;border-radius:8px;background:#fff8e6;border:1px solid #f2d58a;font-size:10.5px;color:#7a5a00;">
+                  <strong>Accès KPI Instagram :</strong>
+                  ${escapeHtml(
+                    liveInsights.mediaError
+                    || (Array.isArray(liveInsights.errors) && liveInsights.errors.length
+                      ? liveInsights.errors.map(item => item.message || item.metric).join(' · ')
+                      : 'Certaines métriques ne sont pas accessibles avec les permissions actuelles du token Instagram.')
+                  )}
+                </div>
+              ` : ''}
+
               <div class="social-platform-card__footer">
-                <span>${liveInstagram?.insightsAvailable ? 'Insights Instagram actifs' : 'Insights Instagram indisponibles'}</span>
+                <span>${liveInstagram?.insightsAvailable ? 'KPI Instagram synchronisés' : 'Insights Instagram à vérifier'}</span>
                 <span>ID · ${escapeHtml(liveInstagram?.externalId || '—')}</span>
               </div>
             </article>
@@ -169,10 +186,12 @@ ${facebookCardHtml}
           <button class="btn btn--secondary btn--sm" id="dashboard-edit-targets-btn">🎯 Fixer les objectifs</button>
         </div>
         <div class="kpi-goals-grid kpi-goals-grid--dashboard">
-          ${_targetMiniCard('📸', 'Followers Instagram', NidalStore.getKpiTargets().followers, '#1746d1')}
-          ${_targetMiniCard('👁️', 'Vues Vidéos', NidalStore.getKpiTargets().views, '#ffc928')}
-          ${_targetMiniCard('💬', 'Commentaires', NidalStore.getKpiTargets().comments, '#31b9cc')}
-          ${_targetMiniCard('🎯', 'Conversions', NidalStore.getKpiTargets().conversions, '#d91b5c')}
+          ${_targetMiniCard('📸', 'Followers Instagram', kpiTargets.followers, '#1746d1')}
+          ${_targetMiniCard('📢', 'Reach Instagram', kpiTargets.reach, '#0f8871')}
+          ${_targetMiniCard('👁️', 'Vues Instagram', kpiTargets.views, '#ffc928')}
+          ${_targetMiniCard('❤️', 'Interactions', kpiTargets.interactions, '#6938ef')}
+          ${_targetMiniCard('💬', 'Commentaires', kpiTargets.comments, '#31b9cc')}
+          ${!isNidalJunior ? _targetMiniCard('🎯', 'Conversions', kpiTargets.conversions, '#d91b5c') : ''}
         </div>
       </section>
 
