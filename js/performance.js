@@ -13,7 +13,7 @@ const PerformanceView = (() => {
     try {
       const brand = getActiveBrand();
 
-      const [bulk] = await Promise.all([
+      const [bulk, live] = await Promise.all([
         NidalAPI.request('/api/contents/sync-all', {
           method: 'POST',
           body: JSON.stringify({ brand })
@@ -25,7 +25,18 @@ const PerformanceView = (() => {
       render();
 
       if (!silent) {
-        if (bulk?.ok) {
+        if (brand === 'nidal-junior') {
+          if (live?.instagram) {
+            const count = Number(live.instagram?.insights?.analyzedMedia || 0);
+            showToast(`KPI Instagram Junior actualisés · ${count} média(s) analysé(s).`, 'success');
+          } else {
+            const diagnostic = await NidalAPI.request('/api/meta/diagnostics?brand=nidal-junior').catch(() => null);
+            const detail = diagnostic?.errors?.[0]
+              || diagnostic?.configurationWarnings?.[0]
+              || 'profil Instagram non synchronisé';
+            showToast('KPI Instagram indisponibles : ' + detail, 'error', 9000);
+          }
+        } else if (bulk?.ok) {
           showToast(`KPI actualisés : ${bulk.updated || 0} contenu(s) synchronisé(s) avec Meta.`, bulk.failed ? 'info' : 'success');
         } else {
           showToast('Actualisation partielle : ' + (bulk?.error || 'certains contenus ne sont pas synchronisables'), 'info');
