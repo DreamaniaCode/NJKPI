@@ -11,12 +11,12 @@ const NidalStore = (() => {
 
   const DEFAULT_BRAND_KPI_TARGETS = {
     'nidal-junior': {
-      followers: { current: 2450, target: 5000, eta: '2026-12-31', label: 'Followers (Abonnés)', unit: 'abonnés', note: 'Abonnés Instagram Nidal Junior uniquement' },
-      views: { current: 18500, target: 50000, eta: '2026-11-30', label: 'Vues (Reels & Vidéos)', unit: 'vues', note: 'Cumul des vues Reels, Stories et vidéos Nounou' },
-      comments: { current: 320, target: 1000, eta: '2026-11-30', label: 'Commentaires & Échanges', unit: 'commentaires', note: 'Réponses aux quiz, histoires et publications' },
-      conversions: { current: 42, target: 120, eta: '2026-10-31', label: 'Conversions & Inscriptions', unit: 'inscriptions', note: 'Demandes de visite, appels et inscriptions maternelle' },
-      reach: { current: 12400, target: 35000, eta: '2026-11-30', label: 'Portée globale (Reach)', unit: 'comptes', note: 'Familles touchées sur la période' },
-      interactions: { current: 1450, target: 4000, eta: '2026-11-30', label: 'Interactions totales', unit: 'interactions', note: 'Likes, commentaires, partages et enregistrements' },
+      followers: { current: 0, target: 5000, eta: '2026-12-31', label: 'Followers (Abonnés)', unit: 'abonnés', note: 'Abonnés Instagram Nidal Junior uniquement' },
+      views: { current: 0, target: 50000, eta: '2026-11-30', label: 'Vues (Reels & Vidéos)', unit: 'vues', note: 'Cumul des vues Reels, Stories et vidéos Nounou' },
+      comments: { current: 0, target: 1000, eta: '2026-11-30', label: 'Commentaires & Échanges', unit: 'commentaires', note: 'Réponses aux quiz, histoires et publications' },
+      conversions: { current: 0, target: 120, eta: '2026-10-31', label: 'Conversions & Inscriptions', unit: 'inscriptions', note: 'Demandes de visite, appels et inscriptions maternelle' },
+      reach: { current: 0, target: 35000, eta: '2026-11-30', label: 'Portée globale (Reach)', unit: 'comptes', note: 'Familles touchées sur la période' },
+      interactions: { current: 0, target: 4000, eta: '2026-11-30', label: 'Interactions totales', unit: 'interactions', note: 'Likes, commentaires, partages et enregistrements' },
       facebookFollowers: { current: 0, target: 0, eta: '', label: 'Followers Facebook', unit: 'abonnés', note: 'Valeur actuelle synchronisée automatiquement depuis la Page Facebook' },
       facebookReach: { current: 0, target: 0, eta: '', label: 'Reach Facebook', unit: 'comptes', note: 'Portée des publications Facebook analysées par Meta' },
       facebookViews: { current: 0, target: 0, eta: '', label: 'Vues Facebook', unit: 'vues', note: 'Vues des publications Facebook analysées par Meta' },
@@ -85,7 +85,32 @@ const NidalStore = (() => {
       externalMediaId: content.externalMediaId || '',
       syncStatus: content.syncStatus || 'not_connected',
       lastSyncedAt: content.lastSyncedAt || null,
-      tags: Array.isArray(content.tags) ? content.tags : [],
+      tags: Array.isArray(content.tags)
+        ? content.tags
+        : (Array.isArray(content.hashtags) ? content.hashtags : []),
+      hashtags: Array.isArray(content.hashtags)
+        ? content.hashtags
+        : (Array.isArray(content.tags) ? content.tags : []),
+
+      // Conserver le média et tous les livrables IA avec le post.
+      mediaUrl: content.mediaUrl || content.media_url || '',
+      linkUrl: content.linkUrl || content.link_url || '',
+      mediaType: content.mediaType || content.media_type || '',
+      postComplet: content.postComplet || content.post_complet || content.message || '',
+      imagePrompt: content.imagePrompt || content.promptImage || content.prompt_image || '',
+      promptImage: content.promptImage || content.imagePrompt || content.prompt_image || '',
+      videoScript: content.videoScript || content.video_script || '',
+      storyboard: Array.isArray(content.storyboard) ? content.storyboard : [],
+      companionStory: content.companionStory || content.companion_story || null,
+      kpiPrincipal: content.kpiPrincipal || content.primaryKpi || '',
+      sourceAgent: content.sourceAgent || content.source_agent || '',
+      funnelStage: content.funnelStage || content.funnel_stage || '',
+      angle: content.angle || '',
+      hook: content.hook || content.accroche || '',
+      rationale: content.rationale || '',
+      basedOnData: Array.isArray(content.basedOnData) ? content.basedOnData : [],
+      publishedAt: content.publishedAt || content.published_at || null,
+
       checks: {
         logo: content.checks?.logo ?? true,
         valeurs: content.checks?.valeurs ?? true,
@@ -255,7 +280,9 @@ const NidalStore = (() => {
 
         if (liveMeta?.ok) {
           if (!_data.socialProfiles) _data.socialProfiles = {};
-          _data.socialProfiles[brand] = liveMeta;
+          _data.socialProfiles[brand] = brand === 'nidal-junior'
+            ? { ...liveMeta, brand, facebook: null }
+            : liveMeta;
         }
       }
 
@@ -274,7 +301,9 @@ const NidalStore = (() => {
     try {
       const live = await NidalAPI.getSocialLive(slug, refresh);
       if (!_data.socialProfiles) _data.socialProfiles = {};
-      _data.socialProfiles[slug] = live;
+      _data.socialProfiles[slug] = slug === 'nidal-junior'
+        ? { ...live, brand: slug, facebook: null }
+        : live;
       _save();
       return live;
     } catch (error) {
@@ -289,7 +318,15 @@ const NidalStore = (() => {
 
   function getSocialLive(brand = getActiveBrand()) {
     const slug = brand === 'nidal' ? 'nidal' : 'nidal-junior';
-    return _data?.socialProfiles?.[slug] || null;
+    const live = _data?.socialProfiles?.[slug] || null;
+    if (!live) return null;
+
+    // Nidal Junior n'a pas de Page Facebook. Ne jamais exposer un ancien cache
+    // Facebook/GS Nidal dans ses KPI, même avant la prochaine synchro Meta.
+    if (slug === 'nidal-junior') {
+      return { ...live, brand: slug, facebook: null };
+    }
+    return live;
   }
 
   async function _pushItem(item) {
@@ -334,11 +371,22 @@ const NidalStore = (() => {
     const stored = _data?.kpiTargets?.[slug] || fallback;
     const merged = { ...fallback, ...stored };
     const liveMeta = getSocialLive(slug);
+
+    // Les anciennes versions embarquaient des valeurs "current" de démonstration.
+    // Pour Nidal Junior, elles ne doivent jamais être interprétées comme des KPI réels.
+    if (slug === 'nidal-junior') {
+      for (const key of ['followers','views','comments','conversions','reach','interactions']) {
+        merged[key] = { ...(merged[key] || fallback[key]), current: 0, source: 'awaiting-instagram-sync' };
+      }
+      for (const key of ['facebookFollowers','facebookReach','facebookViews','facebookInteractions','facebookComments']) {
+        merged[key] = { ...(merged[key] || fallback[key]), current: 0, target: 0, source: 'not-applicable' };
+      }
+    }
     if (liveMeta?.instagram?.source === 'meta-api' && Number.isFinite(Number(liveMeta.instagram.followers))) {
       merged.followers = { ...(merged.followers || fallback.followers), current: Number(liveMeta.instagram.followers), source: 'meta-api', syncedAt: liveMeta.syncedAt || liveMeta.cachedAt || null };
     }
 
-    if (liveMeta?.facebook?.source === 'meta-api') {
+    if (slug !== 'nidal-junior' && liveMeta?.facebook?.source === 'meta-api') {
       const fb = liveMeta.facebook;
       const fbInsights = fb.insights || {};
       const syncedAt = liveMeta.syncedAt || liveMeta.cachedAt || null;
