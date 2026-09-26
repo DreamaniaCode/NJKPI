@@ -389,14 +389,72 @@ async function syncInstagramProfile(brand) {
     profile = await instagramGraph(brand, igUserId, { fields });
   } catch (error) {
     if (!usesInstagramLogin(brand)) throw error;
-    // Instagram Login peut exposer un jeu de champs différent selon la version
-    // et le type de compte. Ne pas invalider tout le compte pour un champ optionnel.
-    profile = await instagramGraph(brand, igUserId, {
-      fields: 'id,username,media_count'
-    });
+
+    // Certains comptes Instagram Login refusent un champ optionnel du profil
+    // mais acceptent bien les compteurs utiles aux KPI. Conserver ces compteurs
+    // avant de retomber sur le strict minimum.
+    try {
+      profile = await instagramGraph(brand, igUserId, {
+        fields: 'id,username,followers_count,follows_count,media_count'
+      });
+    } catch {
+      profile = await instagramGraph(brand, igUserId, {
+        fields: 'id,username,media_count'
+      });
+    }
   }
-  const insights = await syncInstagramAccountInsights(brand, igUserId);
-  const hasInsights = [insights.profileViews, insights.reach, insights.accountsEngaged].some(value => value !== null);
+
+  const [accountInsights, mediaPerformance] = await Promise.all([
+    syncInstagramAccountInsights(brand, igUserId),
+    getInstagramTopContent(
+      brand,
+      Number(process.env.META_INSTAGRAM_LIVE_MEDIA_LIMIT || process.env.META_MEDIA_ANALYSIS_LIMIT || 50)
+    )
+  ]);
+
+  const mediaItems = mediaPerformance.items || [];
+  const mediaTotals = mediaItems.reduce((acc, item) => {
+    const metrics = item.metrics || {};
+    acc.reach += Number(metrics.reach || 0);
+    acc.views += Number(metrics.views || 0);
+    acc.likes += Number(metrics.likes || 0);
+    acc.comments += Number(metrics.comments || 0);
+    acc.shares += Number(metrics.shares || 0);
+    acc.saves += Number(metrics.saves || 0);
+    acc.interactions += Number(metrics.interactions || 0);
+    return acc;
+  }, {
+    reach: 0,
+    views: 0,
+    likes: 0,
+    comments: 0,
+    shares: 0,
+    saves: 0,
+    interactions: 0
+  });
+
+  const insights = {
+    ...accountInsights,
+    analyzedMedia: mediaItems.length,
+    mediaReach: mediaTotals.reach,
+    mediaViews: mediaTotals.views,
+    mediaLikes: mediaTotals.likes,
+    mediaComments: mediaTotals.comments,
+    mediaShares: mediaTotals.shares,
+    mediaSaves: mediaTotals.saves,
+    mediaInteractions: mediaTotals.interactions,
+    topContent: mediaItems.slice(0, 8),
+    mediaError: mediaPerformance.error || null
+  };
+
+  const hasInsights = [
+    insights.profileViews,
+    insights.reach,
+    insights.accountsEngaged,
+    insights.mediaReach,
+    insights.mediaViews,
+    insights.mediaInteractions
+  ].some(value => value !== null && value !== undefined);
 
   return {
     platform: 'instagram',
