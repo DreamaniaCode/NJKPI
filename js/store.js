@@ -589,7 +589,11 @@ const NidalStore = (() => {
   }
 
   function getStats() {
-    const contents = getAll();
+    const activeBrand = getActiveBrand();
+    const contents = getAll(activeBrand).filter(content =>
+      activeBrand !== 'nidal-junior'
+      || /instagram|\big\b/i.test(String(content.plateforme || ''))
+    );
     const byStatus = Object.fromEntries(STATUSES.map(status => [status.id, 0]));
     const byFormat = Object.fromEntries(CONTENT_TYPES.map(type => [type.id, 0]));
     const byLevel = Object.fromEntries(LEVELS.map(level => [level.id, 0]));
