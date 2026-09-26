@@ -66,7 +66,7 @@ function normalizeContent(item = {}) {
     title,
     format,
     status,
-    platform: item.platform || data.canal || data.platform || '',
+    platform: item.platform || data.plateforme || data.canal || data.platform || '',
     syncStatus,
     isDemo: syncStatus === 'demo' || Boolean(data.isDemo),
     finalUrl: item.final_url || data.finalUrl || '',
@@ -87,7 +87,7 @@ export function buildKpiContext({
 } = {}) {
   const slug = normalizeBrand(brand);
   const instagramRecord = socialProfiles?.instagram || null;
-  const facebookRecord = socialProfiles?.facebook || null;
+  const facebookRecord = slug === 'nidal-junior' ? null : (socialProfiles?.facebook || null);
   const instagramProfile = instagramRecord?.profile || instagramRecord || null;
   const facebookProfile = facebookRecord?.profile || facebookRecord || null;
   const liveFollowers = instagramProfile?.source === 'meta-api' && Number.isFinite(Number(instagramProfile.followers))
@@ -103,18 +103,21 @@ export function buildKpiContext({
   } : {};
 
   const targets = Object.entries(targetsRecord?.targets || {})
+    .filter(([name]) => slug !== 'nidal-junior' || !/^facebook/i.test(name))
     .map(([name, raw]) => {
-      let effective = raw;
+      let effective = slug === 'nidal-junior' ? { ...raw, current: 0 } : raw;
       if (name === 'followers' && liveFollowers !== null) {
         effective = { ...raw, current: liveFollowers };
-      } else if (Object.prototype.hasOwnProperty.call(facebookLive, name)) {
+      } else if (slug !== 'nidal-junior' && Object.prototype.hasOwnProperty.call(facebookLive, name)) {
         const liveValue = Number(facebookLive[name]);
         if (Number.isFinite(liveValue)) effective = { ...raw, current: liveValue };
       }
       return normalizeTarget(name, effective, now);
     });
 
-  const normalizedContents = (contents || []).map(normalizeContent);
+  const normalizedContents = (contents || [])
+    .map(normalizeContent)
+    .filter(item => slug !== 'nidal-junior' || /instagram|\big\b/i.test(String(item.platform || '')));
   const measured = normalizedContents.filter(item => item.hasMetrics);
   const realMeasured = measured.filter(item => !item.isDemo);
   const demoMeasured = measured.filter(item => item.isDemo);
@@ -185,7 +188,7 @@ export function buildKpiContext({
         accountsEngaged: instagramProfile.insights?.accountsEngaged ?? null,
         syncedAt: instagramRecord?.synced_at || instagramRecord?.syncedAt || null
       } : null,
-      facebook: facebookProfile ? {
+      facebook: slug !== 'nidal-junior' && facebookProfile ? {
         source: facebookProfile.source || facebookRecord?.source || null,
         username: facebookProfile.username || null,
         name: facebookProfile.name || null,
@@ -249,9 +252,11 @@ export function formatKpiContext(context = {}) {
     socialInstagram
       ? `- Instagram @${socialInstagram.username || 'inconnu'} : ${socialInstagram.followers ?? 'n/a'} abonnés, ${socialInstagram.profileViews ?? 'n/a'} visites profil, reach ${socialInstagram.reach ?? 'n/a'}, ${socialInstagram.mediaCount ?? 'n/a'} médias`
       : '- Instagram : non synchronisé.',
-    socialFacebook
-      ? `- Facebook ${socialFacebook.name || socialFacebook.username || 'Page'} : ${socialFacebook.followers ?? 'n/a'} abonnés, reach ${socialFacebook.reach ?? 'n/a'}, vues ${socialFacebook.views ?? 'n/a'}, interactions ${socialFacebook.interactions ?? 'n/a'}, commentaires ${socialFacebook.comments ?? 'n/a'} sur ${socialFacebook.analyzedPosts ?? 'n/a'} posts analysés`
-      : '- Facebook : non synchronisé.',
+    ...(context.brand === 'nidal-junior'
+      ? []
+      : [socialFacebook
+          ? `- Facebook ${socialFacebook.name || socialFacebook.username || 'Page'} : ${socialFacebook.followers ?? 'n/a'} abonnés, reach ${socialFacebook.reach ?? 'n/a'}, vues ${socialFacebook.views ?? 'n/a'}, interactions ${socialFacebook.interactions ?? 'n/a'}, commentaires ${socialFacebook.comments ?? 'n/a'} sur ${socialFacebook.analyzedPosts ?? 'n/a'} posts analysés`
+          : '- Facebook : non synchronisé.']),
     '',
     'AGRÉGATS DES CONTENUS RÉELS',
     `- Portée : ${totals.portee || 0}`,
