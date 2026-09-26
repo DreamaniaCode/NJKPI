@@ -34,7 +34,13 @@ const ContentsView = (() => {
 
   function _filtered() {
     return NidalStore.getAll().filter(content => {
-      const haystack = [content.titre, content.classes, content.album, content.message].join(' ').toLowerCase();
+      const haystack = [
+        content.titre,
+        content.classes,
+        content.album,
+        content.message,
+        ...(Array.isArray(content.tags) ? content.tags : [])
+      ].join(' ').toLowerCase();
       return (!_query || haystack.includes(_query)) && (!_format || content.format === _format) && (!_status || content.statut === _status) && (!_level || content.niveau === _level);
     });
   }
@@ -52,7 +58,18 @@ const ContentsView = (() => {
       const platformMeta = typeof getPlatform === 'function' ? getPlatform(content.plateforme) : { icon: '🌐', short: content.plateforme || 'IG + FB' };
       return `<tr>
         <td><strong>${formatDate(content.datePublication, 'compact')}</strong><small>${escapeHtml(content.heure)}</small></td>
-        <td><strong>${escapeHtml(content.titre)}</strong><small>${escapeHtml(content.album || content.objectif)}</small></td>
+        <td>
+          <strong>${escapeHtml(content.titre)}</strong>
+          <small>${escapeHtml(content.album || content.objectif)}</small>
+          ${Array.isArray(content.tags) && content.tags.length
+            ? `<small style="color:var(--primary);margin-top:2px;">${escapeHtml(content.tags.join(' '))}</small>`
+            : ''}
+          <small style="margin-top:2px;">
+            ${content.mediaUrl ? '🖼️ Média attaché ' : ''}
+            ${content.imagePrompt || content.promptImage ? '· ✨ Prompt photo ' : ''}
+            ${content.videoScript || (Array.isArray(content.storyboard) && content.storyboard.length) ? '· 🎬 Script vidéo' : ''}
+          </small>
+        </td>
         <td>${escapeHtml(getLevel(content.niveau).label)}<small>${escapeHtml(content.classes)}</small></td>
         <td>${escapeHtml(getContentType(content.format).label)}<span class="badge" style="margin-left:6px;font-size:10px;background:#eef4ff;color:#1746d1;font-weight:600;">${platformMeta.icon} ${escapeHtml(platformMeta.short)}</span></td>
         <td><span class="badge badge--${content.statut}">${escapeHtml(getStatus(content.statut).label)}</span></td>
