@@ -328,7 +328,14 @@ const DEFAULT_BRAND_KPI_TARGETS = {
 
 export async function getKpiTargets(brand = 'nidal-junior') {
   const slug = brand === 'nidal' ? 'nidal' : 'nidal-junior';
-  const fallback = DEFAULT_BRAND_KPI_TARGETS[slug];
+  const rawFallback = DEFAULT_BRAND_KPI_TARGETS[slug];
+  const fallback = slug === 'nidal-junior'
+    ? Object.fromEntries(
+        Object.entries(rawFallback || {})
+          .filter(([key]) => !/^facebook/i.test(key))
+          .map(([key, value]) => [key, { ...(value || {}), current: 0 }])
+      )
+    : rawFallback;
   if (!hasDatabase) {
     return memory.kpiTargets.get(slug) || { brand_slug: slug, targets: fallback, updated_at: new Date().toISOString() };
   }
@@ -337,7 +344,13 @@ export async function getKpiTargets(brand = 'nidal-junior') {
     if (result.rows[0]) {
       return {
         brand_slug: slug,
-        targets: { ...fallback, ...(result.rows[0].targets || {}) },
+        targets: slug === 'nidal-junior'
+          ? Object.fromEntries(
+              Object.entries({ ...fallback, ...(result.rows[0].targets || {}) })
+                .filter(([key]) => !/^facebook/i.test(key))
+                .map(([key, value]) => [key, { ...(value || {}), current: 0 }])
+            )
+          : { ...fallback, ...(result.rows[0].targets || {}) },
         updated_at: result.rows[0].updated_at
       };
     }
@@ -351,7 +364,10 @@ export async function getKpiTargets(brand = 'nidal-junior') {
 export async function saveKpiTargets(brand = 'nidal-junior', targets = {}) {
   const slug = brand === 'nidal' ? 'nidal' : 'nidal-junior';
   const fallback = DEFAULT_BRAND_KPI_TARGETS[slug];
-  const merged = { ...fallback, ...(targets || {}) };
+  const mergedRaw = { ...fallback, ...(targets || {}) };
+  const merged = slug === 'nidal-junior'
+    ? Object.fromEntries(Object.entries(mergedRaw).filter(([key]) => !/^facebook/i.test(key)))
+    : mergedRaw;
   const record = {
     brand_slug: slug,
     targets: merged,
