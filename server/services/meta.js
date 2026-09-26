@@ -1,29 +1,43 @@
 const GRAPH_VERSION = process.env.META_GRAPH_VERSION || 'v26.0';
 const GRAPH_URL = `https://graph.facebook.com/${GRAPH_VERSION}`;
 
-function brandEnv(prefix, brand) {
+function rawBrandEnv(prefix, brand) {
   return process.env[`${prefix}_${brand === 'nidal-junior' ? 'NIDAL_JUNIOR' : 'NIDAL'}`];
+}
+
+function nidalJuniorSharesMeta() {
+  // Nidal Junior publie sur les mêmes comptes officiels @gsnidal que GS Nidal.
+  // Mettre META_NIDAL_JUNIOR_SHARE_NIDAL=false uniquement si un jour la marque
+  // dispose réellement de comptes Facebook/Instagram séparés.
+  return String(process.env.META_NIDAL_JUNIOR_SHARE_NIDAL ?? 'true').toLowerCase() !== 'false';
+}
+
+function brandEnv(prefix, brand) {
+  if (brand === 'nidal-junior' && nidalJuniorSharesMeta()) {
+    // La configuration GS Nidal vérifiée est prioritaire pour éviter qu'une
+    // ancienne valeur Junior erronée (ID Instagram placé comme token, etc.)
+    // casse la publication du sous-univers Nidal Junior.
+    return rawBrandEnv(prefix, 'nidal') || rawBrandEnv(prefix, 'nidal-junior') || null;
+  }
+  return rawBrandEnv(prefix, brand) || null;
 }
 
 function resolvedInstagramUserId(brand) {
   const configured = brandEnv('META_IG_USER_ID', brand);
-  if (configured) return configured;
+  return configured ? String(configured).trim() : null;
+}
 
-  // Compatibilité temporaire : les Instagram Business Account IDs commencent
-  // fréquemment par 178414... Si cet ID a été placé par erreur dans la variable
-  // Page Access Token, on l'utilise uniquement comme IG user ID et jamais comme token.
-  const misplaced = brandEnv('META_PAGE_ACCESS_TOKEN', brand);
-  if (/^178414\d{8,}$/.test(String(misplaced || ''))) {
-    return String(misplaced);
-  }
-  return null;
+function resolvedFacebookPageId(brand) {
+  const configured = resolvedFacebookPageId(brand);
+  return configured ? String(configured).trim() : null;
 }
 
 function configuredPageToken(brand) {
   const value = brandEnv('META_PAGE_ACCESS_TOKEN', brand);
-  // Un token Meta n'est pas un simple identifiant numérique.
-  if (/^\d+$/.test(String(value || ''))) return null;
-  return value || null;
+  // Un Page Access Token Meta n'est jamais un simple identifiant numérique.
+  // Ne jamais réinterpréter un nombre comme Instagram User ID.
+  if (/^\d+$/.test(String(value || '').trim())) return null;
+  return value ? String(value).trim() : null;
 }
 
 function normalizedUrl(value) {
@@ -86,7 +100,7 @@ async function graphPost(path, params = {}, accessToken = process.env.META_ACCES
 const PAGE_TOKEN_CACHE = new Map();
 
 async function resolvePageAccessToken(brand) {
-  let pageId = brandEnv('META_PAGE_ID', brand);
+  let pageId = resolvedFacebookPageId(brand);
   const igUserId = resolvedInstagramUserId(brand);
 
   const cachedKey = pageId || (igUserId ? `ig:${igUserId}` : null);
@@ -96,14 +110,35 @@ async function resolvePageAccessToken(brand) {
   }
 
   const configured = configuredPageToken(brand);
-  if (configured && pageId) {
+  if (configured) {
     try {
-      const identity = await graph('me', { fields: 'id,name' }, configured);
-      if (String(identity?.id) === String(pageId)) {
+      const identity = await graph('me', {
+        fields: 'id,name,instagram_business_account{id,username}'
+      }, configured);
+
+      const tokenPageId = identity?.id ? String(identity.id) : null;
+      const tokenIgId = identity?.instagram_business_account?.id
+        ? String(identity.instagram_business_account.id)
+        : null;
+
+      if (!pageId && tokenPageId) {
+        pageId = tokenPageId;
+      }
+
+      const pageMatches = pageId && tokenPageId && String(tokenPageId) === String(pageId);
+      const instagramMatches = !igUserId || !tokenIgId || String(tokenIgId) === String(igUserId);
+
+      if (pageMatches && instagramMatches) {
         PAGE_TOKEN_CACHE.set(pageId, configured);
+        if (igUserId) PAGE_TOKEN_CACHE.set(`ig:${igUserId}`, configured);
         return configured;
       }
-      console.warn(`[Meta] Page token configuré ne correspond pas à la Page ${pageId}; tentative via /me/accounts.`);
+
+      console.warn(
+        `[Meta] Page token configuré ne correspond pas à la configuration résolue (` +
+        `page attendue=${pageId || 'inconnue'}, page token=${tokenPageId || 'inconnue'}, ` +
+        `IG attendu=${igUserId || 'inconnu'}, IG token=${tokenIgId || 'inconnu'}). Tentative via /me/accounts.`
+      );
     } catch (error) {
       console.warn('[Meta] Page token configuré invalide, tentative via /me/accounts:', error.message);
     }
@@ -152,8 +187,14 @@ async function resolvePageAccessToken(brand) {
   }
 
   if (!pageId) {
+    const pageSummary = pages.length
+      ? pages.map(item => `${item.name || 'Page'} (${item.id}) → IG ${item.instagram_business_account?.id || 'non lié'}`).join(', ')
+      : 'aucune Page retournée';
+
     throw new Error(
-      `META_PAGE_ID non configuré pour ${brand} et aucune Page liée à l'Instagram Business Account ${igUserId || 'non configuré'} n'a pu être détectée via /me/accounts.`
+      `Aucune Page Facebook exploitable trouvée pour ${brand}. Instagram attendu: ${igUserId || 'non configuré'}. ` +
+      `/me/accounts: ${pageSummary}. Vérifiez que le token Meta autorise bien la Page @gsnidal et les permissions ` +
+      'pages_show_list, pages_read_engagement, pages_manage_posts, instagram_basic et instagram_content_publish.'
     );
   }
 
@@ -184,17 +225,38 @@ async function pageGraph(brand, path, params = {}) {
 }
 
 export async function diagnoseMetaAccess(brand) {
-  const pageId = brandEnv('META_PAGE_ID', brand);
+  const pageId = resolvedFacebookPageId(brand);
+  const rawJuniorPageToken = brand === 'nidal-junior'
+    ? rawBrandEnv('META_PAGE_ACCESS_TOKEN', 'nidal-junior')
+    : null;
+  const rawJuniorIgId = brand === 'nidal-junior'
+    ? rawBrandEnv('META_IG_USER_ID', 'nidal-junior')
+    : null;
+  const rawNidalIgId = rawBrandEnv('META_IG_USER_ID', 'nidal');
+  const usingSharedNidal = brand === 'nidal-junior' && nidalJuniorSharesMeta();
+
+  const configurationWarnings = [];
+  if (rawJuniorPageToken && /^\d+$/.test(String(rawJuniorPageToken).trim())) {
+    configurationWarnings.push(
+      'META_PAGE_ACCESS_TOKEN_NIDAL_JUNIOR contient un identifiant numérique au lieu d’un Page Access Token. Cette valeur est désormais ignorée.'
+    );
+  }
+  if (usingSharedNidal && rawJuniorIgId && rawNidalIgId && String(rawJuniorIgId) !== String(rawNidalIgId)) {
+    configurationWarnings.push(
+      'META_IG_USER_ID_NIDAL_JUNIOR diffère du compte officiel GS Nidal. La configuration GS Nidal partagée est utilisée pour @gsnidal.'
+    );
+  }
+
   const result = {
     brand,
     pageId,
+    metaConfigSource: usingSharedNidal ? 'shared-nidal' : 'brand-specific',
+    sharesNidalMeta: usingSharedNidal,
     userTokenConfigured: Boolean(process.env.META_ACCESS_TOKEN),
     pageTokenConfigured: Boolean(configuredPageToken(brand)),
     instagramUserIdConfigured: Boolean(resolvedInstagramUserId(brand)),
     instagramUserId: resolvedInstagramUserId(brand),
-    configurationWarnings: /^178414\d{8,}$/.test(String(brandEnv('META_PAGE_ACCESS_TOKEN', brand) || ''))
-      ? ['META_PAGE_ACCESS_TOKEN contient un identifiant Instagram numérique. NJKPI le traite temporairement comme META_IG_USER_ID; configurez les variables correctement dans Coolify.']
-      : [],
+    configurationWarnings,
     userPermissions: [],
     missingUserPermissions: [],
     pageTokenValid: false,
@@ -219,7 +281,9 @@ export async function diagnoseMetaAccess(brand) {
     const token = await resolvePageAccessToken(brand);
     const identity = await graph('me', { fields: 'id,name' }, token);
     result.pageIdentity = identity;
-    result.pageTokenValid = String(identity?.id) === String(pageId);
+    const effectivePageId = pageId || identity?.id || null;
+    if (!result.pageId && effectivePageId) result.pageId = String(effectivePageId);
+    result.pageTokenValid = Boolean(effectivePageId) && String(identity?.id) === String(effectivePageId);
   } catch (error) {
     result.errors.push(error.message);
   }
@@ -228,7 +292,7 @@ export async function diagnoseMetaAccess(brand) {
 }
 
 export function metaConfigured(brand) {
-  return Boolean(process.env.META_ACCESS_TOKEN && (brandEnv('META_PAGE_ID', brand) || resolvedInstagramUserId(brand)));
+  return Boolean(process.env.META_ACCESS_TOKEN && (resolvedFacebookPageId(brand) || resolvedInstagramUserId(brand)));
 }
 
 async function syncInstagramAccountInsights(igUserId) {
@@ -342,7 +406,7 @@ async function syncFacebookPageInsights(brand, pageId) {
 }
 
 async function syncFacebookProfile(brand) {
-  const pageId = brandEnv('META_PAGE_ID', brand);
+  const pageId = resolvedFacebookPageId(brand);
   if (!pageId) throw new Error(`META_PAGE_ID non configuré pour ${brand}`);
 
   const fields = 'id,name,username,about,description,category,website,link,fan_count,followers_count,picture.type(large)';
@@ -433,7 +497,7 @@ export async function syncSocialProfiles({ brand, instagramUrl = '', facebookUrl
       try { result.instagram = await syncInstagramProfile(brand); }
       catch (error) { result.errors.push({ platform: 'instagram', source: 'meta-api', message: error.message }); }
     }
-    if (brandEnv('META_PAGE_ID', brand)) {
+    if (resolvedFacebookPageId(brand)) {
       try { result.facebook = await syncFacebookProfile(brand); }
       catch (error) { result.errors.push({ platform: 'facebook', source: 'meta-api', message: error.message }); }
     }
@@ -562,7 +626,7 @@ async function syncInstagram(brand, finalUrl) {
 }
 
 async function syncFacebook(brand, finalUrl) {
-  const pageId = brandEnv('META_PAGE_ID', brand);
+  const pageId = resolvedFacebookPageId(brand);
   if (!pageId) throw new Error(`Page Facebook non configurée pour ${brand}`);
 
   const ref = facebookObjectRef(finalUrl);
@@ -698,7 +762,7 @@ async function getInstagramTopContent(brand, limit = 50) {
 }
 
 async function getFacebookTopContent(brand, limit = 50) {
-  const pageId = brandEnv('META_PAGE_ID', brand);
+  const pageId = resolvedFacebookPageId(brand);
   if (!pageId) return { items: [], error: `META_PAGE_ID non configuré pour ${brand}` };
 
   try {
@@ -917,7 +981,7 @@ function demoAds(brand) {
 
 
 async function publishFacebookPost(brand, job) {
-  const pageId = brandEnv('META_PAGE_ID', brand);
+  const pageId = resolvedFacebookPageId(brand);
   if (!pageId) throw new Error(`META_PAGE_ID non configuré pour ${brand}`);
   const pageToken = await resolvePageAccessToken(brand);
 
