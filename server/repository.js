@@ -537,6 +537,7 @@ export async function savePublishJob(job) {
     scheduled_at: job.scheduledAt || job.scheduled_at || new Date().toISOString(),
     status: job.status || 'scheduled',
     automation_mode: job.automationMode || job.automation_mode || 'manual',
+    metadata: job.metadata && typeof job.metadata === 'object' ? job.metadata : {},
     result: job.result || {},
     error: job.error || null,
     created_at: job.createdAt || job.created_at || new Date().toISOString(),
@@ -548,18 +549,19 @@ export async function savePublishJob(job) {
   try {
     const result = await query(`
       INSERT INTO social_publish_jobs
-        (id, brand_slug, message, media_url, link_url, media_type, platforms, scheduled_at, status, automation_mode, result, error, created_at, published_at, updated_at)
-      VALUES ($1,$2,$3,$4,$5,$6,$7::jsonb,$8,$9,$10,$11::jsonb,$12,$13,$14,NOW())
+        (id, brand_slug, message, media_url, link_url, media_type, platforms, scheduled_at, status, automation_mode, metadata, result, error, created_at, published_at, updated_at)
+      VALUES ($1,$2,$3,$4,$5,$6,$7::jsonb,$8,$9,$10,$11::jsonb,$12::jsonb,$13,$14,$15,NOW())
       ON CONFLICT (id) DO UPDATE SET
         message=EXCLUDED.message, media_url=EXCLUDED.media_url, link_url=EXCLUDED.link_url,
         media_type=EXCLUDED.media_type, platforms=EXCLUDED.platforms, scheduled_at=EXCLUDED.scheduled_at,
-        status=EXCLUDED.status, automation_mode=EXCLUDED.automation_mode, result=EXCLUDED.result,
-        error=EXCLUDED.error, published_at=EXCLUDED.published_at, updated_at=NOW()
+        status=EXCLUDED.status, automation_mode=EXCLUDED.automation_mode, metadata=EXCLUDED.metadata,
+        result=EXCLUDED.result, error=EXCLUDED.error, published_at=EXCLUDED.published_at, updated_at=NOW()
       RETURNING *
     `, [
       record.id, record.brand_slug, record.message, record.media_url, record.link_url,
       record.media_type, JSON.stringify(record.platforms), record.scheduled_at, record.status,
-      record.automation_mode, JSON.stringify(record.result), record.error, record.created_at, record.published_at
+      record.automation_mode, JSON.stringify(record.metadata), JSON.stringify(record.result),
+      record.error, record.created_at, record.published_at
     ]);
     return result.rows[0];
   } catch (error) {
