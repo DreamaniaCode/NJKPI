@@ -406,10 +406,12 @@ async function syncInstagramProfile(brand) {
 
   const [accountInsights, mediaPerformance] = await Promise.all([
     syncInstagramAccountInsights(brand, igUserId),
-    getInstagramTopContent(
-      brand,
-      Number(process.env.META_INSTAGRAM_LIVE_MEDIA_LIMIT || process.env.META_MEDIA_ANALYSIS_LIMIT || 50)
-    )
+    brand === 'nidal-junior'
+      ? getInstagramTopContent(
+          brand,
+          Number(process.env.META_INSTAGRAM_LIVE_MEDIA_LIMIT || 25)
+        )
+      : Promise.resolve({ items: [], error: null })
   ]);
 
   const mediaItems = mediaPerformance.items || [];
@@ -465,8 +467,11 @@ async function syncInstagramProfile(brand) {
     biography: profile.biography || '',
     website: profile.website || '',
     followers: Number(profile.followers_count || 0),
+    followersAvailable: profile.followers_count !== undefined && profile.followers_count !== null,
     follows: Number(profile.follows_count || 0),
+    followsAvailable: profile.follows_count !== undefined && profile.follows_count !== null,
     mediaCount: Number(profile.media_count || 0),
+    mediaCountAvailable: profile.media_count !== undefined && profile.media_count !== null,
     profilePictureUrl: profile.profile_picture_url || null,
     profileUrl: profile.username ? `https://www.instagram.com/${profile.username}/` : null,
     insightsAvailable: hasInsights,
