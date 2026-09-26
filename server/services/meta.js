@@ -338,7 +338,15 @@ export async function diagnoseMetaAccess(brand) {
 
 export function metaConfigured(brand) {
   const directInstagram = Boolean(configuredInstagramToken(brand) && resolvedInstagramUserId(brand));
-  const facebookLogin = Boolean(process.env.META_ACCESS_TOKEN && (resolvedFacebookPageId(brand) || resolvedInstagramUserId(brand)));
+
+  // Nidal Junior n'a pas de Page Facebook : un META_ACCESS_TOKEN global ne
+  // signifie pas que son Instagram est publiable/synchronisable.
+  if (brand === 'nidal-junior') return directInstagram;
+
+  const facebookLogin = Boolean(
+    process.env.META_ACCESS_TOKEN
+    && (resolvedFacebookPageId(brand) || resolvedInstagramUserId(brand))
+  );
   return directInstagram || facebookLogin;
 }
 
