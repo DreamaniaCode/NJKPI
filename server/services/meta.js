@@ -9,7 +9,7 @@ function nidalJuniorSharesMeta() {
   // Nidal Junior publie sur les mêmes comptes officiels @gsnidal que GS Nidal.
   // Mettre META_NIDAL_JUNIOR_SHARE_NIDAL=false uniquement si un jour la marque
   // dispose réellement de comptes Facebook/Instagram séparés.
-  return String(process.env.META_NIDAL_JUNIOR_SHARE_NIDAL ?? 'true').toLowerCase() !== 'false';
+  return String(process.env.META_NIDAL_JUNIOR_SHARE_NIDAL ?? 'false').toLowerCase() === 'true';
 }
 
 function brandEnv(prefix, brand) {
@@ -38,6 +38,55 @@ function configuredPageToken(brand) {
   // Ne jamais réinterpréter un nombre comme Instagram User ID.
   if (/^\d+$/.test(String(value || '').trim())) return null;
   return value ? String(value).trim() : null;
+}
+
+function configuredInstagramToken(brand) {
+  const value = rawBrandEnv('META_IG_ACCESS_TOKEN', brand);
+  return value ? String(value).trim() : null;
+}
+
+function usesInstagramLogin(brand) {
+  return Boolean(configuredInstagramToken(brand));
+}
+
+const INSTAGRAM_GRAPH_URL = `https://graph.instagram.com/${GRAPH_VERSION}`;
+
+async function directInstagramGraph(brand, path, params = {}, method = 'GET') {
+  const token = configuredInstagramToken(brand);
+  if (!token) throw new Error(`META_IG_ACCESS_TOKEN non configuré pour ${brand}`);
+
+  const url = new URL(`${INSTAGRAM_GRAPH_URL}/${path.replace(/^\//, '')}`);
+  Object.entries(params || {}).forEach(([key, value]) => {
+    if (value !== undefined && value !== null && value !== '') {
+      url.searchParams.set(key, String(value));
+    }
+  });
+
+  const response = await fetch(url, {
+    method,
+    headers: { Authorization: `Bearer ${token}` }
+  });
+  const payload = await response.json().catch(() => ({}));
+  if (!response.ok || payload.error) {
+    throw new Error(payload.error?.message || `Instagram API ${response.status}`);
+  }
+  return payload;
+}
+
+async function instagramGraph(brand, path, params = {}) {
+  if (usesInstagramLogin(brand)) {
+    return directInstagramGraph(brand, path, params, 'GET');
+  }
+  const pageToken = await resolvePageAccessToken(brand);
+  return graph(path, params, pageToken);
+}
+
+async function instagramGraphPost(brand, path, params = {}) {
+  if (usesInstagramLogin(brand)) {
+    return directInstagramGraph(brand, path, params, 'POST');
+  }
+  const pageToken = await resolvePageAccessToken(brand);
+  return graphPost(path, params, pageToken);
 }
 
 function normalizedUrl(value) {
@@ -226,43 +275,50 @@ async function pageGraph(brand, path, params = {}) {
 
 export async function diagnoseMetaAccess(brand) {
   const pageId = resolvedFacebookPageId(brand);
-  const rawJuniorPageToken = brand === 'nidal-junior'
-    ? rawBrandEnv('META_PAGE_ACCESS_TOKEN', 'nidal-junior')
-    : null;
-  const rawJuniorIgId = brand === 'nidal-junior'
-    ? rawBrandEnv('META_IG_USER_ID', 'nidal-junior')
-    : null;
-  const rawNidalIgId = rawBrandEnv('META_IG_USER_ID', 'nidal');
-  const usingSharedNidal = brand === 'nidal-junior' && nidalJuniorSharesMeta();
-
-  const configurationWarnings = [];
-  if (rawJuniorPageToken && /^\d+$/.test(String(rawJuniorPageToken).trim())) {
-    configurationWarnings.push(
-      'META_PAGE_ACCESS_TOKEN_NIDAL_JUNIOR contient un identifiant numérique au lieu d’un Page Access Token. Cette valeur est désormais ignorée.'
-    );
-  }
-  if (usingSharedNidal && rawJuniorIgId && rawNidalIgId && String(rawJuniorIgId) !== String(rawNidalIgId)) {
-    configurationWarnings.push(
-      'META_IG_USER_ID_NIDAL_JUNIOR diffère du compte officiel GS Nidal. La configuration GS Nidal partagée est utilisée pour @gsnidal.'
-    );
-  }
-
+  const igUserId = resolvedInstagramUserId(brand);
+  const directToken = configuredInstagramToken(brand);
   const result = {
     brand,
     pageId,
-    metaConfigSource: usingSharedNidal ? 'shared-nidal' : 'brand-specific',
-    sharesNidalMeta: usingSharedNidal,
     userTokenConfigured: Boolean(process.env.META_ACCESS_TOKEN),
     pageTokenConfigured: Boolean(configuredPageToken(brand)),
-    instagramUserIdConfigured: Boolean(resolvedInstagramUserId(brand)),
-    instagramUserId: resolvedInstagramUserId(brand),
-    configurationWarnings,
+    instagramUserIdConfigured: Boolean(igUserId),
+    instagramUserId: igUserId,
+    instagramAuthMode: directToken ? 'instagram-login' : 'facebook-login',
+    instagramDirectTokenConfigured: Boolean(directToken),
+    instagramDirectTokenValid: false,
+    instagramIdentity: null,
     userPermissions: [],
     missingUserPermissions: [],
     pageTokenValid: false,
     pageIdentity: null,
-    errors: []
+    errors: [],
+    configurationWarnings: []
   };
+
+  if (brand === 'nidal-junior' && !directToken) {
+    result.configurationWarnings.push(
+      'Nidal Junior n’a pas de Page Facebook : configurez un token Instagram Login direct dans META_IG_ACCESS_TOKEN_NIDAL_JUNIOR.'
+    );
+  }
+
+  if (directToken) {
+    try {
+      const identity = await directInstagramGraph(brand, 'me', {
+        fields: 'id,username,name,account_type'
+      });
+      result.instagramIdentity = identity;
+      result.instagramDirectTokenValid = Boolean(identity?.id);
+      if (igUserId && identity?.id && String(identity.id) !== String(igUserId)) {
+        result.configurationWarnings.push(
+          `Le token Instagram correspond au compte ${identity.id}, mais META_IG_USER_ID vaut ${igUserId}.`
+        );
+      }
+    } catch (error) {
+      result.errors.push(`instagram login: ${error.message}`);
+    }
+    return result;
+  }
 
   if (process.env.META_ACCESS_TOKEN) {
     try {
@@ -277,32 +333,34 @@ export async function diagnoseMetaAccess(brand) {
     }
   }
 
-  try {
-    const token = await resolvePageAccessToken(brand);
-    const identity = await graph('me', { fields: 'id,name' }, token);
-    result.pageIdentity = identity;
-    const effectivePageId = pageId || identity?.id || null;
-    if (!result.pageId && effectivePageId) result.pageId = String(effectivePageId);
-    result.pageTokenValid = Boolean(effectivePageId) && String(identity?.id) === String(effectivePageId);
-  } catch (error) {
-    result.errors.push(error.message);
+  if (pageId) {
+    try {
+      const token = await resolvePageAccessToken(brand);
+      const identity = await graph('me', { fields: 'id,name' }, token);
+      result.pageIdentity = identity;
+      result.pageTokenValid = String(identity?.id) === String(pageId);
+    } catch (error) {
+      result.errors.push(error.message);
+    }
   }
 
   return result;
 }
 
 export function metaConfigured(brand) {
-  return Boolean(process.env.META_ACCESS_TOKEN && (resolvedFacebookPageId(brand) || resolvedInstagramUserId(brand)));
+  const directInstagram = Boolean(configuredInstagramToken(brand) && resolvedInstagramUserId(brand));
+  const facebookLogin = Boolean(process.env.META_ACCESS_TOKEN && (resolvedFacebookPageId(brand) || resolvedInstagramUserId(brand)));
+  return directInstagram || facebookLogin;
 }
 
-async function syncInstagramAccountInsights(igUserId) {
+async function syncInstagramAccountInsights(brand, igUserId) {
   const metrics = ['profile_views', 'reach', 'accounts_engaged'];
   const values = {};
   const errors = [];
 
   for (const metric of metrics) {
     try {
-      const payload = await graph(`${igUserId}/insights`, {
+      const payload = await instagramGraph(brand, `${igUserId}/insights`, {
         metric,
         period: 'day',
         metric_type: 'total_value'
@@ -329,8 +387,8 @@ async function syncInstagramProfile(brand) {
   if (!igUserId) throw new Error(`META_IG_USER_ID non configuré pour ${brand}`);
 
   const fields = 'id,username,name,biography,website,followers_count,follows_count,media_count,profile_picture_url';
-  const profile = await graph(igUserId, { fields });
-  const insights = await syncInstagramAccountInsights(igUserId);
+  const profile = await instagramGraph(brand, igUserId, { fields });
+  const insights = await syncInstagramAccountInsights(brand, igUserId);
   const hasInsights = [insights.profileViews, insights.reach, insights.accountsEngaged].some(value => value !== null);
 
   return {
@@ -492,7 +550,7 @@ export async function syncSocialProfiles({ brand, instagramUrl = '', facebookUrl
     errors: []
   };
 
-  if (process.env.META_ACCESS_TOKEN && process.env.DEMO_MODE !== 'true') {
+  if ((process.env.META_ACCESS_TOKEN || configuredInstagramToken(brand)) && process.env.DEMO_MODE !== 'true') {
     if (resolvedInstagramUserId(brand)) {
       try { result.instagram = await syncInstagramProfile(brand); }
       catch (error) { result.errors.push({ platform: 'instagram', source: 'meta-api', message: error.message }); }
@@ -595,7 +653,7 @@ export async function syncContentFromUrl({
 async function syncInstagram(brand, finalUrl) {
   const userId = resolvedInstagramUserId(brand);
   if (!userId) throw new Error(`Compte Instagram non configure pour ${brand}`);
-  const media = await graph(`${userId}/media`, { fields: 'id,permalink,media_type,timestamp,caption,like_count,comments_count', limit: 100 });
+  const media = await instagramGraph(brand, `${userId}/media`, { fields: 'id,permalink,media_type,timestamp,caption,like_count,comments_count', limit: 100 });
   const target = media.data?.find(item => normalizedUrl(item.permalink) === normalizedUrl(finalUrl));
   if (!target) throw new Error('Publication Instagram introuvable dans les 100 medias recents');
   const metricSets = [
@@ -606,7 +664,7 @@ async function syncInstagram(brand, finalUrl) {
   let insights = null;
   let lastError = null;
   for (const metric of metricSets) {
-    try { insights = await graph(`${target.id}/insights`, { metric }); break; }
+    try { insights = await instagramGraph(brand, `${target.id}/insights`, { metric }); break; }
     catch (error) { lastError = error; }
   }
   if (!insights) throw lastError;
@@ -697,7 +755,7 @@ async function getInstagramTopContent(brand, limit = 50) {
   if (!userId) return { items: [], error: `META_IG_USER_ID non configuré pour ${brand}` };
 
   try {
-    const media = await graph(`${userId}/media`, {
+    const media = await instagramGraph(brand, `${userId}/media`, {
       fields: 'id,caption,media_type,media_product_type,permalink,timestamp,like_count,comments_count,thumbnail_url',
       limit: Math.max(1, Math.min(Number(limit) || 50, 100))
     });
@@ -714,7 +772,7 @@ async function getInstagramTopContent(brand, limit = 50) {
       ];
       for (const metric of metricSets) {
         try {
-          const insights = await graph(`${item.id}/insights`, { metric });
+          const insights = await instagramGraph(brand, `${item.id}/insights`, { metric });
           metricValues = Object.fromEntries((insights.data || []).map(metricItem => [
             metricItem.name,
             Number(metricItem.values?.[0]?.value ?? metricItem.total_value?.value ?? metricItem.value ?? 0)
@@ -1019,9 +1077,9 @@ async function publishFacebookPost(brand, job) {
   };
 }
 
-async function waitForInstagramContainer(containerId, accessToken, maxAttempts = 20) {
+async function waitForInstagramContainer(brand, containerId, maxAttempts = 20) {
   for (let attempt = 1; attempt <= maxAttempts; attempt++) {
-    const status = await graph(containerId, { fields: 'status_code,status' }, accessToken);
+    const status = await instagramGraph(brand, containerId, { fields: 'status_code,status' });
     const code = String(status.status_code || '').toUpperCase();
 
     if (code === 'FINISHED') return status;
@@ -1033,7 +1091,6 @@ async function waitForInstagramContainer(containerId, accessToken, maxAttempts =
       );
     }
 
-    // Certains conteneurs peuvent ne pas exposer immédiatement status_code.
     if (!code && attempt >= 3) return status;
     await new Promise(resolve => setTimeout(resolve, 3000));
   }
@@ -1046,9 +1103,13 @@ async function publishInstagramPost(brand, job) {
   if (!igUserId) throw new Error(`META_IG_USER_ID non configuré pour ${brand}`);
   if (!job.media_url) throw new Error('Instagram exige une photo ou vidéo.');
 
-  // Le projet utilise "Instagram API with Facebook Login".
-  // Meta documente la publication avec le Page Access Token lié au compte IG pro.
-  const publishToken = await resolvePageAccessToken(brand);
+  if (brand === 'nidal-junior' && !usesInstagramLogin(brand)) {
+    throw new Error(
+      'Nidal Junior est Instagram-only et n’a pas de Page Facebook. ' +
+      'Configurez META_IG_ACCESS_TOKEN_NIDAL_JUNIOR avec un token obtenu via Instagram Login ' +
+      '(permissions instagram_business_basic et instagram_business_content_publish).'
+    );
+  }
 
   const mediaType = String(job.media_type || 'image').toLowerCase();
   const createParams = { caption: job.message || '' };
@@ -1067,21 +1128,21 @@ async function publishInstagramPost(brand, job) {
     createParams.image_url = publishMediaUrl;
   }
 
-  const container = await graphPost(`${igUserId}/media`, createParams, publishToken);
+  const container = await instagramGraphPost(brand, `${igUserId}/media`, createParams);
   if (!container?.id) throw new Error('Meta n’a pas retourné de conteneur Instagram.');
 
-  await waitForInstagramContainer(container.id, publishToken);
+  await waitForInstagramContainer(brand, container.id);
 
-  const published = await graphPost(`${igUserId}/media_publish`, {
+  const published = await instagramGraphPost(brand, `${igUserId}/media_publish`, {
     creation_id: container.id
-  }, publishToken);
+  });
   if (!published?.id) throw new Error('Instagram n’a pas confirmé la publication.');
 
   let verification = null;
   try {
-    verification = await graph(published.id, {
+    verification = await instagramGraph(brand, published.id, {
       fields: 'id,permalink,media_type,timestamp'
-    }, publishToken);
+    });
   } catch {
     verification = { id: published.id };
   }
@@ -1091,13 +1152,17 @@ async function publishInstagramPost(brand, job) {
     creation_id: container.id,
     verified: Boolean(published.id),
     permalink: verification?.permalink || null,
-    verification
+    verification,
+    authMode: usesInstagramLogin(brand) ? 'instagram-login' : 'facebook-login'
   };
 }
 
 export async function publishSocialJob(job) {
   const brand = job.brand_slug || job.brand || 'nidal-junior';
-  const platforms = Array.isArray(job.platforms) ? job.platforms : [];
+  const requestedPlatforms = Array.isArray(job.platforms) ? job.platforms : [];
+  const platforms = brand === 'nidal-junior'
+    ? requestedPlatforms.filter(platform => platform === 'instagram')
+    : requestedPlatforms;
   const result = {};
   const errors = {};
 
