@@ -28,7 +28,7 @@ function resolvedInstagramUserId(brand) {
 }
 
 function resolvedFacebookPageId(brand) {
-  const configured = resolvedFacebookPageId(brand);
+  const configured = brandEnv('META_PAGE_ID', brand);
   return configured ? String(configured).trim() : null;
 }
 
