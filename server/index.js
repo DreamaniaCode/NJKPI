@@ -608,6 +608,53 @@ app.post('/api/publish/jobs', authenticate, authorize('admin', 'editor'), async 
   } catch (error) { next(error); }
 });
 
+async function markContentPublishedFromJob(job, outcome) {
+  const contentId = job?.metadata?.contentId;
+  if (!contentId) return;
+
+  try {
+    const content = await getContent(contentId);
+    if (!content) return;
+
+    const result = outcome?.result || {};
+    const platformResult = result.instagram || result.facebook || {};
+    const now = new Date().toISOString();
+    const finalUrl = platformResult.permalink || content.final_url || content.data?.finalUrl || '';
+    const externalMediaId = platformResult.id || platformResult.media_id || content.external_media_id || null;
+
+    await upsertContent({
+      id: content.id,
+      brand_slug: content.brand_slug,
+      data: {
+        ...(content.data || {}),
+        statut: 'publie',
+        validation: 'approuve',
+        finalUrl,
+        publishedAt: now,
+        mediaUrl: content.data?.mediaUrl || job.media_url || '',
+        tags: Array.isArray(content.data?.tags) && content.data.tags.length
+          ? content.data.tags
+          : (Array.isArray(job.metadata?.hashtags) ? job.metadata.hashtags : []),
+        hashtags: Array.isArray(content.data?.hashtags) && content.data.hashtags.length
+          ? content.data.hashtags
+          : (Array.isArray(job.metadata?.hashtags) ? job.metadata.hashtags : []),
+        imagePrompt: content.data?.imagePrompt || job.metadata?.imagePrompt || '',
+        videoScript: content.data?.videoScript || job.metadata?.videoScript || '',
+        storyboard: Array.isArray(content.data?.storyboard) && content.data.storyboard.length
+          ? content.data.storyboard
+          : (Array.isArray(job.metadata?.storyboard) ? job.metadata.storyboard : [])
+      },
+      finalUrl,
+      externalMediaId,
+      platform: content.platform,
+      syncStatus: 'connected',
+      lastSyncedAt: now
+    });
+  } catch (error) {
+    console.warn('Mise à jour du contenu après publication Meta:', error.message);
+  }
+}
+
 app.post('/api/publish/jobs/:id/run', authenticate, authorize('admin', 'editor'), async (req, res, next) => {
   try {
     const jobs = await listPublishJobs(null, 500);
@@ -617,6 +664,7 @@ app.post('/api/publish/jobs/:id/run', authenticate, authorize('admin', 'editor')
     const publishing = await savePublishJob({ ...job, status: 'publishing', error: null });
     try {
       const outcome = await publishSocialJob(publishing);
+      await markContentPublishedFromJob(publishing, outcome);
       const done = await savePublishJob({
         ...publishing,
         status: Object.keys(outcome.errors || {}).length ? 'partial' : 'published',
@@ -1854,6 +1902,7 @@ async function runPublishQueue() {
       const locked = await savePublishJob({ ...job, status: 'publishing', error: null });
       try {
         const outcome = await publishSocialJob(locked);
+        await markContentPublishedFromJob(locked, outcome);
         await savePublishJob({
           ...locked,
           status: Object.keys(outcome.errors || {}).length ? 'partial' : 'published',
