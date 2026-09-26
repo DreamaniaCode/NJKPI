@@ -761,12 +761,12 @@ const ContentsView = (() => {
 
           try {
             if (mode === 'now') {
-              await _queueContentPublication(values, 'now');
+              await _queueContentPublication({ ...values, id: created.id }, 'now');
               NidalStore.update(created.id, { statut: 'publie' });
               const finalSync = await NidalStore.waitForSync(created.id);
               if (!finalSync.ok) throw new Error('Publication Meta réussie mais statut PostgreSQL non enregistré : ' + (finalSync.error?.message || 'erreur inconnue'));
             } else if (mode === 'schedule') {
-              await _queueContentPublication(values, 'schedule');
+              await _queueContentPublication({ ...values, id: created.id }, 'schedule');
               NidalStore.update(created.id, { statut: 'planifie' });
               const finalSync = await NidalStore.waitForSync(created.id);
               if (!finalSync.ok) throw new Error('Programmation créée mais statut PostgreSQL non enregistré : ' + (finalSync.error?.message || 'erreur inconnue'));
@@ -815,7 +815,7 @@ const ContentsView = (() => {
           _bindMediaUpload(modal);
 
           const runExistingAction = async (mode, button) => {
-            const values = _readForm(modal);
+            const values = { ..._readForm(modal), id };
             if (!values.message && !values.mediaUrl) return showToast('Ajoutez un texte, une photo ou une vidéo.', 'error');
             if (mode === 'schedule' && !values.datePublication) {
               return showToast('Choisissez la date de programmation.', 'error');
