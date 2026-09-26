@@ -16,6 +16,45 @@ const DashboardView = (() => {
     const liveInsights = liveInstagram?.insights || {};
     const liveFacebookInsights = liveFacebook?.insights || {};
 
+    const facebookCardHtml = isNidalJunior ? '' : `
+            <article class="social-platform-card social-platform-card--facebook">
+              <div class="social-platform-card__head">
+                <div class="social-platform-card__identity">
+                  <div class="social-platform-card__avatar-wrap">
+                    ${liveFacebook?.profilePictureUrl
+                      ? `<img class="social-platform-card__avatar" src="${escapeHtml(liveFacebook.profilePictureUrl)}" alt="">`
+                      : '<div class="social-platform-card__avatar social-platform-card__avatar--placeholder"></div>'}
+                    <span class="social-platform-card__brand social-platform-card__brand--facebook">
+                      <img src="./assets/social-facebook.svg" alt="Facebook">
+                    </span>
+                  </div>
+                  <div>
+                    <span class="social-platform-card__eyebrow">Facebook</span>
+                    <h3>${escapeHtml(liveFacebook?.name || 'Page non connectée')}</h3>
+                    <p>${escapeHtml(liveFacebook?.category || 'Page Facebook')}</p>
+                  </div>
+                </div>
+                ${liveFacebook?.profileUrl ? `<a class="social-platform-card__link" href="${escapeHtml(liveFacebook.profileUrl)}" target="_blank" rel="noopener noreferrer">Ouvrir ↗</a>` : ''}
+              </div>
+
+              <div class="social-metric-grid">
+                ${_socialMetric('Abonnés', liveFacebook ? formatNumber(liveFacebook.followers ?? 0) : '—', 'Communauté Facebook')}
+                ${_socialMetric('Page', liveFacebook ? 'Connectée' : '—', 'Meta Graph API')}
+                ${_socialMetric('Nom utilisateur', liveFacebook?.username ? '@' + escapeHtml(liveFacebook.username) : '—', 'Identifiant public')}
+                ${_socialMetric('Insights', liveFacebook?.insightsAvailable ? 'Actifs' : 'À vérifier', liveFacebook?.insightsAvailable ? 'Insights contenus Facebook' : (liveFacebookInsights.error || 'Aucun contenu analysé'))}
+                ${_socialMetric('Reach récent', liveFacebookInsights.reach == null ? '—' : formatNumber(liveFacebookInsights.reach), `${liveFacebookInsights.analyzedPosts || 0} posts analysés`)}
+                ${_socialMetric('Vues récentes', liveFacebookInsights.views == null ? '—' : formatNumber(liveFacebookInsights.views), 'Vues cumulées des posts analysés')}
+                ${_socialMetric('Interactions', liveFacebookInsights.interactions == null ? '—' : formatNumber(liveFacebookInsights.interactions), 'Réactions + commentaires + partages')}
+                ${_socialMetric('Site web', liveFacebook?.website ? 'Configuré' : '—', liveFacebook?.website || 'Aucun site renvoyé')}
+                ${_socialMetric('Page ID', liveFacebook?.externalId || '—', 'Identifiant Meta')}
+              </div>
+
+              <div class="social-platform-card__footer">
+                <span>${liveFacebook?.biography ? escapeHtml(liveFacebook.biography.slice(0, 100)) : 'Profil Facebook synchronisé'}</span>
+              </div>
+            </article>
+    `;
+
     view.innerHTML = `
       <header class="view__header workspace-header">
         <div>
@@ -115,42 +154,7 @@ const DashboardView = (() => {
               </div>
             </article>
 
-${!isNidalJunior ? `            <article class="social-platform-card social-platform-card--facebook">
-              <div class="social-platform-card__head">
-                <div class="social-platform-card__identity">
-                  <div class="social-platform-card__avatar-wrap">
-                    ${liveFacebook?.profilePictureUrl
-                      ? \`<img class="social-platform-card__avatar" src="${escapeHtml(liveFacebook.profilePictureUrl)}" alt="">\`
-                      : '<div class="social-platform-card__avatar social-platform-card__avatar--placeholder"></div>'}
-                    <span class="social-platform-card__brand social-platform-card__brand--facebook">
-                      <img src="./assets/social-facebook.svg" alt="Facebook">
-                    </span>
-                  </div>
-                  <div>
-                    <span class="social-platform-card__eyebrow">Facebook</span>
-                    <h3>${escapeHtml(liveFacebook?.name || 'Page non connectée')}</h3>
-                    <p>${escapeHtml(liveFacebook?.category || 'Page Facebook')}</p>
-                  </div>
-                </div>
-                ${liveFacebook?.profileUrl ? \`<a class="social-platform-card__link" href="${escapeHtml(liveFacebook.profileUrl)}" target="_blank" rel="noopener noreferrer">Ouvrir ↗</a>\` : ''}
-              </div>
-
-              <div class="social-metric-grid">
-                ${_socialMetric('Abonnés', liveFacebook ? formatNumber(liveFacebook.followers ?? 0) : '—', 'Communauté Facebook')}
-                ${_socialMetric('Page', liveFacebook ? 'Connectée' : '—', 'Meta Graph API')}
-                ${_socialMetric('Nom utilisateur', liveFacebook?.username ? '@' + escapeHtml(liveFacebook.username) : '—', 'Identifiant public')}
-                ${_socialMetric('Insights', liveFacebook?.insightsAvailable ? 'Actifs' : 'À vérifier', liveFacebook?.insightsAvailable ? 'Insights contenus Facebook' : (liveFacebookInsights.error || 'Aucun contenu analysé'))}
-                ${_socialMetric('Reach récent', liveFacebookInsights.reach == null ? '—' : formatNumber(liveFacebookInsights.reach), \`${liveFacebookInsights.analyzedPosts || 0} posts analysés\`)}
-                ${_socialMetric('Vues récentes', liveFacebookInsights.views == null ? '—' : formatNumber(liveFacebookInsights.views), 'Vues cumulées des posts analysés')}
-                ${_socialMetric('Interactions', liveFacebookInsights.interactions == null ? '—' : formatNumber(liveFacebookInsights.interactions), 'Réactions + commentaires + partages')}
-                ${_socialMetric('Site web', liveFacebook?.website ? 'Configuré' : '—', liveFacebook?.website || 'Aucun site renvoyé')}
-                ${_socialMetric('Page ID', liveFacebook?.externalId || '—', 'Identifiant Meta')}
-              </div>
-
-              <div class="social-platform-card__footer">
-                <span>${liveFacebook?.biography ? escapeHtml(liveFacebook.biography.slice(0, 100)) : 'Profil Facebook synchronisé'}</span>
-              </div>
-            </article>` : ''}
+${facebookCardHtml}
           </div>
         </section>
       ` : ''}
