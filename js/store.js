@@ -391,8 +391,44 @@ const NidalStore = (() => {
         merged[key] = { ...(merged[key] || fallback[key]), current: 0, target: 0, source: 'not-applicable' };
       }
     }
-    if (liveMeta?.instagram?.source === 'meta-api' && Number.isFinite(Number(liveMeta.instagram.followers))) {
-      merged.followers = { ...(merged.followers || fallback.followers), current: Number(liveMeta.instagram.followers), source: 'meta-api', syncedAt: liveMeta.syncedAt || liveMeta.cachedAt || null };
+    if (liveMeta?.instagram?.source === 'meta-api') {
+      const ig = liveMeta.instagram;
+      const igInsights = ig.insights || {};
+      const syncedAt = liveMeta.syncedAt || liveMeta.cachedAt || null;
+
+      if (ig.followersAvailable !== false && Number.isFinite(Number(ig.followers))) {
+        merged.followers = {
+          ...(merged.followers || fallback.followers),
+          current: Number(ig.followers),
+          source: 'meta-api',
+          syncedAt
+        };
+      }
+
+      if (slug === 'nidal-junior') {
+        const applyInstagramMetric = (key, value, source = 'instagram-media') => {
+          if (value === null || value === undefined || !Number.isFinite(Number(value))) return;
+          merged[key] = {
+            ...(merged[key] || fallback[key]),
+            current: Number(value),
+            source,
+            syncedAt
+          };
+        };
+
+        // Pour les KPI de performance Junior, utiliser les médias réellement
+        // récupérés depuis Instagram. Cela ne dépend pas d'un import manuel NJKPI.
+        applyInstagramMetric('views', igInsights.mediaViews);
+        applyInstagramMetric('comments', igInsights.mediaComments);
+        applyInstagramMetric('reach', igInsights.mediaReach);
+        applyInstagramMetric('interactions', igInsights.mediaInteractions);
+
+        // Si aucun média n'a encore été analysé, le reach du compte reste utile.
+        if (!Number(igInsights.analyzedMedia || 0)) {
+          applyInstagramMetric('reach', igInsights.reach, 'instagram-account');
+          applyInstagramMetric('interactions', igInsights.accountsEngaged, 'instagram-account');
+        }
+      }
     }
 
     if (slug !== 'nidal-junior' && liveMeta?.facebook?.source === 'meta-api') {
@@ -446,11 +482,21 @@ const NidalStore = (() => {
 
     // Les valeurs ACTUELLES des KPI de performance doivent venir des contenus
     // réellement synchronisés, jamais des valeurs d'exemple ou d'un ancien appareil.
-    if (hasViews) merged.views = { ...(merged.views || fallback.views), current: sumViews, source: 'content-sync', syncedAt: latestContentSync };
-    if (hasComments) merged.comments = { ...(merged.comments || fallback.comments), current: sumComments, source: 'content-sync', syncedAt: latestContentSync };
-    if (hasConversions) merged.conversions = { ...(merged.conversions || fallback.conversions), current: sumConversions, source: 'content-sync', syncedAt: latestContentSync };
-    if (hasReach) merged.reach = { ...(merged.reach || fallback.reach), current: sumReach, source: 'content-sync', syncedAt: latestContentSync };
-    if (hasInteractions) merged.interactions = { ...(merged.interactions || fallback.interactions), current: sumInteractions, source: 'content-sync', syncedAt: latestContentSync };
+    if (hasViews && !(slug === 'nidal-junior' && merged.views?.source === 'instagram-media')) {
+      merged.views = { ...(merged.views || fallback.views), current: sumViews, source: 'content-sync', syncedAt: latestContentSync };
+    }
+    if (hasComments && !(slug === 'nidal-junior' && merged.comments?.source === 'instagram-media')) {
+      merged.comments = { ...(merged.comments || fallback.comments), current: sumComments, source: 'content-sync', syncedAt: latestContentSync };
+    }
+    if (hasConversions) {
+      merged.conversions = { ...(merged.conversions || fallback.conversions), current: sumConversions, source: 'content-sync', syncedAt: latestContentSync };
+    }
+    if (hasReach && !(slug === 'nidal-junior' && /^instagram-/.test(merged.reach?.source || ''))) {
+      merged.reach = { ...(merged.reach || fallback.reach), current: sumReach, source: 'content-sync', syncedAt: latestContentSync };
+    }
+    if (hasInteractions && !(slug === 'nidal-junior' && /^instagram-/.test(merged.interactions?.source || ''))) {
+      merged.interactions = { ...(merged.interactions || fallback.interactions), current: sumInteractions, source: 'content-sync', syncedAt: latestContentSync };
+    }
 
     const enrich = (key, metric) => {
       const rawCurrent = _number(metric.current);
