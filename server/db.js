@@ -261,6 +261,13 @@ export async function initDatabase(retries = 5, delay = 3000) {
       await repairLegacyContentsSchema();
       const schema = await fs.readFile(new URL('./schema.sql', import.meta.url), 'utf8');
       await pool.query(schema);
+
+      // Les jobs de publication existants doivent conserver titre, hashtags,
+      // prompt/script et contexte horaire avec le post.
+      await pool.query(
+        "ALTER TABLE social_publish_jobs ADD COLUMN IF NOT EXISTS metadata JSONB NOT NULL DEFAULT '{}'::jsonb"
+      );
+
       _dbConnected = true;
       console.log('PostgreSQL connecte et schema initialise avec succes.');
       return true;
