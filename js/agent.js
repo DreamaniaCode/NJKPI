@@ -1044,7 +1044,7 @@ const AgentView = (() => {
                         <span>${escapeHtml(item.date || 'Date à confirmer')}</span>
                         <span>${escapeHtml(item.publishTime || '18:30')}</span>
                         <span>${escapeHtml(item.format || 'post')}</span>
-                        <span>${escapeHtml(item.platform || 'Instagram + Facebook')}</span>
+                        <span>${escapeHtml(item.platform || (isJunior ? 'Instagram' : 'Instagram + Facebook'))}</span>
                       </div>
                     </div>
                     <button class="btn btn--primary btn--sm btn-validate-plan-item" data-plan-index="${idx}" type="button">✓ Valider & ajouter</button>
