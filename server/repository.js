@@ -394,7 +394,19 @@ export async function saveKpiTargets(brand = 'nidal-junior', targets = {}) {
 
 export async function saveSocialProfiles(brand, profiles = {}) {
   const saved = {};
-  for (const platform of ['instagram', 'facebook']) {
+  const platforms = brand === 'nidal-junior' ? ['instagram'] : ['instagram', 'facebook'];
+
+  if (brand === 'nidal-junior') {
+    memory.socialProfiles.delete(`${brand}:facebook`);
+    if (hasDatabase) {
+      await query(
+        "DELETE FROM social_profiles WHERE brand_slug=$1 AND platform='facebook'",
+        [brand]
+      ).catch(error => console.warn('Nettoyage ancien profil Facebook Junior:', error.message));
+    }
+  }
+
+  for (const platform of platforms) {
     const profile = profiles?.[platform];
     if (!profile) continue;
 
@@ -453,7 +465,7 @@ export async function saveSocialProfiles(brand, profiles = {}) {
 export async function getSocialProfiles(brand) {
   const buildFromMemory = () => {
     const output = {};
-    for (const platform of ['instagram', 'facebook']) {
+    for (const platform of (brand === 'nidal-junior' ? ['instagram'] : ['instagram', 'facebook'])) {
       const record = memory.socialProfiles.get(`${brand}:${platform}`);
       if (record) output[platform] = record;
     }
@@ -467,8 +479,9 @@ export async function getSocialProfiles(brand) {
       `SELECT brand_slug, platform, profile, source, synced_at
        FROM social_profiles
        WHERE brand_slug = $1
+         AND ($2::boolean = FALSE OR platform = 'instagram')
        ORDER BY platform ASC`,
-      [brand]
+      [brand, brand === 'nidal-junior']
     );
     return Object.fromEntries(result.rows.map(row => [row.platform, row]));
   } catch (error) {
@@ -479,6 +492,8 @@ export async function getSocialProfiles(brand) {
 
 export async function getSocialProfileHistory(brand, platform, limit = 30) {
   const safeLimit = Math.max(1, Math.min(Number(limit) || 30, 365));
+  if (brand === 'nidal-junior' && platform === 'facebook') return [];
+  if (brand === 'nidal-junior' && !platform) platform = 'instagram';
   if (!hasDatabase) {
     return memory.socialSnapshots
       .filter(item => item.brand_slug === brand && (!platform || item.platform === platform))
