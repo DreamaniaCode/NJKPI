@@ -15,7 +15,7 @@ import {
   saveAudienceSnapshot, listAudienceSnapshots,
   savePublishJob, listPublishJobs, listDuePublishJobs, recoverStuckPublishJobs
 } from './repository.js';
-import { metaConfigured, syncContentFromUrl, syncAds, syncSocialProfiles, syncAudienceConversions, publishSocialJob, diagnoseMetaAccess } from './services/meta.js';
+import { metaConfigured, syncContentFromUrl, syncAds, syncSocialProfiles, syncAudienceConversions, publishSocialJob, diagnoseMetaAccess, preflightSocialPublishJob } from './services/meta.js';
 import { normalizeUploadedMedia } from './services/media.js';
 import { getMetaLiveCache, setMetaLiveCache, isMetaLiveCacheFresh } from './services/meta-live.js';
 import { getAudienceCache, setAudienceCache, isAudienceCacheFresh } from './services/audience-cache.js';
@@ -698,7 +698,7 @@ app.post('/api/publish/jobs', authenticate, authorize('admin', 'editor'), async 
       scheduledUtc: scheduledAt.toISOString()
     };
 
-    const job = await savePublishJob({
+    const pendingJob = {
       id: crypto.randomUUID(),
       brand,
       message: String(req.body.message || ''),
@@ -710,8 +710,24 @@ app.post('/api/publish/jobs', authenticate, authorize('admin', 'editor'), async 
       status: 'scheduled',
       automationMode: req.body.automationMode || 'manual',
       metadata
-    });
+    };
 
+    let preflight;
+    try {
+      preflight = await preflightSocialPublishJob(pendingJob);
+    } catch (error) {
+      return res.status(400).json({
+        error: 'Pré-test Meta impossible : ' + (error?.message || error),
+        code: 'META_PUBLISH_PREFLIGHT_FAILED'
+      });
+    }
+
+    pendingJob.metadata = {
+      ...pendingJob.metadata,
+      preflight
+    };
+
+    const job = await savePublishJob(pendingJob);
     res.status(201).json(job);
   } catch (error) { next(error); }
 });
