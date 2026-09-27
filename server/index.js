@@ -39,6 +39,50 @@ const app = express();
 const port = Number(process.env.PORT || 3000);
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const uploadsDir = path.resolve(process.env.MEDIA_UPLOAD_DIR || path.join(root, 'uploads'));
+const appTimeZone = String(process.env.APP_TIMEZONE || 'Africa/Casablanca').trim();
+
+function zonedLocalDateTimeToUtc(dateText, timeText, timeZone = appTimeZone) {
+  const matchDate = String(dateText || '').match(/^(\d{4})-(\d{2})-(\d{2})$/);
+  const matchTime = String(timeText || '').match(/^(\d{2}):(\d{2})(?::(\d{2}))?$/);
+  if (!matchDate || !matchTime) return null;
+
+  const [, y, mo, d] = matchDate.map(Number);
+  const [, h, mi, s = 0] = matchTime.map(Number);
+  const desiredWallMs = Date.UTC(y, mo - 1, d, h, mi, s);
+
+  const formatter = new Intl.DateTimeFormat('en-CA', {
+    timeZone,
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+    hour: '2-digit',
+    minute: '2-digit',
+    second: '2-digit',
+    hourCycle: 'h23'
+  });
+
+  const wallMsAt = epochMs => {
+    const parts = Object.fromEntries(
+      formatter.formatToParts(new Date(epochMs))
+        .filter(part => part.type !== 'literal')
+        .map(part => [part.type, Number(part.value)])
+    );
+    return Date.UTC(parts.year, parts.month - 1, parts.day, parts.hour, parts.minute, parts.second);
+  };
+
+  let candidate = desiredWallMs;
+  for (let i = 0; i < 3; i++) {
+    const observedWall = wallMsAt(candidate);
+    candidate += desiredWallMs - observedWall;
+  }
+
+  const finalWall = wallMsAt(candidate);
+  if (Math.abs(finalWall - desiredWallMs) > 1000) {
+    throw new Error(`Heure locale invalide ou ambiguë pour le fuseau ${timeZone}.`);
+  }
+
+  return new Date(candidate);
+}
 
 app.disable('x-powered-by');
 app.set('trust proxy', 1);
@@ -107,7 +151,7 @@ app.get('/api/health', async (_req, res) => {
     ok: true,
     database: await databaseHealth(),
     demoMode: process.env.DEMO_MODE === 'true',
-    runtime: { node: process.version, dnsResultOrder: dns.getDefaultResultOrder() },
+    runtime: { node: process.version, dnsResultOrder: dns.getDefaultResultOrder(), appTimeZone },
     integrations: {
       ai: agentConfigured(),
       aiProvider: getAiProvider(),
@@ -570,12 +614,39 @@ app.post('/api/publish/jobs', authenticate, authorize('admin', 'editor'), async 
       return res.status(400).json({ error: 'Ajoutez un texte, un média ou un lien.' });
     }
 
-    const scheduledAt = req.body.scheduledAt ? new Date(req.body.scheduledAt) : new Date();
-    if (Number.isNaN(scheduledAt.getTime())) return res.status(400).json({ error: 'Date de publication invalide.' });
-
     const rawMetadata = req.body.metadata && typeof req.body.metadata === 'object'
       ? req.body.metadata
       : {};
+
+    const requestedTimezone = String(
+      rawMetadata.timezone || process.env.APP_TIMEZONE || appTimeZone
+    ).trim() || appTimeZone;
+
+    let scheduledAt;
+    if (
+      req.body.automationMode === 'scheduled'
+      && rawMetadata.localDate
+      && rawMetadata.localTime
+    ) {
+      try {
+        scheduledAt = zonedLocalDateTimeToUtc(
+          String(rawMetadata.localDate),
+          String(rawMetadata.localTime),
+          requestedTimezone
+        );
+      } catch (error) {
+        return res.status(400).json({ error: error.message });
+      }
+    }
+
+    if (!scheduledAt) {
+      scheduledAt = req.body.scheduledAt ? new Date(req.body.scheduledAt) : new Date();
+    }
+
+    if (Number.isNaN(scheduledAt.getTime())) {
+      return res.status(400).json({ error: 'Date de publication invalide.' });
+    }
+
     const metadata = {
       title: String(rawMetadata.title || '').slice(0, 250),
       hashtags: Array.isArray(rawMetadata.hashtags)
@@ -585,9 +656,10 @@ app.post('/api/publish/jobs', authenticate, authorize('admin', 'editor'), async 
       imagePrompt: String(rawMetadata.imagePrompt || '').slice(0, 12000),
       videoScript: String(rawMetadata.videoScript || '').slice(0, 20000),
       storyboard: Array.isArray(rawMetadata.storyboard) ? rawMetadata.storyboard.slice(0, 100) : [],
-      timezone: String(rawMetadata.timezone || '').slice(0, 100),
+      timezone: requestedTimezone.slice(0, 100),
       localDate: String(rawMetadata.localDate || '').slice(0, 20),
-      localTime: String(rawMetadata.localTime || '').slice(0, 10)
+      localTime: String(rawMetadata.localTime || '').slice(0, 10),
+      scheduledUtc: scheduledAt.toISOString()
     };
 
     const job = await savePublishJob({
