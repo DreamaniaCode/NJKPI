@@ -46,9 +46,28 @@ function zonedLocalDateTimeToUtc(dateText, timeText, timeZone = appTimeZone) {
   const matchTime = String(timeText || '').match(/^(\d{2}):(\d{2})(?::(\d{2}))?$/);
   if (!matchDate || !matchTime) return null;
 
-  const [, y, mo, d] = matchDate.map(Number);
-  const [, h, mi, s = 0] = matchTime.map(Number);
+  const y = Number(matchDate[1]);
+  const mo = Number(matchDate[2]);
+  const d = Number(matchDate[3]);
+  const h = Number(matchTime[1]);
+  const mi = Number(matchTime[2]);
+  const s = matchTime[3] === undefined ? 0 : Number(matchTime[3]);
+
+  if (
+    ![y, mo, d, h, mi, s].every(Number.isFinite)
+    || mo < 1 || mo > 12
+    || d < 1 || d > 31
+    || h < 0 || h > 23
+    || mi < 0 || mi > 59
+    || s < 0 || s > 59
+  ) {
+    throw new Error('Date ou heure de publication invalide.');
+  }
+
   const desiredWallMs = Date.UTC(y, mo - 1, d, h, mi, s);
+  if (!Number.isFinite(desiredWallMs)) {
+    throw new Error('Date ou heure de publication invalide.');
+  }
 
   const formatter = new Intl.DateTimeFormat('en-CA', {
     timeZone,
@@ -62,12 +81,26 @@ function zonedLocalDateTimeToUtc(dateText, timeText, timeZone = appTimeZone) {
   });
 
   const wallMsAt = epochMs => {
+    if (!Number.isFinite(epochMs)) {
+      throw new Error('Date ou heure de publication invalide.');
+    }
     const parts = Object.fromEntries(
       formatter.formatToParts(new Date(epochMs))
         .filter(part => part.type !== 'literal')
         .map(part => [part.type, Number(part.value)])
     );
-    return Date.UTC(parts.year, parts.month - 1, parts.day, parts.hour, parts.minute, parts.second);
+    const wallMs = Date.UTC(
+      parts.year,
+      parts.month - 1,
+      parts.day,
+      parts.hour,
+      parts.minute,
+      parts.second
+    );
+    if (!Number.isFinite(wallMs)) {
+      throw new Error('Conversion du fuseau horaire impossible.');
+    }
+    return wallMs;
   };
 
   let candidate = desiredWallMs;
@@ -81,7 +114,11 @@ function zonedLocalDateTimeToUtc(dateText, timeText, timeZone = appTimeZone) {
     throw new Error(`Heure locale invalide ou ambiguë pour le fuseau ${timeZone}.`);
   }
 
-  return new Date(candidate);
+  const result = new Date(candidate);
+  if (Number.isNaN(result.getTime())) {
+    throw new Error('Date ou heure de publication invalide.');
+  }
+  return result;
 }
 
 app.disable('x-powered-by');
