@@ -804,9 +804,18 @@ app.get('/api/publish/queue/status', authenticate, authorize('admin', 'editor'),
       .filter(job => new Date(job.scheduled_at).getTime() > now)
       .sort((a, b) => new Date(a.scheduled_at) - new Date(b.scheduled_at))[0] || null;
 
+    const localNow = new Intl.DateTimeFormat('fr-CA', {
+      timeZone: appTimeZone,
+      year: 'numeric', month: '2-digit', day: '2-digit',
+      hour: '2-digit', minute: '2-digit', second: '2-digit',
+      hourCycle: 'h23'
+    }).format(new Date());
+
     res.json({
       ok: true,
       now: new Date().toISOString(),
+      timezone: appTimeZone,
+      localNow,
       scheduler: { ...publishQueueState },
       counts: {
         total: jobs.length,
