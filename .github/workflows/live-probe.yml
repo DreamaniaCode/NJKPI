@@ -3,8 +3,6 @@ name: Live NJKPI probe
 on:
   push:
     branches: [main]
-    paths:
-      - ".github/workflows/live-probe.yml"
   workflow_dispatch:
 
 jobs:
