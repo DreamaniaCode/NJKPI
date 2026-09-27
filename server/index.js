@@ -13,7 +13,7 @@ import {
   getKpiTargets, saveKpiTargets,
   saveSocialProfiles, getSocialProfiles, getSocialProfileHistory,
   saveAudienceSnapshot, listAudienceSnapshots,
-  savePublishJob, listPublishJobs, listDuePublishJobs
+  savePublishJob, listPublishJobs, listDuePublishJobs, recoverStuckPublishJobs
 } from './repository.js';
 import { metaConfigured, syncContentFromUrl, syncAds, syncSocialProfiles, syncAudienceConversions, publishSocialJob, diagnoseMetaAccess } from './services/meta.js';
 import { normalizeUploadedMedia } from './services/media.js';
@@ -678,6 +678,49 @@ app.post('/api/publish/jobs/:id/run', authenticate, authorize('admin', 'editor')
       return res.status(502).json(failed);
     }
   } catch (error) { next(error); }
+});
+
+app.post('/api/publish/queue/run', authenticate, authorize('admin', 'editor'), async (_req, res, next) => {
+  try {
+    await runPublishQueue();
+    res.json({ ok: true, scheduler: { ...publishQueueState } });
+  } catch (error) {
+    next(error);
+  }
+});
+
+app.post('/api/publish/jobs/:id/retry', authenticate, authorize('admin', 'editor'), async (req, res, next) => {
+  try {
+    const jobs = await listPublishJobs(null, 500);
+    const job = jobs.find(item => item.id === req.params.id);
+    if (!job) return res.status(404).json({ error: 'Publication introuvable.' });
+    if (!['failed', 'partial'].includes(job.status)) {
+      return res.status(400).json({ error: `Le statut ${job.status} ne nécessite pas de réessai.` });
+    }
+
+    const retryAt = new Date(Date.now() + 2000).toISOString();
+    const updated = await savePublishJob({
+      ...job,
+      status: 'scheduled',
+      scheduledAt: retryAt,
+      error: null,
+      publishedAt: null,
+      metadata: {
+        ...(job.metadata || {}),
+        retryCount: 0,
+        manualRetryAt: new Date().toISOString(),
+        originalScheduledAt: job.metadata?.originalScheduledAt || job.scheduled_at
+      }
+    });
+
+    setTimeout(() => {
+      runPublishQueue().catch(err => console.warn('Réessai publication:', err.message));
+    }, 2500);
+
+    res.json(updated);
+  } catch (error) {
+    next(error);
+  }
 });
 
 app.get('/api/publish/queue/status', authenticate, authorize('admin', 'editor'), async (_req, res, next) => {
@@ -2019,6 +2062,13 @@ const server = app.listen(port, '0.0.0.0', () => {
     // toute synchronisation Meta/KPI. Une lecture Insights lente ne doit jamais
     // empêcher une publication arrivée à échéance.
     const publishQueueSeconds = Math.max(2, Number(process.env.PUBLISH_QUEUE_SECONDS || 5));
+    const recoveredPublishingJobs = await recoverStuckPublishJobs(
+      Number(process.env.PUBLISH_STUCK_MINUTES || 10)
+    );
+    if (recoveredPublishingJobs) {
+      console.warn(`${recoveredPublishingJobs} publication(s) interrompue(s) marquée(s) à vérifier après redémarrage.`);
+    }
+
     publishQueueState.startedAt = new Date().toISOString();
     publishQueueState.intervalSeconds = publishQueueSeconds;
 
