@@ -1292,6 +1292,48 @@ export async function preflightSocialPublishJob(job) {
       quotaWarning = error.message;
     }
 
+    let preparedContainer = null;
+    const scheduledMs = new Date(job.scheduledAt || job.scheduled_at || Date.now()).getTime();
+    const hoursUntilPublish = Number.isFinite(scheduledMs)
+      ? (scheduledMs - Date.now()) / (60 * 60 * 1000)
+      : null;
+
+    // Pour les publications proches, demander réellement à Meta de télécharger
+    // et préparer le média maintenant. On ne publie rien ici.
+    if (hoursUntilPublish !== null && hoursUntilPublish >= -0.1 && hoursUntilPublish <= 20) {
+      const mediaType = String(job.media_type || job.mediaType || 'image').toLowerCase();
+      const isVideo = mediaType === 'video' || mediaType === 'reel';
+      let publishMediaUrl = mediaUrl;
+
+      if (!isVideo) {
+        const prepared = await ensureInstagramCompatibleMediaUrl(mediaUrl, mediaType);
+        publishMediaUrl = prepared.url || mediaUrl;
+      }
+
+      const createParams = { caption: job.message || '' };
+      if (isVideo) {
+        createParams.media_type = 'REELS';
+        createParams.video_url = publishMediaUrl;
+      } else {
+        createParams.image_url = publishMediaUrl;
+      }
+
+      const container = await instagramGraphPost(brand, `${igUserId}/media`, createParams);
+      if (!container?.id) {
+        throw new Error('Meta n’a pas retourné de conteneur pendant le pré-test Instagram.');
+      }
+
+      const containerStatus = await waitForInstagramContainer(brand, container.id);
+      preparedContainer = {
+        id: container.id,
+        preparedAt: new Date().toISOString(),
+        expiresAt: new Date(Date.now() + 23 * 60 * 60 * 1000).toISOString(),
+        statusCode: containerStatus?.status_code || null,
+        status: containerStatus?.status || null,
+        publishMediaUrl
+      };
+    }
+
     checks.instagram = {
       ok: true,
       igUserId,
@@ -1301,7 +1343,9 @@ export async function preflightSocialPublishJob(job) {
       quotaWarning,
       publishPermissionVerified: usesInstagramLogin(brand)
         ? diagnostic.instagramContentPublishGranted
-        : !diagnostic.missingUserPermissions?.includes('instagram_content_publish')
+        : !diagnostic.missingUserPermissions?.includes('instagram_content_publish'),
+      preparedContainer,
+      hoursUntilPublish
     };
   }
 
@@ -1441,21 +1485,67 @@ async function publishInstagramPost(brand, job) {
     createParams.image_url = publishMediaUrl;
   }
 
-  appendPublishTrace(job, 'instagram:create-container', {
-    mediaUrl: publishMediaUrl,
-    isVideo
-  });
-  const container = await instagramGraphPost(brand, `${igUserId}/media`, createParams);
-  if (!container?.id) throw new Error('Meta n’a pas retourné de conteneur Instagram.');
+  let container = null;
+  let containerStatus = null;
 
-  appendPublishTrace(job, 'instagram:container-created', { containerId: container.id });
+  const preparedContainer = job.metadata?.preflight?.instagram?.preparedContainer || null;
+  if (
+    preparedContainer?.id
+    && preparedContainer?.expiresAt
+    && new Date(preparedContainer.expiresAt).getTime() > Date.now()
+  ) {
+    try {
+      const status = await instagramGraph(brand, preparedContainer.id, {
+        fields: 'status_code,status'
+      });
+      const code = String(status?.status_code || '').toUpperCase();
 
-  const containerStatus = await waitForInstagramContainer(brand, container.id);
-  appendPublishTrace(job, 'instagram:container-ready', {
-    containerId: container.id,
-    statusCode: containerStatus?.status_code || null,
-    status: containerStatus?.status || null
-  });
+      if (code === 'FINISHED') {
+        container = { id: preparedContainer.id };
+        containerStatus = status;
+        appendPublishTrace(job, 'instagram:reuse-prepared-container', {
+          containerId: preparedContainer.id,
+          statusCode: code
+        });
+      } else if (code === 'IN_PROGRESS' || !code) {
+        containerStatus = await waitForInstagramContainer(brand, preparedContainer.id);
+        container = { id: preparedContainer.id };
+        appendPublishTrace(job, 'instagram:prepared-container-ready', {
+          containerId: preparedContainer.id,
+          statusCode: containerStatus?.status_code || null
+        });
+      } else {
+        appendPublishTrace(job, 'instagram:prepared-container-unusable', {
+          containerId: preparedContainer.id,
+          statusCode: code,
+          status: status?.status || null
+        });
+      }
+    } catch (error) {
+      appendPublishTrace(job, 'instagram:prepared-container-check-failed', {
+        containerId: preparedContainer.id,
+        error: error.message
+      });
+    }
+  }
+
+  if (!container) {
+    appendPublishTrace(job, 'instagram:create-container', {
+      mediaUrl: publishMediaUrl,
+      isVideo
+    });
+    container = await instagramGraphPost(brand, `${igUserId}/media`, createParams);
+    if (!container?.id) throw new Error('Meta n’a pas retourné de conteneur Instagram.');
+
+    appendPublishTrace(job, 'instagram:container-created', { containerId: container.id });
+
+    containerStatus = await waitForInstagramContainer(brand, container.id);
+    appendPublishTrace(job, 'instagram:container-ready', {
+      containerId: container.id,
+      statusCode: containerStatus?.status_code || null,
+      status: containerStatus?.status || null
+    });
+  }
 
   appendPublishTrace(job, 'instagram:media-publish', { containerId: container.id });
   const published = await instagramGraphPost(brand, `${igUserId}/media_publish`, {
