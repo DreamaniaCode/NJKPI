@@ -618,9 +618,7 @@ app.post('/api/publish/jobs', authenticate, authorize('admin', 'editor'), async 
       ? req.body.metadata
       : {};
 
-    const requestedTimezone = String(
-      rawMetadata.timezone || process.env.APP_TIMEZONE || appTimeZone
-    ).trim() || appTimeZone;
+    const requestedTimezone = appTimeZone;
 
     let scheduledAt;
     if (
@@ -657,6 +655,7 @@ app.post('/api/publish/jobs', authenticate, authorize('admin', 'editor'), async 
       videoScript: String(rawMetadata.videoScript || '').slice(0, 20000),
       storyboard: Array.isArray(rawMetadata.storyboard) ? rawMetadata.storyboard.slice(0, 100) : [],
       timezone: requestedTimezone.slice(0, 100),
+      clientTimezone: String(rawMetadata.timezone || '').slice(0, 100),
       localDate: String(rawMetadata.localDate || '').slice(0, 20),
       localTime: String(rawMetadata.localTime || '').slice(0, 10),
       scheduledUtc: scheduledAt.toISOString()
