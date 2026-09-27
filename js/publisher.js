@@ -5,6 +5,7 @@ const PublisherView = (() => {
   let _metaDiagnostic = null;
   let _queueStatus = null;
   let _loadedBrand = null;
+  let _autoRefreshTimer = null;
 
   function _fmtDate(value) {
     if (!value) return '—';
@@ -113,6 +114,45 @@ const PublisherView = (() => {
         </div>
       </section>
     `;
+  }
+
+  function _publishTraceHtml(job = {}) {
+    const meta = _jobMetadata(job);
+    const trace = Array.isArray(meta.publishTrace) ? meta.publishTrace : [];
+    if (!trace.length) return '';
+
+    return `
+      <details style="margin-top:6px;">
+        <summary style="cursor:pointer;font-size:10px;font-weight:700;">Trace Meta (${trace.length})</summary>
+        <div style="margin-top:6px;display:grid;gap:4px;">
+          ${trace.map(item => `
+            <div style="font-size:10px;padding:5px 7px;background:var(--surface-2,#f6f7f9);border-radius:5px;">
+              <strong>${escapeHtml(item.stage || 'étape')}</strong>
+              <span style="color:var(--muted);"> · ${escapeHtml(_fmtDate(item.at))}</span>
+              ${item.containerId ? ` · container ${escapeHtml(item.containerId)}` : ''}
+              ${item.mediaId ? ` · media ${escapeHtml(item.mediaId)}` : ''}
+              ${item.statusCode ? ` · ${escapeHtml(item.statusCode)}` : ''}
+              ${item.error ? `<div style="color:#b91c1c;margin-top:2px;">${escapeHtml(item.error)}</div>` : ''}
+            </div>
+          `).join('')}
+        </div>
+      </details>
+    `;
+  }
+
+  function _scheduleAutoRefresh() {
+    if (_autoRefreshTimer) window.clearTimeout(_autoRefreshTimer);
+    const view = document.getElementById('view-publisher');
+    if (!view || view.offsetParent === null) return;
+
+    _autoRefreshTimer = window.setTimeout(async () => {
+      const activeView = document.getElementById('view-publisher');
+      if (!activeView || activeView.offsetParent === null) return;
+      try {
+        await _load();
+        render();
+      } catch {}
+    }, 5000);
   }
 
   async function render() {
@@ -266,6 +306,9 @@ const PublisherView = (() => {
                             ${meta.imagePrompt || meta.videoScript
                               ? `<details style="margin-top:5px;"><summary style="cursor:pointer;font-size:10px;">Script / prompt de production</summary><pre style="white-space:pre-wrap;font-size:10px;max-width:420px;">${escapeHtml(meta.videoScript || meta.imagePrompt || '')}</pre></details>`
                               : ''}
+                            ${meta.preflight?.instagram?.ok || meta.preflight?.facebook?.ok
+                              ? `<small style="display:block;margin-top:5px;color:#0f8871;">✓ Pré-test Meta validé avant programmation</small>`
+                              : ''}
                           </div>
                         </div>
                       `;
@@ -273,7 +316,10 @@ const PublisherView = (() => {
                   </td>
                   <td>${escapeHtml(job.media_type || 'text')}</td>
                   <td>${_statusBadge(job.status)}</td>
-                  <td style="max-width:300px;"><small>${escapeHtml(job.error || (job.result && Object.keys(job.result).length ? 'Publication Meta enregistrée' : '—'))}</small></td>
+                  <td style="max-width:360px;">
+                    <small>${escapeHtml(job.error || (job.result && Object.keys(job.result).length ? 'Publication Meta enregistrée' : '—'))}</small>
+                    ${_publishTraceHtml(job)}
+                  </td>
                   <td>
                     ${job.status === 'scheduled'
                       ? '<button class="btn btn--secondary btn--sm" data-run-job="' + escapeHtml(job.id) + '">Publier maintenant</button>'
@@ -487,6 +533,8 @@ const PublisherView = (() => {
         }
       });
     });
+
+    _scheduleAutoRefresh();
   }
 
   return { render };
