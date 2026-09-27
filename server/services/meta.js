@@ -1441,6 +1441,37 @@ async function waitForInstagramContainer(brand, containerId, maxAttempts = 20) {
   throw new Error('Instagram n’a pas terminé le traitement du média après 60 secondes.');
 }
 
+async function verifyInstagramPublishedMedia(brand, igUserId, mediaId, attempts = 10) {
+  let verification = null;
+  let verificationError = null;
+
+  for (let attempt = 1; attempt <= attempts; attempt++) {
+    try {
+      verification = await instagramGraph(brand, mediaId, {
+        fields: 'id,permalink,media_type,media_product_type,timestamp'
+      });
+      if (verification?.id && verification?.permalink) {
+        return { verification, error: null };
+      }
+    } catch (error) {
+      verificationError = error.message;
+    }
+    await new Promise(resolve => setTimeout(resolve, 2000));
+  }
+
+  try {
+    const recent = await instagramGraph(brand, `${igUserId}/media`, {
+      fields: 'id,permalink,media_type,timestamp',
+      limit: 25
+    });
+    verification = (recent.data || []).find(item => String(item.id) === String(mediaId)) || verification;
+  } catch (error) {
+    verificationError = verificationError || error.message;
+  }
+
+  return { verification, error: verificationError };
+}
+
 async function publishInstagramPost(brand, job) {
   appendPublishTrace(job, 'instagram:start', {
     brand,
@@ -1468,7 +1499,41 @@ async function publishInstagramPost(brand, job) {
     }
   }
 
-  const mediaType = String(job.media_type || 'image').toLowerCase();
+  const existingPublishedMediaId = job.metadata?.instagramPublishedMediaId || null;
+  if (existingPublishedMediaId) {
+    appendPublishTrace(job, 'instagram:resume-verification', {
+      mediaId: existingPublishedMediaId
+    });
+    const resumed = await verifyInstagramPublishedMedia(
+      brand,
+      igUserId,
+      existingPublishedMediaId,
+      5
+    );
+    if (resumed.verification?.id && resumed.verification?.permalink) {
+      appendPublishTrace(job, 'instagram:verified', {
+        mediaId: resumed.verification.id,
+        permalink: resumed.verification.permalink,
+        resumed: true
+      });
+      return {
+        id: resumed.verification.id,
+        creation_id: job.metadata?.instagramContainerId || null,
+        verified: true,
+        permalink: resumed.verification.permalink,
+        verification: resumed.verification,
+        authMode: usesInstagramLogin(brand) ? 'instagram-login' : 'facebook-login',
+        resumedVerification: true
+      };
+    }
+    throw new Error(
+      `Instagram a déjà renvoyé l'ID ${existingPublishedMediaId}, mais le média n'est pas encore visible. ` +
+      'La vérification sera retentée sans republier.' +
+      (resumed.error ? ` Détail : ${resumed.error}` : '')
+    );
+  }
+
+    const mediaType = String(job.media_type || 'image').toLowerCase();
   const createParams = { caption: job.message || '' };
   const isVideo = mediaType === 'video' || mediaType === 'reel';
 
@@ -1547,44 +1612,23 @@ async function publishInstagramPost(brand, job) {
     });
   }
 
+  if (!job.metadata || typeof job.metadata !== 'object') job.metadata = {};
+  job.metadata.instagramContainerId = container.id;
+
   appendPublishTrace(job, 'instagram:media-publish', { containerId: container.id });
   const published = await instagramGraphPost(brand, `${igUserId}/media_publish`, {
     creation_id: container.id
   });
   if (!published?.id) throw new Error('Instagram n’a pas confirmé la publication.');
+  job.metadata.instagramPublishedMediaId = published.id;
   appendPublishTrace(job, 'instagram:media-publish-id', { mediaId: published.id });
 
   // Ne jamais considérer media_publish comme "terminé" uniquement parce
   // qu'un ID a été renvoyé. Vérifier que le média est réellement lisible depuis
   // le compte Instagram et qu'un permalink est disponible.
-  let verification = null;
-  let verificationError = null;
-
-  for (let attempt = 1; attempt <= 10; attempt++) {
-    try {
-      verification = await instagramGraph(brand, published.id, {
-        fields: 'id,permalink,media_type,media_product_type,timestamp'
-      });
-      if (verification?.id && verification?.permalink) break;
-    } catch (error) {
-      verificationError = error.message;
-    }
-    await new Promise(resolve => setTimeout(resolve, 2000));
-  }
-
-  if (!verification?.id || !verification?.permalink) {
-    // Vérification secondaire : retrouver explicitement l'ID dans les médias
-    // récents du compte. Cela évite de marquer "publié" un media_publish non visible.
-    try {
-      const recent = await instagramGraph(brand, `${igUserId}/media`, {
-        fields: 'id,permalink,media_type,timestamp',
-        limit: 25
-      });
-      verification = (recent.data || []).find(item => String(item.id) === String(published.id)) || verification;
-    } catch (error) {
-      verificationError = verificationError || error.message;
-    }
-  }
+  const verifiedResult = await verifyInstagramPublishedMedia(brand, igUserId, published.id, 10);
+  const verification = verifiedResult.verification;
+  const verificationError = verifiedResult.error;
 
   if (!verification?.id || !verification?.permalink) {
     appendPublishTrace(job, 'instagram:verification-failed', {
