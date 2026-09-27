@@ -1320,6 +1320,7 @@ export async function preflightSocialPublishJob(job) {
 }
 
 async function publishFacebookPost(brand, job) {
+  appendPublishTrace(job, 'facebook:start', { brand });
   const pageId = resolvedFacebookPageId(brand);
   if (!pageId) throw new Error(`META_PAGE_ID non configuré pour ${brand}`);
   const pageToken = await resolvePageAccessToken(brand);
@@ -1350,12 +1351,29 @@ async function publishFacebookPost(brand, job) {
     }
   }
 
+  appendPublishTrace(job, 'facebook:published', {
+    publishedId,
+    permalink: verification?.permalink_url || null
+  });
+
   return {
     ...published,
     verified: Boolean(publishedId),
     permalink: verification?.permalink_url || null,
     verification
   };
+}
+
+function appendPublishTrace(job, stage, detail = {}) {
+  if (!job || typeof job !== 'object') return;
+  if (!job.metadata || typeof job.metadata !== 'object') job.metadata = {};
+  const trace = Array.isArray(job.metadata.publishTrace) ? job.metadata.publishTrace : [];
+  trace.push({
+    at: new Date().toISOString(),
+    stage,
+    ...detail
+  });
+  job.metadata.publishTrace = trace.slice(-30);
 }
 
 async function waitForInstagramContainer(brand, containerId, maxAttempts = 20) {
@@ -1380,6 +1398,10 @@ async function waitForInstagramContainer(brand, containerId, maxAttempts = 20) {
 }
 
 async function publishInstagramPost(brand, job) {
+  appendPublishTrace(job, 'instagram:start', {
+    brand,
+    mediaType: job.media_type || job.mediaType || 'image'
+  });
   const igUserId = resolvedInstagramUserId(brand);
   if (!igUserId) throw new Error(`META_IG_USER_ID non configuré pour ${brand}`);
   if (!job.media_url) throw new Error('Instagram exige une photo ou vidéo.');
@@ -1419,15 +1441,28 @@ async function publishInstagramPost(brand, job) {
     createParams.image_url = publishMediaUrl;
   }
 
+  appendPublishTrace(job, 'instagram:create-container', {
+    mediaUrl: publishMediaUrl,
+    isVideo
+  });
   const container = await instagramGraphPost(brand, `${igUserId}/media`, createParams);
   if (!container?.id) throw new Error('Meta n’a pas retourné de conteneur Instagram.');
 
-  await waitForInstagramContainer(brand, container.id);
+  appendPublishTrace(job, 'instagram:container-created', { containerId: container.id });
 
+  const containerStatus = await waitForInstagramContainer(brand, container.id);
+  appendPublishTrace(job, 'instagram:container-ready', {
+    containerId: container.id,
+    statusCode: containerStatus?.status_code || null,
+    status: containerStatus?.status || null
+  });
+
+  appendPublishTrace(job, 'instagram:media-publish', { containerId: container.id });
   const published = await instagramGraphPost(brand, `${igUserId}/media_publish`, {
     creation_id: container.id
   });
   if (!published?.id) throw new Error('Instagram n’a pas confirmé la publication.');
+  appendPublishTrace(job, 'instagram:media-publish-id', { mediaId: published.id });
 
   // Ne jamais considérer media_publish comme "terminé" uniquement parce
   // qu'un ID a été renvoyé. Vérifier que le média est réellement lisible depuis
@@ -1462,11 +1497,20 @@ async function publishInstagramPost(brand, job) {
   }
 
   if (!verification?.id || !verification?.permalink) {
+    appendPublishTrace(job, 'instagram:verification-failed', {
+      mediaId: published.id,
+      error: verificationError || null
+    });
     throw new Error(
       `Instagram a renvoyé l'ID ${published.id}, mais la publication n'a pas pu être confirmée dans le compte après media_publish.` +
       (verificationError ? ` Détail de vérification : ${verificationError}` : '')
     );
   }
+
+  appendPublishTrace(job, 'instagram:verified', {
+    mediaId: verification.id,
+    permalink: verification.permalink
+  });
 
   return {
     ...published,
