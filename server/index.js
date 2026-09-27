@@ -2122,6 +2122,17 @@ async function runHourlyAudienceSync() {
 
 let publishQueueRunning = false;
 
+function isRetryablePublishError(error, retryCount = 0) {
+  if (Number(retryCount) >= 4) return false;
+
+  const message = String(error?.message || error || '').toLowerCase();
+
+  const permanent = /permission|missing permission|does not have permission|access token|oauth|not authorized|unsupported request|invalid parameter|invalid media|file type|account.*disabled|user.*disabled/.test(message);
+  if (permanent) return false;
+
+  return /timeout|timed\s*out|timedout|etimedout|temporar|network|fetch|download|media upload|processing|in_progress|econn|eai_again|rate.?limit|unavailable|try again|please wait|server error|http 5\d\d|5\d\d|n'est pas encore visible|n'a pas pu être confirmée/.test(message);
+}
+
 async function runPublishQueue() {
   if (publishQueueRunning) return;
   publishQueueRunning = true;
@@ -2153,25 +2164,35 @@ async function runPublishQueue() {
         // Ne pas perdre définitivement un job sur une erreur réseau/transitoire.
         // On conserve l'erreur visible et on effectue jusqu'à 3 tentatives.
         const retryCount = Number(locked.metadata?.retryCount || 0);
-        const canRetry = retryCount < 2 && /timeout|temporar|network|fetch|econn|rate.?limit|unavailable|5\d\d/i.test(
-          String(error?.message || error)
-        );
+        const canRetry = isRetryablePublishError(error, retryCount);
 
         if (canRetry) {
-          const retryAt = new Date(Date.now() + (retryCount + 1) * 60 * 1000).toISOString();
+          const retryDelaysMinutes = [1, 2, 5, 10];
+          const delayMinutes = retryDelaysMinutes[Math.min(retryCount, retryDelaysMinutes.length - 1)];
+          const retryAt = new Date(Date.now() + delayMinutes * 60 * 1000).toISOString();
           await savePublishJob({
             ...locked,
             status: 'scheduled',
             scheduledAt: retryAt,
-            error: `Tentative ${retryCount + 1}/3 échouée : ${error.message}. Nouvel essai prévu à ${retryAt}.`,
+            error: `Tentative ${retryCount + 1}/5 échouée : ${error.message}. Nouvel essai prévu dans ${delayMinutes} min.`,
             metadata: {
               ...(locked.metadata || {}),
               retryCount: retryCount + 1,
-              originalScheduledAt: locked.metadata?.originalScheduledAt || locked.scheduled_at
+              originalScheduledAt: locked.metadata?.originalScheduledAt || locked.scheduled_at,
+              lastRetryError: error.message,
+              nextRetryAt: retryAt
             }
           });
         } else {
-          await savePublishJob({ ...locked, status: 'failed', error: error.message });
+          await savePublishJob({
+            ...locked,
+            status: 'failed',
+            error: error.message,
+            metadata: {
+              ...(locked.metadata || {}),
+              lastRetryError: error.message
+            }
+          });
         }
       }
     }
