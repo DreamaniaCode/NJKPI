@@ -624,6 +624,44 @@ export async function listPublishJobs(brand, limit = 100) {
   }
 }
 
+export async function recoverStuckPublishJobs(maxAgeMinutes = 10) {
+  const safeMinutes = Math.max(2, Math.min(Number(maxAgeMinutes) || 10, 1440));
+  const cutoff = Date.now() - safeMinutes * 60 * 1000;
+  let recovered = 0;
+
+  for (const [id, job] of memory.publishJobs.entries()) {
+    if (job.status !== 'publishing') continue;
+    const updated = new Date(job.updated_at || job.scheduled_at || 0).getTime();
+    if (!Number.isFinite(updated) || updated > cutoff) continue;
+    memory.publishJobs.set(id, {
+      ...job,
+      status: 'failed',
+      error: 'Publication interrompue par un redémarrage du serveur. Vérifiez Instagram avant de réessayer pour éviter un doublon.',
+      updated_at: new Date().toISOString()
+    });
+    recovered++;
+  }
+
+  if (!hasDatabase) return recovered;
+
+  try {
+    const result = await query(
+      `UPDATE social_publish_jobs
+       SET status='failed',
+           error=COALESCE(NULLIF(error,''), 'Publication interrompue par un redémarrage du serveur. Vérifiez Instagram avant de réessayer pour éviter un doublon.'),
+           updated_at=NOW()
+       WHERE status='publishing'
+         AND updated_at < NOW() - ($1::text || ' minutes')::interval
+       RETURNING id`,
+      [String(safeMinutes)]
+    );
+    return result.rowCount;
+  } catch (error) {
+    console.warn('Récupération jobs publishing interrompus:', error.message);
+    return recovered;
+  }
+}
+
 export async function listDuePublishJobs(limit = 20) {
   const safeLimit = Math.max(1, Math.min(Number(limit) || 20, 100));
   if (!hasDatabase) {
