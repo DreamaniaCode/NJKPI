@@ -1,0 +1,32 @@
+name: Live NJKPI probe
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - ".github/workflows/live-probe.yml"
+  workflow_dispatch:
+
+jobs:
+  probe:
+    runs-on: ubuntu-latest
+    timeout-minutes: 3
+    steps:
+      - name: Probe deployed NJKPI
+        shell: bash
+        run: |
+          set -euo pipefail
+          base="https://nidal.myskillscloud.com"
+
+          echo "=== VERSION ==="
+          curl -fsS --max-time 20 "$base/api/version" || true
+          echo
+          echo "=== HEALTH ==="
+          curl -fsS --max-time 20 "$base/api/health" || true
+          echo
+          echo "=== NIDAL JUNIOR JOBS ==="
+          curl -fsS --max-time 20 "$base/api/publish/jobs?brand=nidal-junior&limit=100" || true
+          echo
+          echo "=== NIDAL JOBS ==="
+          curl -fsS --max-time 20 "$base/api/publish/jobs?brand=nidal&limit=100" || true
+          echo
