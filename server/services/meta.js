@@ -1263,20 +1263,50 @@ async function publishInstagramPost(brand, job) {
   });
   if (!published?.id) throw new Error('Instagram n’a pas confirmé la publication.');
 
+  // Ne jamais considérer media_publish comme "terminé" uniquement parce
+  // qu'un ID a été renvoyé. Vérifier que le média est réellement lisible depuis
+  // le compte Instagram et qu'un permalink est disponible.
   let verification = null;
-  try {
-    verification = await instagramGraph(brand, published.id, {
-      fields: 'id,permalink,media_type,timestamp'
-    });
-  } catch {
-    verification = { id: published.id };
+  let verificationError = null;
+
+  for (let attempt = 1; attempt <= 10; attempt++) {
+    try {
+      verification = await instagramGraph(brand, published.id, {
+        fields: 'id,permalink,media_type,media_product_type,timestamp'
+      });
+      if (verification?.id && verification?.permalink) break;
+    } catch (error) {
+      verificationError = error.message;
+    }
+    await new Promise(resolve => setTimeout(resolve, 2000));
+  }
+
+  if (!verification?.id || !verification?.permalink) {
+    // Vérification secondaire : retrouver explicitement l'ID dans les médias
+    // récents du compte. Cela évite de marquer "publié" un media_publish non visible.
+    try {
+      const recent = await instagramGraph(brand, `${igUserId}/media`, {
+        fields: 'id,permalink,media_type,timestamp',
+        limit: 25
+      });
+      verification = (recent.data || []).find(item => String(item.id) === String(published.id)) || verification;
+    } catch (error) {
+      verificationError = verificationError || error.message;
+    }
+  }
+
+  if (!verification?.id || !verification?.permalink) {
+    throw new Error(
+      `Instagram a renvoyé l'ID ${published.id}, mais la publication n'a pas pu être confirmée dans le compte après media_publish.` +
+      (verificationError ? ` Détail de vérification : ${verificationError}` : '')
+    );
   }
 
   return {
     ...published,
     creation_id: container.id,
-    verified: Boolean(published.id),
-    permalink: verification?.permalink || null,
+    verified: true,
+    permalink: verification.permalink,
     verification,
     authMode: usesInstagramLogin(brand) ? 'instagram-login' : 'facebook-login'
   };
