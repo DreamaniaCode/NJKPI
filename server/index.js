@@ -680,6 +680,48 @@ app.post('/api/publish/jobs/:id/run', authenticate, authorize('admin', 'editor')
   } catch (error) { next(error); }
 });
 
+app.get('/api/publish/queue/status', authenticate, authorize('admin', 'editor'), async (_req, res, next) => {
+  try {
+    const jobs = await listPublishJobs(null, 500);
+    const now = Date.now();
+    const scheduled = jobs.filter(job => job.status === 'scheduled');
+    const overdue = scheduled.filter(job => new Date(job.scheduled_at).getTime() <= now);
+    const nextJob = scheduled
+      .filter(job => new Date(job.scheduled_at).getTime() > now)
+      .sort((a, b) => new Date(a.scheduled_at) - new Date(b.scheduled_at))[0] || null;
+
+    res.json({
+      ok: true,
+      now: new Date().toISOString(),
+      scheduler: { ...publishQueueState },
+      counts: {
+        total: jobs.length,
+        scheduled: scheduled.length,
+        overdue: overdue.length,
+        publishing: jobs.filter(job => job.status === 'publishing').length,
+        failed: jobs.filter(job => job.status === 'failed').length,
+        partial: jobs.filter(job => job.status === 'partial').length,
+        published: jobs.filter(job => job.status === 'published').length
+      },
+      overdueJobs: overdue.slice(0, 10).map(job => ({
+        id: job.id,
+        brand: job.brand_slug,
+        scheduledAt: job.scheduled_at,
+        platforms: job.platforms,
+        error: job.error || null
+      })),
+      nextJob: nextJob ? {
+        id: nextJob.id,
+        brand: nextJob.brand_slug,
+        scheduledAt: nextJob.scheduled_at,
+        platforms: nextJob.platforms
+      } : null
+    });
+  } catch (error) {
+    next(error);
+  }
+});
+
 app.get('/api/audience-conversions', async (req, res, next) => {
   try {
     const brand = req.query.brand === 'nidal' ? 'nidal' : 'nidal-junior';
@@ -1873,6 +1915,17 @@ process.on('unhandledRejection', reason => {
   console.error('Rejet de promesse non gere:', reason);
 });
 
+const publishQueueState = {
+  startedAt: null,
+  lastTickAt: null,
+  lastCompletedAt: null,
+  lastError: null,
+  lastDueCount: 0,
+  lastProcessedIds: [],
+  running: false,
+  intervalSeconds: null
+};
+
 async function runHourlyAudienceSync() {
   for (const brand of ['nidal', 'nidal-junior']) {
     try {
@@ -1896,26 +1949,64 @@ let publishQueueRunning = false;
 async function runPublishQueue() {
   if (publishQueueRunning) return;
   publishQueueRunning = true;
+  publishQueueState.running = true;
+  publishQueueState.lastTickAt = new Date().toISOString();
+  publishQueueState.lastError = null;
+  publishQueueState.lastProcessedIds = [];
+
   try {
     const due = await listDuePublishJobs(20);
+    publishQueueState.lastDueCount = due.length;
+
     for (const job of due) {
+      publishQueueState.lastProcessedIds.push(job.id);
       const locked = await savePublishJob({ ...job, status: 'publishing', error: null });
       try {
         const outcome = await publishSocialJob(locked);
         await markContentPublishedFromJob(locked, outcome);
+
+        const outcomeErrors = Object.entries(outcome.errors || {});
         await savePublishJob({
           ...locked,
-          status: Object.keys(outcome.errors || {}).length ? 'partial' : 'published',
+          status: outcomeErrors.length ? 'partial' : 'published',
           result: outcome.result,
-          error: Object.entries(outcome.errors || {}).map(([p, m]) => `${p}: ${m}`).join(' | ') || null,
+          error: outcomeErrors.map(([p, m]) => `${p}: ${m}`).join(' | ') || null,
           publishedAt: new Date().toISOString()
         });
       } catch (error) {
-        await savePublishJob({ ...locked, status: 'failed', error: error.message });
+        // Ne pas perdre définitivement un job sur une erreur réseau/transitoire.
+        // On conserve l'erreur visible et on effectue jusqu'à 3 tentatives.
+        const retryCount = Number(locked.metadata?.retryCount || 0);
+        const canRetry = retryCount < 2 && /timeout|temporar|network|fetch|econn|rate.?limit|unavailable|5\d\d/i.test(
+          String(error?.message || error)
+        );
+
+        if (canRetry) {
+          const retryAt = new Date(Date.now() + (retryCount + 1) * 60 * 1000).toISOString();
+          await savePublishJob({
+            ...locked,
+            status: 'scheduled',
+            scheduledAt: retryAt,
+            error: `Tentative ${retryCount + 1}/3 échouée : ${error.message}. Nouvel essai prévu à ${retryAt}.`,
+            metadata: {
+              ...(locked.metadata || {}),
+              retryCount: retryCount + 1,
+              originalScheduledAt: locked.metadata?.originalScheduledAt || locked.scheduled_at
+            }
+          });
+        } else {
+          await savePublishJob({ ...locked, status: 'failed', error: error.message });
+        }
       }
     }
+
+    publishQueueState.lastCompletedAt = new Date().toISOString();
+  } catch (error) {
+    publishQueueState.lastError = error?.message || String(error);
+    throw error;
   } finally {
     publishQueueRunning = false;
+    publishQueueState.running = false;
   }
 }
 
@@ -1923,21 +2014,30 @@ const server = app.listen(port, '0.0.0.0', () => {
   console.log(`Nidal Content Hub demarre sur http://0.0.0.0:${port}`);
   initDatabase().then(async () => {
     await initAuth();
+
+    // PRIORITÉ ABSOLUE : démarrer la publication programmée indépendamment de
+    // toute synchronisation Meta/KPI. Une lecture Insights lente ne doit jamais
+    // empêcher une publication arrivée à échéance.
+    const publishQueueSeconds = Math.max(2, Number(process.env.PUBLISH_QUEUE_SECONDS || 5));
+    publishQueueState.startedAt = new Date().toISOString();
+    publishQueueState.intervalSeconds = publishQueueSeconds;
+
+    runPublishQueue().catch(err => console.warn('File publication initiale:', err.message));
+    setInterval(
+      () => runPublishQueue().catch(err => console.warn('File publication:', err.message)),
+      publishQueueSeconds * 1000
+    );
+    console.log(`File de publication active toutes les ${publishQueueSeconds}s.`);
+
+    // Les KPI/Insights tournent en arrière-plan et ne bloquent plus le scheduler.
     if (process.env.META_HOURLY_SYNC_ENABLED !== 'false') {
-      await runHourlyAudienceSync();
       const metaSyncSeconds = Math.max(120, Number(process.env.META_BACKGROUND_SYNC_SECONDS || 300));
+      runHourlyAudienceSync().catch(err => console.warn('Sync Meta initiale:', err.message));
       setInterval(
         () => runHourlyAudienceSync().catch(err => console.warn('Sync Meta automatique:', err.message)),
         metaSyncSeconds * 1000
       );
     }
-    await runPublishQueue();
-    const publishQueueSeconds = Math.max(2, Number(process.env.PUBLISH_QUEUE_SECONDS || 5));
-    setInterval(
-      () => runPublishQueue().catch(err => console.warn('File publication:', err.message)),
-      publishQueueSeconds * 1000
-    );
-    console.log(`File de publication vérifiée toutes les ${publishQueueSeconds}s.`);
   }).catch(error => {
     console.error('Avertissement initialisation base:', error.message);
   });
