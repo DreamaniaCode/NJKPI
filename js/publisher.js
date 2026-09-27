@@ -94,7 +94,8 @@ const PublisherView = (() => {
             <span class="section-kicker">Scheduler de publication</span>
             <h3 style="margin:4px 0;">${healthy ? 'File automatique active' : 'File automatique à vérifier'}</h3>
             <p style="margin:0;color:var(--muted);">
-              Dernier passage : <strong>${scheduler.lastTickAt ? escapeHtml(_fmtDate(scheduler.lastTickAt)) : 'jamais'}</strong>
+              Heure serveur : <strong>${escapeHtml(q.localNow || '—')}</strong> ${q.timezone ? '· ' + escapeHtml(q.timezone) : ''}
+              · dernier passage : <strong>${scheduler.lastTickAt ? escapeHtml(_fmtDate(scheduler.lastTickAt)) : 'jamais'}</strong>
               · intervalle : <strong>${scheduler.intervalSeconds || '—'} s</strong>
               · jobs en retard : <strong>${overdue}</strong>
             </p>
@@ -240,7 +241,15 @@ const PublisherView = (() => {
             <tbody>
               ${_jobs.length ? _jobs.map(job => `
                 <tr>
-                  <td><strong>${escapeHtml(_fmtDate(job.scheduled_at))}</strong></td>
+                  <td>
+                    <strong>${escapeHtml(_fmtDate(job.scheduled_at))}</strong>
+                    ${(() => {
+                      const meta = _jobMetadata(job);
+                      return meta.localDate && meta.localTime
+                        ? `<small style="display:block;margin-top:3px;color:var(--muted);">Demandé : ${escapeHtml(meta.localDate)} ${escapeHtml(meta.localTime)} · ${escapeHtml(meta.timezone || '')}</small>`
+                        : '';
+                    })()}
+                  </td>
                   <td>${(job.platforms || []).map(p => '<span class="badge badge--planifie" style="margin-right:4px;">' + escapeHtml(p) + '</span>').join('')}</td>
                   <td style="min-width:300px;">
                     ${(() => {
