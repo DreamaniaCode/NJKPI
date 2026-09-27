@@ -3,6 +3,7 @@ const PublisherView = (() => {
   let _jobs = [];
   let _loading = false;
   let _metaDiagnostic = null;
+  let _queueStatus = null;
   let _loadedBrand = null;
 
   function _fmtDate(value) {
@@ -26,14 +27,19 @@ const PublisherView = (() => {
     if (!NidalAPI.isOnline()) return;
     const brand = getActiveBrand();
     try {
-      const [jobs, diagnostic] = await Promise.all([
+      const [jobs, diagnostic, queueStatus] = await Promise.all([
         NidalAPI.listPublishJobs(brand),
         NidalAPI.request('/api/meta/diagnostics?brand=' + encodeURIComponent(brand)).catch(error => ({
           errors: [error.message || String(error)]
+        })),
+        NidalAPI.request('/api/publish/queue/status').catch(error => ({
+          ok: false,
+          error: error.message || String(error)
         }))
       ]);
       _jobs = Array.isArray(jobs) ? jobs : [];
       _metaDiagnostic = diagnostic || null;
+      _queueStatus = queueStatus || null;
       _loadedBrand = brand;
     } catch (error) {
       showToast(error.message || 'Impossible de charger la file de publication', 'error');
@@ -73,6 +79,41 @@ const PublisherView = (() => {
     return job.metadata && typeof job.metadata === 'object' ? job.metadata : {};
   }
 
+  function _queueStatusHtml() {
+    const q = _queueStatus || {};
+    const scheduler = q.scheduler || {};
+    const counts = q.counts || {};
+    const lastTickMs = scheduler.lastTickAt ? Date.now() - new Date(scheduler.lastTickAt).getTime() : Infinity;
+    const healthy = Boolean(q.ok && scheduler.startedAt && lastTickMs < 30000);
+    const overdue = Number(counts.overdue || 0);
+
+    return `
+      <section class="analysis-panel" style="margin-bottom:18px;border-left:4px solid ${healthy && !overdue ? '#0f8871' : '#d97706'};">
+        <div style="display:flex;justify-content:space-between;gap:16px;align-items:flex-start;flex-wrap:wrap;">
+          <div>
+            <span class="section-kicker">Scheduler de publication</span>
+            <h3 style="margin:4px 0;">${healthy ? 'File automatique active' : 'File automatique à vérifier'}</h3>
+            <p style="margin:0;color:var(--muted);">
+              Dernier passage : <strong>${scheduler.lastTickAt ? escapeHtml(_fmtDate(scheduler.lastTickAt)) : 'jamais'}</strong>
+              · intervalle : <strong>${scheduler.intervalSeconds || '—'} s</strong>
+              · jobs en retard : <strong>${overdue}</strong>
+            </p>
+            <p style="margin:5px 0 0;color:var(--muted);">
+              ${q.nextJob
+                ? `Prochaine publication : ${escapeHtml(_fmtDate(q.nextJob.scheduledAt))} · ${escapeHtml(q.nextJob.brand || '')}`
+                : 'Aucune publication future en attente.'}
+            </p>
+            ${scheduler.lastError ? `<p style="margin:6px 0 0;color:#b91c1c;"><strong>Dernière erreur scheduler :</strong> ${escapeHtml(scheduler.lastError)}</p>` : ''}
+          </div>
+          <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;">
+            <span class="badge ${healthy ? 'badge--green' : 'badge--yellow'}">${healthy ? 'ACTIF' : 'À VÉRIFIER'}</span>
+            <button class="btn btn--secondary btn--sm" id="publisher-run-queue-btn">▶ Exécuter la file maintenant</button>
+          </div>
+        </div>
+      </section>
+    `;
+  }
+
   async function render() {
     const view = document.getElementById('view-publisher');
     if (!view) return;
@@ -85,6 +126,7 @@ const PublisherView = (() => {
       if (_loadedBrand !== activeBrand) {
         _jobs = [];
         _metaDiagnostic = null;
+        _queueStatus = null;
       }
       await _load();
       _loading = false;
@@ -106,6 +148,7 @@ const PublisherView = (() => {
       </header>
 
       ${_juniorMetaStatusHtml()}
+      ${_queueStatusHtml()}
 
       <section class="analysis-panel" style="margin-bottom:22px;">
         <div class="section-heading">
@@ -222,7 +265,14 @@ const PublisherView = (() => {
                   <td>${escapeHtml(job.media_type || 'text')}</td>
                   <td>${_statusBadge(job.status)}</td>
                   <td style="max-width:300px;"><small>${escapeHtml(job.error || (job.result && Object.keys(job.result).length ? 'Publication Meta enregistrée' : '—'))}</small></td>
-                  <td>${job.status === 'scheduled' ? '<button class="btn btn--secondary btn--sm" data-run-job="' + escapeHtml(job.id) + '">Publier maintenant</button>' : ''}</td>
+                  <td>
+                    ${job.status === 'scheduled'
+                      ? '<button class="btn btn--secondary btn--sm" data-run-job="' + escapeHtml(job.id) + '">Publier maintenant</button>'
+                      : ''}
+                    ${['failed', 'partial'].includes(job.status)
+                      ? '<button class="btn btn--secondary btn--sm" data-retry-job="' + escapeHtml(job.id) + '">↻ Réessayer</button>'
+                      : ''}
+                  </td>
                 </tr>
               `).join('') : '<tr><td colspan="7" style="text-align:center;color:var(--muted);padding:28px;">Aucune publication programmée.</td></tr>'}
             </tbody>
@@ -373,6 +423,44 @@ const PublisherView = (() => {
     document.getElementById('publisher-refresh-btn')?.addEventListener('click', async () => {
       await _load();
       render();
+    });
+
+    document.getElementById('publisher-run-queue-btn')?.addEventListener('click', async event => {
+      const btn = event.currentTarget;
+      btn.disabled = true;
+      btn.textContent = 'Exécution…';
+      try {
+        await NidalAPI.request('/api/publish/queue/run', { method: 'POST', body: '{}' });
+        await _load();
+        render();
+        showToast('File de publication exécutée.', 'success');
+      } catch (error) {
+        btn.disabled = false;
+        btn.textContent = '▶ Exécuter la file maintenant';
+        showToast('Exécution de la file impossible : ' + error.message, 'error');
+      }
+    });
+
+    document.querySelectorAll('[data-retry-job]').forEach(btn => {
+      btn.addEventListener('click', async () => {
+        const original = btn.textContent;
+        btn.disabled = true;
+        btn.textContent = 'Réessai…';
+        try {
+          await NidalAPI.request('/api/publish/jobs/' + encodeURIComponent(btn.dataset.retryJob) + '/retry', {
+            method: 'POST',
+            body: '{}'
+          });
+          showToast('Réessai programmé immédiatement.', 'success');
+          await new Promise(resolve => setTimeout(resolve, 3000));
+          await _load();
+          render();
+        } catch (error) {
+          btn.disabled = false;
+          btn.textContent = original;
+          showToast(error.message || 'Réessai impossible', 'error');
+        }
+      });
     });
 
     document.querySelectorAll('[data-run-job]').forEach(btn => {
