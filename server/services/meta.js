@@ -300,6 +300,27 @@ export async function diagnoseMetaAccess(brand) {
       result.instagramDirectTokenValid = Boolean(identity?.id);
       result.instagramInsightsReadable = false;
       result.instagramInsightsError = null;
+      result.instagramPermissions = [];
+      result.instagramContentPublishGranted = null;
+
+      try {
+        const permsPayload = await directInstagramGraph(brand, 'me/permissions');
+        const permissions = (permsPayload.data || [])
+          .filter(item => !item.status || item.status === 'granted')
+          .map(item => item.permission || item.name)
+          .filter(Boolean);
+        result.instagramPermissions = permissions;
+        result.instagramContentPublishGranted = permissions.includes('instagram_business_content_publish');
+        if (!result.instagramContentPublishGranted) {
+          result.configurationWarnings.push(
+            'Le token Instagram est valide mais ne contient pas instagram_business_content_publish.'
+          );
+        }
+      } catch (permissionError) {
+        result.configurationWarnings.push(
+          'Impossible de lire les permissions du token Instagram : ' + permissionError.message
+        );
+      }
 
       if (igUserId && identity?.id && String(identity.id) !== String(igUserId)) {
         result.configurationWarnings.push(
@@ -333,6 +354,7 @@ export async function diagnoseMetaAccess(brand) {
         .filter(item => item.status === 'granted')
         .map(item => item.permission);
       const required = ['pages_show_list', 'pages_read_engagement', 'pages_manage_posts'];
+      if (igUserId) required.push('instagram_content_publish');
       result.missingUserPermissions = required.filter(permission => !result.userPermissions.includes(permission));
     } catch (error) {
       result.errors.push(`user permissions: ${error.message}`);
@@ -1152,6 +1174,150 @@ function demoAds(brand) {
   ];
 }
 
+
+async function checkPublicMediaUrl(url) {
+  if (!url) return { ok: false, error: 'Aucun média fourni.' };
+
+  let parsed;
+  try {
+    parsed = new URL(url);
+  } catch {
+    return { ok: false, error: 'URL média invalide.' };
+  }
+
+  if (parsed.protocol !== 'https:') {
+    return { ok: false, error: 'Instagram exige une URL média HTTPS publiquement accessible.' };
+  }
+
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), 12000);
+  try {
+    let response = await fetch(url, {
+      method: 'HEAD',
+      redirect: 'follow',
+      signal: controller.signal
+    });
+
+    if (!response.ok || response.status === 405) {
+      response = await fetch(url, {
+        method: 'GET',
+        redirect: 'follow',
+        signal: controller.signal,
+        headers: { Range: 'bytes=0-1023' }
+      });
+    }
+
+    const contentType = response.headers.get('content-type') || '';
+    const contentLength = Number(response.headers.get('content-length') || 0) || null;
+
+    if (!response.ok && response.status !== 206) {
+      return { ok: false, error: `Le média public répond HTTP ${response.status}.` };
+    }
+
+    return {
+      ok: true,
+      status: response.status,
+      contentType,
+      contentLength,
+      finalUrl: response.url || url
+    };
+  } catch (error) {
+    return {
+      ok: false,
+      error: error?.name === 'AbortError'
+        ? 'Le média public ne répond pas dans les 12 secondes.'
+        : (error.message || String(error))
+    };
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
+export async function preflightSocialPublishJob(job) {
+  const brand = job.brand_slug || job.brand || 'nidal-junior';
+  const requestedPlatforms = Array.isArray(job.platforms) ? job.platforms : [];
+  const platforms = brand === 'nidal-junior'
+    ? requestedPlatforms.filter(platform => platform === 'instagram')
+    : requestedPlatforms;
+
+  const checks = {
+    brand,
+    platforms,
+    checkedAt: new Date().toISOString(),
+    instagram: null,
+    facebook: null
+  };
+
+  if (platforms.includes('instagram')) {
+    const igUserId = resolvedInstagramUserId(brand);
+    if (!igUserId) throw new Error(`META_IG_USER_ID non configuré pour ${brand}`);
+    if (!job.media_url && !job.mediaUrl) throw new Error('Instagram exige une photo ou vidéo.');
+
+    const diagnostic = await diagnoseMetaAccess(brand);
+
+    if (usesInstagramLogin(brand)) {
+      if (!diagnostic.instagramDirectTokenValid) {
+        throw new Error(
+          diagnostic.errors?.[0]
+          || 'Le token Instagram Login n’est pas valide pour ce compte.'
+        );
+      }
+      if (diagnostic.instagramContentPublishGranted === false) {
+        throw new Error(
+          'Le token Instagram Login ne possède pas la permission instagram_business_content_publish.'
+        );
+      }
+    } else {
+      if (diagnostic.missingUserPermissions?.includes('instagram_content_publish')) {
+        throw new Error(
+          'Le token Meta ne possède pas la permission instagram_content_publish.'
+        );
+      }
+      await resolvePageAccessToken(brand);
+    }
+
+    const mediaUrl = job.media_url || job.mediaUrl;
+    const mediaCheck = await checkPublicMediaUrl(mediaUrl);
+    if (!mediaCheck.ok) {
+      throw new Error('Média inaccessible pour Instagram : ' + mediaCheck.error);
+    }
+
+    let quota = null;
+    let quotaWarning = null;
+    try {
+      quota = await instagramGraph(brand, `${igUserId}/content_publishing_limit`, {
+        fields: 'quota_usage,config'
+      });
+    } catch (error) {
+      quotaWarning = error.message;
+    }
+
+    checks.instagram = {
+      ok: true,
+      igUserId,
+      authMode: usesInstagramLogin(brand) ? 'instagram-login' : 'facebook-login',
+      media: mediaCheck,
+      quota,
+      quotaWarning,
+      publishPermissionVerified: usesInstagramLogin(brand)
+        ? diagnostic.instagramContentPublishGranted
+        : !diagnostic.missingUserPermissions?.includes('instagram_content_publish')
+    };
+  }
+
+  if (platforms.includes('facebook')) {
+    const pageId = resolvedFacebookPageId(brand);
+    if (!pageId) throw new Error(`META_PAGE_ID non configuré pour ${brand}`);
+    const token = await resolvePageAccessToken(brand);
+    const identity = await graph('me', { fields: 'id,name' }, token);
+    if (String(identity?.id || '') !== String(pageId)) {
+      throw new Error('Le Page Access Token Facebook ne correspond pas à la Page configurée.');
+    }
+    checks.facebook = { ok: true, pageId, name: identity?.name || null };
+  }
+
+  return checks;
+}
 
 async function publishFacebookPost(brand, job) {
   const pageId = resolvedFacebookPageId(brand);
