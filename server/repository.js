@@ -756,11 +756,9 @@ export async function listPublishJobs(brand, limit = 100) {
     );
     return result.rows;
   } catch (error) {
-    console.warn('Fallback memoire listPublishJobs:', error.message);
-    return [...memory.publishJobs.values()]
-      .filter(item => !brand || item.brand_slug === brand)
-      .sort((a, b) => b.scheduled_at.localeCompare(a.scheduled_at))
-      .slice(0, safeLimit);
+    const detail = postgresErrorDetail(error);
+    console.error('PostgreSQL listPublishJobs indisponible:', detail);
+    throw new Error('Lecture des publications programmées impossible: ' + detail);
   }
 }
 
