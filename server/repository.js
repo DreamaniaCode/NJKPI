@@ -11,6 +11,60 @@ const memory = {
   agentRuns: []
 };
 
+function normalizeJsonValue(value, seen = new WeakSet()) {
+  if (value === null || value === undefined) return value === undefined ? null : value;
+
+  const type = typeof value;
+  if (type === 'string' || type === 'boolean') return value;
+  if (type === 'number') return Number.isFinite(value) ? value : null;
+  if (type === 'bigint') return value.toString();
+  if (type === 'function' || type === 'symbol') return null;
+
+  if (value instanceof Date) {
+    return Number.isNaN(value.getTime()) ? null : value.toISOString();
+  }
+
+  if (Array.isArray(value)) {
+    return value.map(item => normalizeJsonValue(item, seen));
+  }
+
+  if (type === 'object') {
+    if (seen.has(value)) return null;
+    seen.add(value);
+
+    const output = {};
+    for (const [key, item] of Object.entries(value)) {
+      output[String(key)] = normalizeJsonValue(item, seen);
+    }
+    seen.delete(value);
+    return output;
+  }
+
+  return String(value);
+}
+
+function encodeJsonForPostgres(value) {
+  const normalized = normalizeJsonValue(value);
+  const json = JSON.stringify(normalized ?? {});
+  // Vérification locale avant PostgreSQL : si cette ligne passe, le texte est
+  // obligatoirement un JSON valide selon le parseur JavaScript.
+  JSON.parse(json);
+  return {
+    normalized,
+    json,
+    base64: Buffer.from(json, 'utf8').toString('base64')
+  };
+}
+
+function postgresErrorDetail(error) {
+  return [
+    error?.message,
+    error?.detail ? `DETAIL: ${error.detail}` : '',
+    error?.where ? `WHERE: ${error.where}` : '',
+    error?.code ? `CODE: ${error.code}` : ''
+  ].filter(Boolean).join(' | ');
+}
+
 const ZERO_KPI_TARGETS = {
   'nidal-junior': {
     followers: { current: 0, target: 5000, eta: '2026-12-31', note: 'Abonnés Instagram Nidal Junior uniquement' },
@@ -97,33 +151,64 @@ export async function getContent(id) {
 }
 
 export async function upsertContent(content) {
+  const rawData = content.data && typeof content.data === 'object'
+    ? content.data
+    : content;
+
+  const encoded = encodeJsonForPostgres(rawData);
+
   const record = {
-    id: content.id,
-    brand_slug: content.brand || content.brand_slug || 'nidal-junior',
-    data: content.data || content,
-    final_url: content.finalUrl || content.final_url || null,
-    external_media_id: content.externalMediaId || content.external_media_id || null,
-    platform: content.platform || content.plateforme || null,
-    sync_status: content.syncStatus || content.sync_status || 'not_connected',
-    last_synced_at: content.lastSyncedAt || content.last_synced_at || null,
+    id: String(content.id || '').trim(),
+    brand_slug: content.brand || content.brand_slug || encoded.normalized?.brand || 'nidal-junior',
+    data: encoded.normalized,
+    final_url: content.finalUrl || content.final_url || encoded.normalized?.finalUrl || null,
+    external_media_id: content.externalMediaId || content.external_media_id || encoded.normalized?.externalMediaId || null,
+    platform: content.platform || content.plateforme || encoded.normalized?.plateforme || null,
+    sync_status: content.syncStatus || content.sync_status || encoded.normalized?.syncStatus || 'not_connected',
+    last_synced_at: content.lastSyncedAt || content.last_synced_at || encoded.normalized?.lastSyncedAt || null,
     updated_at: new Date().toISOString()
   };
+
+  if (!record.id) throw new Error('Enregistrement PostgreSQL impossible: identifiant contenu manquant.');
+
   memory.contents.set(record.id, record);
   if (!hasDatabase) return record;
+
   try {
     const result = await query(`
       INSERT INTO contents (id, brand_slug, data, final_url, external_media_id, platform, sync_status, last_synced_at)
-      VALUES ($1,$2,$3::jsonb,$4,$5,$6,$7,$8)
-      ON CONFLICT (id) DO UPDATE SET brand_slug=EXCLUDED.brand_slug, data=EXCLUDED.data, final_url=EXCLUDED.final_url,
-        external_media_id=EXCLUDED.external_media_id, platform=EXCLUDED.platform, sync_status=EXCLUDED.sync_status,
-        last_synced_at=EXCLUDED.last_synced_at, updated_at=NOW()
+      VALUES (
+        $1,
+        $2,
+        convert_from(decode($3, 'base64'), 'UTF8')::jsonb,
+        $4,$5,$6,$7,$8
+      )
+      ON CONFLICT (id) DO UPDATE SET
+        brand_slug=EXCLUDED.brand_slug,
+        data=EXCLUDED.data,
+        final_url=EXCLUDED.final_url,
+        external_media_id=EXCLUDED.external_media_id,
+        platform=EXCLUDED.platform,
+        sync_status=EXCLUDED.sync_status,
+        last_synced_at=EXCLUDED.last_synced_at,
+        updated_at=NOW()
       RETURNING id, brand_slug, data, final_url, external_media_id, platform, sync_status, last_synced_at, created_at, updated_at`,
-      [record.id, record.brand_slug, JSON.stringify(record.data), record.final_url, record.external_media_id, record.platform, record.sync_status, record.last_synced_at]
+      [
+        record.id,
+        record.brand_slug,
+        encoded.base64,
+        record.final_url,
+        record.external_media_id,
+        record.platform,
+        record.sync_status,
+        record.last_synced_at
+      ]
     );
     return result.rows[0];
   } catch (error) {
-    console.error('PostgreSQL upsertContent indisponible:', error.message);
-    throw new Error(`Enregistrement PostgreSQL impossible: ${error.message}`);
+    const detail = postgresErrorDetail(error);
+    console.error('PostgreSQL upsertContent indisponible:', detail);
+    throw new Error(`Enregistrement PostgreSQL impossible: ${detail}`);
   }
 }
 
