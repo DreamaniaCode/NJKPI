@@ -708,7 +708,7 @@ const AgentView = (() => {
               <option value="8 slides" ${currentAgent.brief.slideCount === '8 slides' ? 'selected' : ''}>8 slides</option>
             </select>
           </div>
-          <div id="format-tip-box" hidden></div>
+          <div id="format-tip-box" style="margin:10px 0 14px;">${_formatRuleHtml(currentAgent.brief.format)}</div>
 
           <details class="agent-advanced">
             <summary>Options avancées <span>facultatif</span></summary>
@@ -813,6 +813,117 @@ const AgentView = (() => {
         livePlanButton.textContent = _taskProgressState.title || 'Analyse en cours…';
       }
     }
+  }
+
+  function _formatRuleHtml(format = 'post') {
+    const fmt = String(format || 'post').toLowerCase();
+
+    let title = 'Post';
+    let icon = '📝';
+    let rules = [
+      'Texte prêt à publier',
+      'Accroche + corps aéré + CTA',
+      'STRICTEMENT 5 hashtags',
+      'Prompt image IA obligatoire',
+      'Aucun storyboard ni scène minutée'
+    ];
+
+    if (/reel|vid[eé]o/.test(fmt)) {
+      title = 'Reel / Vidéo';
+      icon = '🎬';
+      rules = [
+        'Script minuté scène par scène obligatoire',
+        'Durée totale respectée',
+        'Voix-off / action / texte à l’écran par scène',
+        'Légende sociale + CTA',
+        'Prompt de couverture + STRICTEMENT 5 hashtags'
+      ];
+    } else if (/carrousel/.test(fmt)) {
+      title = 'Carrousel';
+      icon = '🖼️';
+      rules = [
+        'Découpage slide par slide obligatoire',
+        'Nombre de slides sélectionné respecté',
+        'Slide 1 = couverture / hook',
+        'Slide finale = synthèse + CTA',
+        'Légende complète + STRICTEMENT 5 hashtags'
+      ];
+    } else if (/quiz/.test(fmt)) {
+      title = 'Quiz';
+      icon = '❓';
+      rules = [
+        'Questions structurées obligatoires',
+        'Choix de réponses clairs',
+        'Bonnes réponses + explications',
+        'Ton adapté au public cible',
+        'CTA interactif + STRICTEMENT 5 hashtags'
+      ];
+    } else if (/story/.test(fmt)) {
+      title = 'Stories';
+      icon = '📱';
+      rules = [
+        'Séquence Story 1, Story 2, Story 3… obligatoire',
+        'Texte à l’écran pour chaque Story',
+        'Sticker / interaction conseillé',
+        'Format vertical 9:16',
+        'Aucune transformation en post générique'
+      ];
+    } else if (/article/.test(fmt)) {
+      title = 'Article';
+      icon = '📰';
+      rules = [
+        'Titre + introduction + corps structuré',
+        'Angle adapté au public cible',
+        'Informations pratiques si disponibles',
+        'CTA final',
+        'Prompt image IA obligatoire'
+      ];
+    } else if (/conte|histoire/.test(fmt)) {
+      title = 'Conte / Histoire';
+      icon = '📖';
+      rules = [
+        'Narration complète avec début, développement et fin',
+        'Langage adapté à l’âge du public',
+        'Personnages cohérents',
+        'Valeur pédagogique claire',
+        'Prompt illustration obligatoire'
+      ];
+    } else if (/infograph/.test(fmt)) {
+      title = 'Infographie';
+      icon = '📊';
+      rules = [
+        'Informations découpées en blocs courts',
+        'Hiérarchie visuelle claire',
+        'Étapes / chiffres / conseils lisibles',
+        'Texte adapté au public cible',
+        'Prompt visuel détaillé obligatoire'
+      ];
+    } else if (/planning|calendrier/.test(fmt)) {
+      title = 'Planning éditorial';
+      icon = '🗓️';
+      rules = [
+        'Chaque jour doit avoir un contenu complet',
+        'Format indiqué pour chaque publication',
+        'Caption complète + CTA + hashtags',
+        'Prompt image unique par publication',
+        'Pas de simples résumés administratifs'
+      ];
+    }
+
+    return `
+      <div style="border:1px solid #dbe5ff;background:#f7f9ff;border-radius:10px;padding:12px 14px;">
+        <div style="display:flex;align-items:center;gap:8px;margin-bottom:8px;">
+          <span style="font-size:18px;">${icon}</span>
+          <div>
+            <strong style="display:block;font-size:12px;">Règles obligatoires · ${title}</strong>
+            <small style="color:var(--muted);">L’agent refusera automatiquement une génération qui ne respecte pas cette structure.</small>
+          </div>
+        </div>
+        <div style="display:grid;gap:5px;">
+          ${rules.map(rule => `<div style="font-size:11px;">✓ ${escapeHtml(rule)}</div>`).join('')}
+        </div>
+      </div>
+    `;
   }
 
   function _formatOptionsHtml(agentKey, selected) {
@@ -1371,7 +1482,10 @@ const AgentView = (() => {
         const tipBox = document.getElementById('format-tip-box');
         if (durGroup) durGroup.style.display = /reel|vidéo|video/i.test(fmt) ? '' : 'none';
         if (slidesGroup) slidesGroup.style.display = /carrousel/i.test(fmt) ? '' : 'none';
-        if (tipBox) tipBox.style.display = /post/i.test(fmt) ? '' : 'none';
+        if (tipBox) {
+          tipBox.style.display = '';
+          tipBox.innerHTML = _formatRuleHtml(fmt);
+        }
       };
     }
 
