@@ -52,12 +52,13 @@ function mimeFromFilename(filename = '') {
   return map[ext] || 'application/octet-stream';
 }
 
-async function persistLegacyUploadUrl(mediaUrl, req) {
+async function persistLegacyUploadUrl(mediaUrl, req = null) {
   if (!mediaUrl) return mediaUrl;
 
+  const requestBase = req ? (req.protocol + '://' + req.get('host')) : 'http://localhost';
   let parsed;
   try {
-    parsed = new URL(mediaUrl, req.protocol + '://' + req.get('host'));
+    parsed = new URL(mediaUrl, requestBase);
   } catch {
     return mediaUrl;
   }
@@ -86,7 +87,11 @@ async function persistLegacyUploadUrl(mediaUrl, req) {
     size: bytes.length
   });
 
-  const baseUrl = String(process.env.PUBLIC_BASE_URL || (req.protocol + '://' + req.get('host'))).replace(/\/$/, '');
+  const baseUrl = String(
+    process.env.PUBLIC_BASE_URL
+    || (parsed.origin && parsed.origin !== 'null' && parsed.origin !== 'http://localhost' ? parsed.origin : '')
+    || requestBase
+  ).replace(/\/$/, '');
   return baseUrl + '/media/' + assetId;
 }
 
@@ -901,7 +906,29 @@ app.post('/api/publish/jobs/:id/run', authenticate, authorize('admin', 'editor')
     const job = jobs.find(item => item.id === req.params.id);
     if (!job) return res.status(404).json({ error: 'Publication programmée introuvable.' });
 
-    const publishing = await savePublishJob({ ...job, status: 'publishing', error: null });
+    let runnableJob = job;
+    if (job.media_url && String(job.media_url).includes('/uploads/')) {
+      try {
+        runnableJob = {
+          ...job,
+          mediaUrl: await persistLegacyUploadUrl(job.media_url, req),
+          metadata: {
+            ...(job.metadata || {}),
+            legacyMediaMigratedAt: new Date().toISOString(),
+            legacyMediaUrl: job.media_url
+          }
+        };
+      } catch (mediaError) {
+        const failed = await savePublishJob({
+          ...job,
+          status: 'failed',
+          error: mediaError.message
+        });
+        return res.status(400).json(failed);
+      }
+    }
+
+    const publishing = await savePublishJob({ ...runnableJob, status: 'publishing', error: null });
     try {
       const outcome = await publishSocialJob(publishing);
       await markContentPublishedFromJob(publishing, outcome);
@@ -2271,7 +2298,35 @@ async function runPublishQueue() {
 
     for (const job of due) {
       publishQueueState.lastProcessedIds.push(job.id);
-      const locked = await savePublishJob({ ...job, status: 'publishing', error: null });
+
+      let effectiveJob = job;
+      if (job.media_url && String(job.media_url).includes('/uploads/')) {
+        try {
+          const migratedMediaUrl = await persistLegacyUploadUrl(job.media_url);
+          effectiveJob = {
+            ...job,
+            mediaUrl: migratedMediaUrl,
+            metadata: {
+              ...(job.metadata || {}),
+              legacyMediaMigratedAt: new Date().toISOString(),
+              legacyMediaUrl: job.media_url
+            }
+          };
+        } catch (mediaError) {
+          await savePublishJob({
+            ...job,
+            status: 'failed',
+            error: mediaError.message,
+            metadata: {
+              ...(job.metadata || {}),
+              lastRetryError: mediaError.message
+            }
+          });
+          continue;
+        }
+      }
+
+      const locked = await savePublishJob({ ...effectiveJob, status: 'publishing', error: null });
       try {
         const outcome = await publishSocialJob(locked);
         await markContentPublishedFromJob(locked, outcome);
