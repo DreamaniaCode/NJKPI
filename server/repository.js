@@ -8,6 +8,7 @@ const memory = {
   socialSnapshots: [],
   audienceSnapshots: [],
   publishJobs: new Map(),
+  mediaAssets: new Map(),
   agentRuns: []
 };
 
@@ -92,6 +93,7 @@ export async function resetAllData() {
       await query('DELETE FROM agent_generations');
       await query('DELETE FROM agent_conversations');
       await query('DELETE FROM content_metrics');
+      await query('DELETE FROM media_assets');
       await query('DELETE FROM ad_campaigns');
       await query('DELETE FROM agent_runs');
       await query('DELETE FROM contents');
@@ -107,12 +109,64 @@ export async function resetAllData() {
   memory.contents.clear();
   memory.metrics.length = 0;
   memory.ads.clear();
+  memory.mediaAssets.clear();
   memory.agentRuns.length = 0;
   if (memory.generations) memory.generations.clear();
   if (memory.transfers) memory.transfers.length = 0;
   if (!memory.kpiTargets) memory.kpiTargets = new Map();
   memory.kpiTargets.set('nidal-junior', { brand_slug: 'nidal-junior', targets: ZERO_KPI_TARGETS['nidal-junior'], updated_at: new Date().toISOString() });
   memory.kpiTargets.set('nidal', { brand_slug: 'nidal', targets: ZERO_KPI_TARGETS['nidal'], updated_at: new Date().toISOString() });
+}
+
+export async function saveMediaAsset(asset) {
+  const record = {
+    id: String(asset.id || '').trim(),
+    filename: String(asset.filename || 'media'),
+    mime_type: String(asset.mimeType || asset.mime_type || 'application/octet-stream'),
+    bytes: Buffer.isBuffer(asset.bytes) ? asset.bytes : Buffer.from(asset.bytes || []),
+    size_bytes: Number(asset.size || asset.size_bytes || (asset.bytes?.length || 0))
+  };
+
+  if (!record.id) throw new Error('Identifiant média manquant.');
+  memory.mediaAssets.set(record.id, record);
+
+  if (!hasDatabase) return { ...record, bytes: undefined };
+
+  try {
+    const result = await query(
+      `INSERT INTO media_assets (id, filename, mime_type, bytes, size_bytes)
+       VALUES ($1,$2,$3,$4,$5)
+       ON CONFLICT (id) DO UPDATE SET
+         filename=EXCLUDED.filename,
+         mime_type=EXCLUDED.mime_type,
+         bytes=EXCLUDED.bytes,
+         size_bytes=EXCLUDED.size_bytes
+       RETURNING id, filename, mime_type, size_bytes, created_at`,
+      [record.id, record.filename, record.mime_type, record.bytes, record.size_bytes]
+    );
+    return result.rows[0];
+  } catch (error) {
+    throw new Error('Enregistrement média PostgreSQL impossible: ' + postgresErrorDetail(error));
+  }
+}
+
+export async function getMediaAsset(id) {
+  const key = String(id || '').trim();
+  if (!key) return null;
+
+  if (!hasDatabase) {
+    return memory.mediaAssets.get(key) || null;
+  }
+
+  try {
+    const result = await query(
+      'SELECT id, filename, mime_type, bytes, size_bytes, created_at FROM media_assets WHERE id=$1',
+      [key]
+    );
+    return result.rows[0] || null;
+  } catch (error) {
+    throw new Error('Lecture média PostgreSQL impossible: ' + postgresErrorDetail(error));
+  }
 }
 
 export async function listBrands() {
@@ -681,8 +735,9 @@ export async function savePublishJob(job) {
     ]);
     return result.rows[0];
   } catch (error) {
-    console.warn('Fallback memoire savePublishJob:', error.message);
-    return record;
+    const detail = postgresErrorDetail(error);
+    console.error('PostgreSQL savePublishJob indisponible:', detail);
+    throw new Error('Enregistrement du job de publication impossible: ' + detail);
   }
 }
 
@@ -763,7 +818,8 @@ export async function listDuePublishJobs(limit = 20) {
     );
     return result.rows;
   } catch (error) {
-    console.warn('Fallback memoire listDuePublishJobs:', error.message);
-    return [];
+    const detail = postgresErrorDetail(error);
+    console.error('PostgreSQL listDuePublishJobs indisponible:', detail);
+    throw new Error('Lecture de la file de publication impossible: ' + detail);
   }
 }
