@@ -1200,6 +1200,8 @@ async function buildProfessionalPlan(body = {}, onProgress = () => {}) {
       brand = 'nidal',
       days = 30,
       objective = 'croissance, engagement et inscriptions',
+      language = 'Français',
+      audience: requestedAudience = '',
       notes = '',
       aiConfig = {}
     } = body || {};
@@ -1402,6 +1404,9 @@ MISSION : Tu es le Directeur Social Media & Growth senior de Nidal. Tu ne fourni
 
 PÉRIODE : ${horizon} jours à partir du ${startDate}.
 OBJECTIF BUSINESS : ${objective}
+LANGUE OBLIGATOIRE DES CONTENUS : ${language || 'Français'}
+PUBLIC CIBLE OBLIGATOIRE : ${requestedAudience || (juniorInstagramOnly ? 'Parents et familles Nidal Junior' : 'Parents, élèves et communauté GS Nidal')}
+RÈGLE LANGUE/PUBLIC : chaque caption, hook, CTA, script, texte à l’écran et slide doit respecter cette langue et ce public. Le français n’est PAS autorisé par défaut si une autre langue est demandée.
 PLATEFORME : ${juniorInstagramOnly ? 'Instagram Nidal Junior UNIQUEMENT' : 'Instagram + Facebook'}
 ${juniorInstagramOnly ? 'RÈGLE ABSOLUE : ne propose jamais Facebook, ne mélange aucun KPI GS Nidal, et chaque contenu doit être publiable sur Instagram.' : ''}
 ${notes ? `NOTES DU RESPONSABLE : ${notes}` : ''}
@@ -1586,6 +1591,9 @@ Réponse concise mais profonde, sans JSON.
 Tu construis les jours ${offset + 1} à ${offset + count} du calendrier Social Media ${juniorInstagramOnly ? 'Nidal Junior' : 'Nidal'}.
 Le diagnostic stratégique est fourni dans le contexte.
 Crée EXACTEMENT ${count} contenus à partir du ${batchStartIso}.
+LANGUE OBLIGATOIRE DE CHAQUE CONTENU : ${language || 'Français'}.
+PUBLIC CIBLE OBLIGATOIRE : ${requestedAudience || (juniorInstagramOnly ? 'Parents et familles Nidal Junior' : 'Parents, élèves et communauté GS Nidal')}.
+Adapte hooks, captions, CTA, scripts et visuels à ce public. N'utilise pas le français si une autre langue a été demandée.
 ${juniorInstagramOnly ? 'PLATEFORME OBLIGATOIRE POUR CHAQUE CONTENU : Instagram uniquement. Ne mentionne jamais Facebook.' : ''}
 
 Pour chaque jour : date, heure, titre clair, format, plateforme, tunnel, objectif,
