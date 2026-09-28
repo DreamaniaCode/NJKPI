@@ -816,6 +816,34 @@ app.post('/api/publish/jobs', authenticate, authorize('admin', 'editor'), async 
     };
 
     const job = await savePublishJob(pendingJob);
+
+    if (
+      metadata.contentId
+      && persistentMediaUrl
+      && persistentMediaUrl !== req.body.mediaUrl
+    ) {
+      try {
+        const linkedContent = await getContent(metadata.contentId);
+        if (linkedContent) {
+          await upsertContent({
+            id: linkedContent.id,
+            brand_slug: linkedContent.brand_slug,
+            data: {
+              ...(linkedContent.data || {}),
+              mediaUrl: persistentMediaUrl
+            },
+            finalUrl: linkedContent.final_url,
+            externalMediaId: linkedContent.external_media_id,
+            platform: linkedContent.platform,
+            syncStatus: linkedContent.sync_status,
+            lastSyncedAt: linkedContent.last_synced_at
+          });
+        }
+      } catch (contentMediaError) {
+        console.warn('Migration URL média dans le contenu différée:', contentMediaError.message);
+      }
+    }
+
     res.status(201).json(job);
   } catch (error) { next(error); }
 });
