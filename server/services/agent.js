@@ -1384,6 +1384,42 @@ function buildUserPrompt(briefData = {}, context = '') {
   if (briefData.notes) parts.push(`Notes internes : ${briefData.notes}`);
   if (briefData.revisionOf) parts.push(`Demande de révision : ${briefData.revisionOf}`);
 
+  const exactAudience = String(briefData.audience || '').trim()
+    || 'public défini par le sujet et la marque';
+  const exactLanguage = String(briefData.language || 'Français').trim();
+  const exactFormat = normalizeRequestedEditorialFormat(format);
+
+  parts.push(`
+=== CONTRAINTES NON NÉGOCIABLES DU BRIEF ===
+LANGUE DE SORTIE OBLIGATOIRE : ${exactLanguage}
+${languageDirective(exactLanguage)}
+
+PUBLIC CIBLE OBLIGATOIRE : ${exactAudience}
+- Écris POUR ce public précis, pas pour un public générique.
+- Adapte le vocabulaire, la longueur des phrases, les exemples, les bénéfices mis en avant et le CTA à ce public.
+- Ne remplace jamais le public cible par "parents et familles", "enfants" ou "communauté scolaire" sauf si c'est exactement ce qui a été demandé.
+
+TYPE DE CONTENU OBLIGATOIRE : ${format} → famille ${exactFormat}
+- Ne choisis jamais un autre format.
+- Respecte la structure native de ce format jusqu'au bout.
+- POST = aucun storyboard ni scènes.
+- REEL / VIDÉO = script minuté scène par scène obligatoire.
+- CARROUSEL = découpage slide par slide obligatoire.
+- QUIZ = questions/réponses structurées obligatoires.
+- STORY = séquence Story 1, Story 2, etc. obligatoire.
+
+IMPORTANT POUR LA LANGUE :
+- Les libellés techniques tels que "Post prêt à publier", "Type de contenu", "Canal", "Tags" peuvent rester en français pour permettre l'analyse automatique.
+- EN REVANCHE, tout ce qui sera lu par le public (accroche, post, voix-off, texte à l'écran, slides, questions, CTA) doit respecter STRICTEMENT la langue demandée.
+- N'utilise pas le français par défaut si une autre langue a été choisie.
+
+Ajoute obligatoirement ces trois lignes de contrôle dans ta réponse :
+Langue de sortie : ${exactLanguage}
+Public cible : ${exactAudience}
+Type de contenu demandé : ${format}
+=== FIN DES CONTRAINTES NON NÉGOCIABLES ===
+`);
+
   parts.push(`\n=== DIRECTIVES IMPÉRATIVES POUR LE FORMAT "${format.toUpperCase()}" ===`);
 
   parts.push(`\n=== VARIATION VISUELLE OBLIGATOIRE ===
@@ -1571,7 +1607,7 @@ function buildFallbackImagePrompt(title, agentKey = 'studio-junior') {
   return base;
 }
 
-export function parseStructuredEditorial(text, agentKey = 'studio-junior', defaultBrand = 'nidal-junior') {
+export function parseStructuredEditorial(text, agentKey = 'studio-junior', defaultBrand = 'nidal-junior', briefData = {}) {
   if (!text) return null;
 
   // Normalize markdown bold/bullets around field labels (e.g. "- **Titre :**" -> "Titre :")
@@ -1607,8 +1643,12 @@ export function parseStructuredEditorial(text, agentKey = 'studio-junior', defau
   const titre = find(/(?:^|\n)(?:Titre|Concept créatif)\s*:\s*(.+)/i) || 'Contenu éditorial Nidal';
   const typeRaw = find(/(?:^|\n)(?:Type|Type de contenu|Type de publication)\s*:\s*([a-zA-Z0-9_\-]+)/i).toLowerCase();
   const statutRaw = find(/(?:^|\n)Statut\s*:\s*([a-zA-Z0-9_\-]+)/i).toLowerCase();
-  const publicCible = find(/(?:^|\n)Public\s*:\s*(.+)/i) || (agentKey === 'studio-junior' ? 'Enfants et familles' : 'Parents et communauté GS Nidal');
-  const objectif = find(/(?:^|\n)(?:Objectif|Objectif pédagogique)\s*:\s*(.+)/i);
+  const parsedPublicCible = find(/(?:^|\n)(?:Public|Public cible)\s*:\s*(.+)/i);
+  const publicCible = String(briefData.audience || '').trim()
+    || parsedPublicCible
+    || (agentKey === 'studio-junior' ? 'Enfants et familles' : 'Parents et communauté GS Nidal');
+  const parsedObjectif = find(/(?:^|\n)(?:Objectif|Objectif pédagogique)\s*:\s*(.+)/i);
+  const objectif = String(briefData.objective || '').trim() || parsedObjectif;
   const accroche = find(/(?:^|\n)(?:Accroche|Accroche de Nounou)\s*:\s*(.+)/i);
 
   const postBlock = extractBlock('Post prêt à publier')
@@ -1629,14 +1669,21 @@ export function parseStructuredEditorial(text, agentKey = 'studio-junior', defau
   const auteur = find(/(?:^|\n)(?:Auteur|Responsable)\s*:\s*(.+)/i) || 'Équipe Nidal';
   const dateRaw = find(/(?:^|\n)(?:Date proposée|Date)\s*:\s*(.+)/i);
   const tagsRaw = find(/(?:^|\n)(?:Tags|Hashtags)\s*:\s*(.+)/i);
-  const canal = find(/(?:^|\n)(?:Canal|Plateforme)\s*:\s*(.+)/i) || 'Instagram + Facebook';
+  const parsedCanal = find(/(?:^|\n)(?:Canal|Plateforme)\s*:\s*(.+)/i);
+  const canal = String(briefData.platform || '').trim() || parsedCanal || 'Instagram + Facebook';
 
-  const validTypes = ['article', 'interview', 'dossier', 'breve', 'chronique', 'infographie', 'quiz', 'post', 'carrousel', 'video', 'story', 'reel'];
-  const format = validTypes.includes(typeRaw) ? (typeRaw === 'reel' ? 'video' : typeRaw) : 'post';
+  const validTypes = ['article', 'interview', 'dossier', 'breve', 'chronique', 'infographie', 'quiz', 'post', 'carrousel', 'video', 'story', 'reel', 'planning', 'conte'];
+  const requestedFormat = normalizeRequestedEditorialFormat(briefData.format || '');
+  const format = briefData.format
+    ? requestedFormat
+    : (validTypes.includes(typeRaw) ? typeRaw : 'post');
   const statut = ['brouillon', 'en-cours', 'relecture', 'publie'].includes(statutRaw) ? statutRaw : 'brouillon';
 
   let datePublication = '';
-  if (/^\d{4}-\d{2}-\d{2}$/.test(dateRaw)) {
+  const requestedDate = String(briefData.targetDate || '').trim();
+  if (/^\d{4}-\d{2}-\d{2}$/.test(requestedDate)) {
+    datePublication = requestedDate;
+  } else if (/^\d{4}-\d{2}-\d{2}$/.test(dateRaw)) {
     datePublication = dateRaw;
   }
 
@@ -1688,6 +1735,11 @@ export function parseStructuredEditorial(text, agentKey = 'studio-junior', defau
     statut,
     publicCible,
     objectif: objectif || 'Valoriser les apprentissages et l’excellence',
+    langue: String(briefData.language || 'Français'),
+    language: String(briefData.language || 'Français'),
+    requestedFormat: String(briefData.format || format),
+    requestedAudience: publicCible,
+    briefConstraintsApplied: true,
     accroche: accroche || titre,
     message: postComplet,
     postComplet,
@@ -1701,7 +1753,7 @@ export function parseStructuredEditorial(text, agentKey = 'studio-junior', defau
     datePublication,
     dateAConfirmer: !datePublication,
     tags,
-    cta: cta || 'Partagez vos impressions en commentaire',
+    cta: String(briefData.cta || '').trim() || cta || 'Partagez vos impressions en commentaire',
     validation: 'a-valider',
     checks: { logo: true, valeurs: true, footer: true, autorisation: true }
   };
