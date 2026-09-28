@@ -774,11 +774,23 @@ app.post('/api/publish/jobs', authenticate, authorize('admin', 'editor'), async 
       scheduledUtc: scheduledAt.toISOString()
     };
 
+    let persistentMediaUrl = req.body.mediaUrl || null;
+    if (persistentMediaUrl) {
+      try {
+        persistentMediaUrl = await persistLegacyUploadUrl(persistentMediaUrl, req);
+      } catch (error) {
+        return res.status(400).json({
+          error: error.message,
+          code: 'MEDIA_NOT_PERSISTENT'
+        });
+      }
+    }
+
     const pendingJob = {
       id: crypto.randomUUID(),
       brand,
       message: String(req.body.message || ''),
-      mediaUrl: req.body.mediaUrl || null,
+      mediaUrl: persistentMediaUrl,
       linkUrl: req.body.linkUrl || null,
       mediaType: req.body.mediaType || (req.body.mediaUrl ? 'image' : 'text'),
       platforms,
