@@ -247,6 +247,72 @@ async function repairLegacyContentsSchema() {
     console.log(`Migration legacy contents: statut par défaut = ${safeStatus}`);
   }
 
+  // Normaliser les colonnes JSON d'anciennes installations.
+  // Certaines versions historiques avaient conservé des colonnes JSON/JSONB
+  // additionnelles dans contents. Elles ne sont plus utilisées par l'application,
+  // mais un DEFAULT legacy peut encore bloquer un INSERT moderne.
+  const jsonColumns = await pool.query(`
+    SELECT column_name, data_type, column_default, is_nullable
+    FROM information_schema.columns
+    WHERE table_schema='public'
+      AND table_name='contents'
+      AND data_type IN ('json','jsonb')
+    ORDER BY ordinal_position
+  `);
+
+  for (const column of jsonColumns.rows) {
+    const safeName = '"' + String(column.column_name).replace(/"/g, '""') + '"';
+    const cast = column.data_type === 'jsonb' ? 'jsonb' : 'json';
+
+    if (column.column_name === 'data') {
+      // Le repository actuel travaille en JSONB. Une ancienne colonne data JSON
+      // est convertie sans perte lorsque les lignes existantes sont valides.
+      if (column.data_type === 'json') {
+        await pool.query(`
+          ALTER TABLE contents
+          ALTER COLUMN ${safeName} TYPE JSONB
+          USING ${safeName}::jsonb
+        `);
+      }
+      await pool.query(`
+        ALTER TABLE contents
+        ALTER COLUMN ${safeName} SET DEFAULT '{}'::jsonb
+      `);
+      await pool.query(`
+        UPDATE contents
+        SET ${safeName} = '{}'::jsonb
+        WHERE ${safeName} IS NULL
+      `);
+      continue;
+    }
+
+    await pool.query(`
+      ALTER TABLE contents
+      ALTER COLUMN ${safeName} SET DEFAULT '{}'::${cast}
+    `);
+    await pool.query(`
+      UPDATE contents
+      SET ${safeName} = '{}'::${cast}
+      WHERE ${safeName} IS NULL
+    `);
+  }
+
+  // L'application actuelle n'utilise aucun trigger métier sur contents.
+  // Un trigger hérité d'une ancienne version peut tenter de convertir d'anciennes
+  // colonnes texte en JSON et provoquer "invalid input syntax for type json".
+  const legacyTriggers = await pool.query(`
+    SELECT tgname
+    FROM pg_trigger
+    WHERE tgrelid='contents'::regclass
+      AND NOT tgisinternal
+  `);
+
+  for (const trigger of legacyTriggers.rows) {
+    const safeTrigger = '"' + String(trigger.tgname).replace(/"/g, '""') + '"';
+    await pool.query(`DROP TRIGGER IF EXISTS ${safeTrigger} ON contents`);
+    console.log(`Migration legacy contents: trigger supprimé ${trigger.tgname}`);
+  }
+
   await pool.query("CREATE INDEX IF NOT EXISTS contents_brand_idx ON contents (brand_slug, updated_at DESC)");
 }
 
