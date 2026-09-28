@@ -668,6 +668,25 @@ const AgentView = (() => {
                   .map(p => `<option value="${p}" ${currentAgent.brief.platform === p || (isJunior && !currentAgent.brief.platform && p === 'Instagram (IG)') || (!isJunior && !currentAgent.brief.platform && p.startsWith('Instagram + Facebook')) ? 'selected' : ''}>${p}</option>`).join('')}
               </select>
             </div>
+            <div class="form-group">
+              <label for="brief-language">Langue de rédaction</label>
+              <select id="brief-language" class="form-control">
+                ${[
+                  'Français',
+                  'Arabe',
+                  'Darija marocaine',
+                  'Anglais',
+                  'Bilingue FR/AR',
+                  'Trilingue FR/AR/EN'
+                ].map(lang => `<option value="${lang}" ${currentAgent.brief.language === lang ? 'selected' : ''}>${lang}</option>`).join('')}
+              </select>
+            </div>
+            <div class="form-group">
+              <label for="brief-audience">Public cible</label>
+              <input type="text" id="brief-audience" class="form-control"
+                value="${escapeHtml(currentAgent.brief.audience)}"
+                placeholder="${isJunior ? 'Ex : Parents d’enfants de 3 à 6 ans' : 'Ex : Parents d’élèves du collège'}">
+            </div>
           </div>
 
           <div id="format-duration-group" class="form-group" style="${/reel|vidéo|video/i.test(currentAgent.brief.format) ? '' : 'display:none;'}">
@@ -694,20 +713,16 @@ const AgentView = (() => {
           <details class="agent-advanced">
             <summary>Options avancées <span>facultatif</span></summary>
             <div class="agent-advanced__body">
-              <div class="form-row">
-                <div class="form-group"><label for="brief-audience">Public cible</label><input type="text" id="brief-audience" class="form-control" value="${escapeHtml(currentAgent.brief.audience)}" placeholder="Parents, élèves, enfants…"></div>
-                <div class="form-group"><label for="brief-target-date">Date souhaitée</label><input type="date" id="brief-target-date" class="form-control" value="${escapeHtml(currentAgent.brief.targetDate)}"></div>
+              <div class="form-group">
+                <label for="brief-target-date">Date souhaitée</label>
+                <input type="date" id="brief-target-date" class="form-control" value="${escapeHtml(currentAgent.brief.targetDate)}">
               </div>
               <div class="form-group"><label for="brief-objective">Objectif</label><input type="text" id="brief-objective" class="form-control" value="${escapeHtml(currentAgent.brief.objective)}" placeholder="Informer, engager, convertir…"></div>
               <div class="form-group"><label for="brief-cta">CTA</label><input type="text" id="brief-cta" class="form-control" value="${escapeHtml(currentAgent.brief.cta)}" placeholder="Contactez-nous, inscrivez-vous…"></div>
               <div class="form-group"><label for="brief-required-info">Informations obligatoires</label><textarea id="brief-required-info" class="form-control" rows="2" placeholder="Horaires, lieu, détails à respecter…">${escapeHtml(currentAgent.brief.requiredInfo)}</textarea></div>
-              <div class="form-row">
-                <div class="form-group"><label for="brief-assets">Ressources</label><input type="text" id="brief-assets" class="form-control" value="${escapeHtml(currentAgent.brief.assets)}" placeholder="Logo, photo, mascotte…"></div>
-                <div class="form-group"><label for="brief-language">Langue</label><select id="brief-language" class="form-control">
-                  <option value="Français" ${currentAgent.brief.language === 'Français' ? 'selected' : ''}>Français</option>
-                  <option value="Bilingue FR/AR" ${currentAgent.brief.language === 'Bilingue FR/AR' ? 'selected' : ''}>Bilingue FR/AR</option>
-                  <option value="Arabe" ${currentAgent.brief.language === 'Arabe' ? 'selected' : ''}>Arabe</option>
-                </select></div>
+              <div class="form-group">
+                <label for="brief-assets">Ressources</label>
+                <input type="text" id="brief-assets" class="form-control" value="${escapeHtml(currentAgent.brief.assets)}" placeholder="Logo, photo, mascotte…">
               </div>
               <div class="check-grid">
                 <label class="check-item"><input type="checkbox" id="brief-include-nounou" ${currentAgent.brief.includeNounou ? 'checked' : ''}><span>Inclure Nounou</span></label>
@@ -732,6 +747,13 @@ const AgentView = (() => {
               <span class="section-kicker">${isJunior ? 'Production Studio Junior' : 'Proposition Stratégique'}</span>
               <h2>${gen?.structuredData?.titre || 'Proposition éditoriale'}</h2>
               ${gen?.model ? `<small style="display:block;margin-top:3px;color:var(--muted);font-size:11px;">Moteur IA utilisé : <b>${escapeHtml(gen.provider || 'IA')}</b> (${escapeHtml(gen.model)})</small>` : ''}
+              ${gen ? `<small style="display:block;margin-top:4px;font-size:11px;">
+                <b>Contraintes :</b>
+                ${escapeHtml(gen.structuredData?.language || gen.brief?.language || 'Français')}
+                · ${escapeHtml(gen.structuredData?.requestedFormat || gen.brief?.format || 'post')}
+                · ${escapeHtml(gen.structuredData?.requestedAudience || gen.brief?.audience || 'Public non précisé')}
+                ${gen.qualityCheck?.briefConstraints?.autoCorrected ? ' · <b>auto-corrigé</b>' : ''}
+              </small>` : ''}
             </div>
             <div>
               <button class="btn btn--secondary btn--sm" id="btn-copy-all" ${gen ? '' : 'disabled'}>Copier tout</button>
