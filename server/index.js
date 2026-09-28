@@ -13,7 +13,8 @@ import {
   getKpiTargets, saveKpiTargets,
   saveSocialProfiles, getSocialProfiles, getSocialProfileHistory,
   saveAudienceSnapshot, listAudienceSnapshots,
-  savePublishJob, listPublishJobs, listDuePublishJobs, recoverStuckPublishJobs
+  savePublishJob, listPublishJobs, listDuePublishJobs, recoverStuckPublishJobs,
+  saveMediaAsset, getMediaAsset
 } from './repository.js';
 import { metaConfigured, syncContentFromUrl, syncAds, syncSocialProfiles, syncAudienceConversions, publishSocialJob, diagnoseMetaAccess, preflightSocialPublishJob } from './services/meta.js';
 import { normalizeUploadedMedia } from './services/media.js';
@@ -40,6 +41,54 @@ const port = Number(process.env.PORT || 3000);
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const uploadsDir = path.resolve(process.env.MEDIA_UPLOAD_DIR || path.join(root, 'uploads'));
 const appTimeZone = String(process.env.APP_TIMEZONE || 'Africa/Casablanca').trim();
+
+function mimeFromFilename(filename = '') {
+  const ext = path.extname(String(filename)).toLowerCase();
+  const map = {
+    '.jpg': 'image/jpeg', '.jpeg': 'image/jpeg', '.png': 'image/png',
+    '.webp': 'image/webp', '.gif': 'image/gif',
+    '.mp4': 'video/mp4', '.mov': 'video/quicktime', '.webm': 'video/webm'
+  };
+  return map[ext] || 'application/octet-stream';
+}
+
+async function persistLegacyUploadUrl(mediaUrl, req) {
+  if (!mediaUrl) return mediaUrl;
+
+  let parsed;
+  try {
+    parsed = new URL(mediaUrl, req.protocol + '://' + req.get('host'));
+  } catch {
+    return mediaUrl;
+  }
+
+  if (!parsed.pathname.startsWith('/uploads/')) return mediaUrl;
+
+  const filename = path.basename(parsed.pathname);
+  const localPath = path.join(uploadsDir, filename);
+
+  let bytes;
+  try {
+    bytes = await fs.readFile(localPath);
+  } catch {
+    throw new Error(
+      'Le média de cette publication n’existe plus sur le conteneur Coolify. ' +
+      'Réuploadez la photo/vidéo avant de programmer : les anciens fichiers /uploads peuvent disparaître après un redeploy.'
+    );
+  }
+
+  const assetId = crypto.randomUUID();
+  await saveMediaAsset({
+    id: assetId,
+    filename,
+    mimeType: mimeFromFilename(filename),
+    bytes,
+    size: bytes.length
+  });
+
+  const baseUrl = String(process.env.PUBLIC_BASE_URL || (req.protocol + '://' + req.get('host'))).replace(/\/$/, '');
+  return baseUrl + '/media/' + assetId;
+}
 
 function zonedLocalDateTimeToUtc(dateText, timeText, timeZone = appTimeZone) {
   const matchDate = String(dateText || '').match(/^(\d{4})-(\d{2})-(\d{2})$/);
