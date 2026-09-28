@@ -55,6 +55,18 @@ ALTER TABLE contents ALTER COLUMN brand_slug SET NOT NULL;
 
 CREATE INDEX IF NOT EXISTS contents_brand_idx ON contents (brand_slug, updated_at DESC);
 
+CREATE TABLE IF NOT EXISTS media_assets (
+  id TEXT PRIMARY KEY,
+  filename TEXT NOT NULL,
+  mime_type TEXT NOT NULL,
+  bytes BYTEA NOT NULL,
+  size_bytes BIGINT NOT NULL,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+CREATE INDEX IF NOT EXISTS media_assets_created_idx
+  ON media_assets (created_at DESC);
+
 CREATE TABLE IF NOT EXISTS content_metrics (
   id BIGSERIAL PRIMARY KEY,
   content_id TEXT NOT NULL REFERENCES contents(id) ON DELETE CASCADE,
