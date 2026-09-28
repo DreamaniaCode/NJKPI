@@ -10,9 +10,9 @@ ENV NODE_ENV=production
 ENV PORT=3000
 ENV MEDIA_UPLOAD_DIR=/app/uploads
 ENV NODE_OPTIONS=--dns-result-order=ipv4first
-ENV APP_VERSION=0.8.3
-ENV BUILD_ID=20260928-50
-LABEL version="0.8.3"
+ENV APP_VERSION=0.8.4
+ENV BUILD_ID=20260928-51
+LABEL version="0.8.4"
 EXPOSE 3000
 
 CMD ["npm", "start"]
