@@ -1653,10 +1653,13 @@ const AgentView = (() => {
     showToast('Analyse lancée. NJKPI examine maintenant vos contenus, KPI, Audience, Conversions et Meta Ads.', 'info', 6000);
 
     try {
+      const activeBrief = _state[_activeAgentKey]?.brief || {};
       const response = await NidalAPI.generateProfessionalPlan({
         brand,
         days,
         objective,
+        language: activeBrief.language || 'Français',
+        audience: activeBrief.audience || '',
         aiConfig
       }, snapshot => {
         progress.update(snapshot);
