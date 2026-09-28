@@ -627,24 +627,51 @@ app.post('/api/uploads', authenticate, authorize('admin', 'editor'), async (req,
     }
 
     const normalized = await normalizeUploadedMedia(req.body, mime, rawName);
-    const filename = `${Date.now()}-${crypto.randomUUID()}${normalized.ext}`;
+    const assetId = crypto.randomUUID();
+    const filename = `${Date.now()}-${assetId}${normalized.ext}`;
 
     await fs.mkdir(uploadsDir, { recursive: true });
     await fs.writeFile(path.join(uploadsDir, filename), normalized.buffer);
 
+    await saveMediaAsset({
+      id: assetId,
+      filename,
+      mimeType: normalized.mime,
+      bytes: normalized.buffer,
+      size: normalized.buffer.length
+    });
+
     const baseUrl = String(process.env.PUBLIC_BASE_URL || `${req.protocol}://${req.get('host')}`).replace(/\/$/, '');
     res.status(201).json({
       ok: true,
+      assetId,
       filename,
       originalName: rawName,
       mime: normalized.mime,
       originalMime: mime,
       convertedForMeta: normalized.converted,
       size: normalized.buffer.length,
-      path: `/uploads/${filename}`,
-      url: `${baseUrl}/uploads/${filename}`
+      path: `/media/${assetId}`,
+      url: `${baseUrl}/media/${assetId}`,
+      persistent: true
     });
   } catch (error) { next(error); }
+});
+
+app.get('/media/:id', async (req, res, next) => {
+  try {
+    const asset = await getMediaAsset(req.params.id);
+    if (!asset) return res.sendStatus(404);
+
+    const bytes = Buffer.isBuffer(asset.bytes) ? asset.bytes : Buffer.from(asset.bytes || []);
+    res.setHeader('Content-Type', asset.mime_type || 'application/octet-stream');
+    res.setHeader('Content-Length', String(bytes.length));
+    res.setHeader('Cache-Control', 'public, max-age=31536000, immutable');
+    res.setHeader('X-Content-Type-Options', 'nosniff');
+    res.send(bytes);
+  } catch (error) {
+    next(error);
+  }
 });
 
 app.get('/api/audience-history', async (req, res, next) => {
