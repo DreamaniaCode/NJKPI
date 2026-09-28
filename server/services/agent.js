@@ -126,6 +126,12 @@ MISSION & TON
 Tu crées des contenus pédagogiques, joyeux, rassurants et adaptés aux enfants (maternelle 3-6 ans et primaire), tout en restant crédibles et professionnels pour les parents.
 Ton : chaleureux, positif, doux, bienveillant, clair, sans infantilisation excessive ni agressivité commerciale.
 
+PRIORITÉ ABSOLUE AU BRIEF
+- La LANGUE demandée dans le brief est obligatoire et prime sur la langue française utilisée dans les exemples de ce prompt.
+- Le PUBLIC CIBLE du brief est obligatoire : adapte vocabulaire, exemples, niveau de langage, angle et CTA à ce public précis.
+- Le TYPE / FORMAT demandé est obligatoire : ne transforme jamais un Reel en post, un carrousel en article, une Story en post, etc.
+- Les exemples ci-dessous servent uniquement de structure. Ils ne remplacent jamais les contraintes explicites du brief.
+
 NOUNOU (PERSONNAGE RÉCURRENT & AMI OFFICIEL)
 - Nounou est un petit garçon-guide de 4 à 5 ans, ami officiel des enfants.
 - Nounou doit apparaître régulièrement dans les publications, stories, carrousels, Reels/vidéos, quiz, histoires, annonces.
@@ -295,7 +301,13 @@ export const PLANNING_NIDAL_PROMPT = `Tu es le responsable de la stratégie édi
 MISSION & RÔLE
 Tu rédiges des publications prêtes à publier (claires, engageantes, humaines et valorisantes) accompagnées de leur Prompt Image IA détaillé pour que l'équipe puisse générer le visuel immédiatement.
 INTERDICTION DU JARGON ADMINISTRATIF INUTILE : Ne noie jamais l'utilisateur sous des résumés vagues. Chaque demande doit livrer un VRAI POST COMPLET prêt à copier-coller et un VRAI PROMPT IMAGE IA précis.
-Langue principale : français (arabe ou bilingue uniquement si explicitement demandé).
+
+PRIORITÉ ABSOLUE AU BRIEF
+- Français est seulement la langue PAR DÉFAUT si aucune langue n'est fournie.
+- Si le brief demande Arabe, Darija marocaine, Anglais, bilingue ou trilingue, cette langue devient OBLIGATOIRE et prime sur tous les exemples français de ce prompt.
+- Le PUBLIC CIBLE du brief est obligatoire : vocabulaire, exemples, ton, arguments et CTA doivent être adaptés à ce public précis.
+- Le TYPE / FORMAT demandé est obligatoire : ne remplace jamais le format demandé par un post générique.
+- Les exemples ci-dessous servent uniquement de structure et ne doivent jamais écraser le brief.
 
 PILIERS ÉDITORIAUX ÉQUILIBRÉS
 - Pédagogie & méthodes d'apprentissage (Active Learning, autonomie)
@@ -583,7 +595,7 @@ function extractGeminiInteractionText(payload = {}) {
   return texts.join('\n').trim();
 }
 
-export async function generateEditorialOutput({
+async function generateEditorialOutputOnce({
   agentKey = 'studio-junior',
   brand,
   briefData = {},
@@ -651,7 +663,7 @@ export async function generateEditorialOutput({
 
     return {
       output: demoText,
-      structuredData: parseStructuredEditorial(demoText, agentKey, targetBrand),
+      structuredData: parseStructuredEditorial(demoText, agentKey, targetBrand, briefData),
       storyboard: parseStoryboard(demoText),
       qualityCheck: parseQualityCheck(demoText),
       model: 'demo-template',
@@ -705,7 +717,7 @@ export async function generateEditorialOutput({
           const out = retry.data.choices[0].message.content;
           return {
             output: out,
-            structuredData: parseStructuredEditorial(out, agentKey, targetBrand),
+            structuredData: parseStructuredEditorial(out, agentKey, targetBrand, briefData),
             storyboard: parseStoryboard(out),
             qualityCheck: parseQualityCheck(out),
             model: suggestedModel,
@@ -722,7 +734,7 @@ export async function generateEditorialOutput({
     if (!output) throw new Error('Réponse OpenRouter vide');
     return {
       output,
-      structuredData: parseStructuredEditorial(output, agentKey, targetBrand),
+      structuredData: parseStructuredEditorial(output, agentKey, targetBrand, briefData),
       storyboard: parseStoryboard(output),
       qualityCheck: parseQualityCheck(output),
       model,
@@ -757,7 +769,7 @@ export async function generateEditorialOutput({
 
     return {
       output,
-      structuredData: parseStructuredEditorial(output, agentKey, targetBrand),
+      structuredData: parseStructuredEditorial(output, agentKey, targetBrand, briefData),
       storyboard: parseStoryboard(output),
       qualityCheck: parseQualityCheck(output),
       model,
@@ -894,7 +906,7 @@ export async function generateEditorialOutput({
 
     return {
       output,
-      structuredData: parseStructuredEditorial(output, agentKey, targetBrand),
+      structuredData: parseStructuredEditorial(output, agentKey, targetBrand, briefData),
       storyboard: parseStoryboard(output),
       qualityCheck: parseQualityCheck(output),
       model,
@@ -932,7 +944,7 @@ export async function generateEditorialOutput({
     if (!output) throw new Error('Réponse Alibaba Model Studio vide');
     return {
       output,
-      structuredData: parseStructuredEditorial(output, agentKey, targetBrand),
+      structuredData: parseStructuredEditorial(output, agentKey, targetBrand, briefData),
       storyboard: parseStoryboard(output),
       qualityCheck: parseQualityCheck(output),
       model,
@@ -1063,7 +1075,7 @@ export async function generateEditorialOutput({
 
     return {
       output,
-      structuredData: parseStructuredEditorial(output, agentKey, targetBrand),
+      structuredData: parseStructuredEditorial(output, agentKey, targetBrand, briefData),
       storyboard: parseStoryboard(output),
       qualityCheck: parseQualityCheck(output),
       model,
@@ -1098,7 +1110,7 @@ export async function generateEditorialOutput({
 
     return {
       output,
-      structuredData: parseStructuredEditorial(output, agentKey, targetBrand),
+      structuredData: parseStructuredEditorial(output, agentKey, targetBrand, briefData),
       storyboard: parseStoryboard(output),
       qualityCheck: parseQualityCheck(output),
       model,
@@ -1133,7 +1145,7 @@ export async function generateEditorialOutput({
 
     return {
       output,
-      structuredData: parseStructuredEditorial(output, agentKey, targetBrand),
+      structuredData: parseStructuredEditorial(output, agentKey, targetBrand, briefData),
       storyboard: parseStoryboard(output),
       qualityCheck: parseQualityCheck(output),
       model,
@@ -1168,7 +1180,7 @@ export async function generateEditorialOutput({
 
     return {
       output,
-      structuredData: parseStructuredEditorial(output, agentKey, targetBrand),
+      structuredData: parseStructuredEditorial(output, agentKey, targetBrand, briefData),
       storyboard: parseStoryboard(output),
       qualityCheck: parseQualityCheck(output),
       model,
@@ -1179,6 +1191,163 @@ export async function generateEditorialOutput({
   }
 
   throw new Error(`Fournisseur d'IA non reconnu : ${provider}`);
+}
+
+function normalizeRequestedEditorialFormat(value = '') {
+  const format = String(value || 'post').trim().toLowerCase();
+  if (/reel|vid[eé]o/.test(format)) return 'reel';
+  if (/carrousel/.test(format)) return 'carrousel';
+  if (/quiz/.test(format)) return 'quiz';
+  if (/story/.test(format)) return 'story';
+  if (/infograph/.test(format)) return 'infographie';
+  if (/calendrier|planning/.test(format)) return 'planning';
+  if (/conte|histoire/.test(format)) return 'conte';
+  if (/article/.test(format)) return 'article';
+  return 'post';
+}
+
+function languageDirective(language = 'Français') {
+  const value = String(language || 'Français').trim();
+  if (/darija|marocain/i.test(value)) {
+    return 'Rédige tout le contenu destiné au public en DARIJA MAROCAINE naturelle, de préférence en alphabet arabe. Évite le français sauf noms propres, coordonnées ou termes impossibles à traduire.';
+  }
+  if (/trilingue/i.test(value)) {
+    return 'Fournis les versions FRANÇAISE, ARABE et ANGLAISE du contenu public. Les trois versions doivent être complètes, équilibrées et clairement séparées.';
+  }
+  if (/bilingue.*fr.*ar|fr\/ar/i.test(value)) {
+    return 'Fournis une version FRANÇAISE complète ET une version ARABE complète du contenu public, clairement séparées. Ne livre pas une version française avec seulement quelques mots arabes.';
+  }
+  if (/anglais|english/i.test(value)) {
+    return 'Write all public-facing copy in ENGLISH. Do not switch back to French except for official proper names.';
+  }
+  if (/arabe|arabic/i.test(value)) {
+    return 'اكتب كل المحتوى الموجّه للجمهور باللغة العربية الفصحى الواضحة والطبيعية. لا تستخدم الفرنسية إلا للأسماء الرسمية التي لا تُترجم.';
+  }
+  return 'Rédige tout le contenu destiné au public en FRANÇAIS naturel et professionnel.';
+}
+
+function countMatches(text, words) {
+  const source = ` ${String(text || '').toLowerCase()} `;
+  return words.reduce((sum, word) => {
+    const re = new RegExp(`\\b${word}\\b`, 'gi');
+    return sum + (source.match(re)?.length || 0);
+  }, 0);
+}
+
+function editorialConstraintIssues(result = {}, briefData = {}) {
+  const issues = [];
+  const structured = result.structuredData || {};
+  const publicText = String(structured.postComplet || structured.message || result.output || '');
+  const requestedLanguage = String(briefData.language || 'Français');
+  const requestedFormat = normalizeRequestedEditorialFormat(briefData.format);
+  const raw = String(result.output || '');
+
+  const arabicChars = (publicText.match(/[\u0600-\u06FF]/g) || []).length;
+  const frenchHits = countMatches(publicText, ['le','la','les','des','une','pour','avec','votre','vous','nous','enfant','parents','école']);
+  const englishHits = countMatches(publicText, ['the','and','with','your','you','our','for','children','parents','school','learn']);
+
+  if (/darija|marocain/i.test(requestedLanguage)) {
+    if (arabicChars < 35) issues.push('langue Darija marocaine non respectée');
+  } else if (/trilingue/i.test(requestedLanguage)) {
+    if (arabicChars < 30 || frenchHits < 2 || englishHits < 2) {
+      issues.push('les trois langues FR/AR/EN ne sont pas toutes réellement présentes');
+    }
+  } else if (/bilingue.*fr.*ar|fr\/ar/i.test(requestedLanguage)) {
+    if (arabicChars < 30 || frenchHits < 2) issues.push('sortie bilingue FR/AR incomplète');
+  } else if (/anglais|english/i.test(requestedLanguage)) {
+    if (englishHits < 3 || frenchHits > Math.max(6, englishHits * 2)) {
+      issues.push('langue anglaise non respectée');
+    }
+  } else if (/arabe|arabic/i.test(requestedLanguage)) {
+    if (arabicChars < 35) issues.push('langue arabe non respectée');
+  }
+
+  if (requestedFormat === 'reel' && !/(SC[ÈE]NE\s*1|SCRIPT\s+MINUT|STORYBOARD)/i.test(raw)) {
+    issues.push('format Reel/Vidéo sans script ou scènes minutées');
+  }
+  if (requestedFormat === 'carrousel' && !/(Slide\s*1|Diapositive\s*1)/i.test(raw)) {
+    issues.push('format Carrousel sans découpage slide par slide');
+  }
+  if (requestedFormat === 'quiz' && !/QUESTION\s*1/i.test(raw)) {
+    issues.push('format Quiz sans questions structurées');
+  }
+  if (requestedFormat === 'story' && !/(STORY\s*1|Story\s*1)/i.test(raw)) {
+    issues.push('format Story sans séquence de stories');
+  }
+  if (requestedFormat === 'post' && /(SC[ÈE]NE\s*1|SCRIPT\s+MINUT|STORYBOARD\s+MINUT)/i.test(raw)) {
+    issues.push('format Post pollué par un storyboard/script vidéo');
+  }
+
+  return issues;
+}
+
+export async function generateEditorialOutput(args = {}) {
+  const briefData = args.briefData || {};
+  const aiConfig = args.aiConfig || {};
+  const first = await generateEditorialOutputOnce(args);
+
+  if (aiConfig.testMode === true || first.isDemo) return first;
+
+  const issues = editorialConstraintIssues(first, briefData);
+  if (!issues.length) {
+    first.qualityCheck = {
+      ...(first.qualityCheck || {}),
+      briefConstraints: {
+        respected: true,
+        language: briefData.language || 'Français',
+        audience: briefData.audience || '',
+        format: briefData.format || 'post'
+      }
+    };
+    return first;
+  }
+
+  if (aiConfig.constraintRetry === true) {
+    throw new Error(
+      'La réponse IA reste non conforme au brief : ' + issues.join(' ; ') +
+      '. Changez de modèle ou reformulez le brief.'
+    );
+  }
+
+  const correctionNotes = [
+    briefData.notes || '',
+    '',
+    'CORRECTION OBLIGATOIRE DE LA RÉPONSE PRÉCÉDENTE.',
+    'Erreurs détectées automatiquement : ' + issues.join(' ; ') + '.',
+    'Réécris le contenu intégralement. Respecte EXACTEMENT la langue, le public cible et le type de contenu demandés.',
+    'Ne discute pas la correction et ne change aucune contrainte du brief.'
+  ].join('\n').trim();
+
+  const repaired = await generateEditorialOutputOnce({
+    ...args,
+    briefData: { ...briefData, notes: correctionNotes },
+    context: [
+      args.context || '',
+      '',
+      'La réponse précédente a été rejetée pour non-respect du brief. Ne la recopie pas.'
+    ].join('\n').trim(),
+    aiConfig: { ...aiConfig, constraintRetry: true }
+  });
+
+  const remaining = editorialConstraintIssues(repaired, briefData);
+  if (remaining.length) {
+    throw new Error(
+      'La réponse IA n’a pas respecté le brief même après correction automatique : ' +
+      remaining.join(' ; ') + '.'
+    );
+  }
+
+  repaired.qualityCheck = {
+    ...(repaired.qualityCheck || {}),
+    briefConstraints: {
+      respected: true,
+      autoCorrected: true,
+      language: briefData.language || 'Français',
+      audience: briefData.audience || '',
+      format: briefData.format || 'post'
+    }
+  };
+  return repaired;
 }
 
 // Legacy bridge for existing /api/agent/generate route
