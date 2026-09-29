@@ -732,6 +732,52 @@ export async function listAudienceSnapshots(brand, limit = 168) {
   }
 }
 
+async function ensurePublishJobsStorage() {
+  await query(`
+    CREATE TABLE IF NOT EXISTS brands (
+      slug TEXT PRIMARY KEY,
+      name TEXT NOT NULL,
+      created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+    )
+  `);
+  await query(`
+    INSERT INTO brands (slug, name)
+    VALUES ('nidal', 'Nidal'), ('nidal-junior', 'Nidal Junior')
+    ON CONFLICT (slug) DO UPDATE SET name=EXCLUDED.name
+  `);
+  await query(`
+    CREATE TABLE IF NOT EXISTS social_publish_jobs (
+      id TEXT PRIMARY KEY,
+      brand_slug TEXT NOT NULL REFERENCES brands(slug),
+      message TEXT NOT NULL DEFAULT '',
+      media_url TEXT,
+      link_url TEXT,
+      media_type TEXT NOT NULL DEFAULT 'text',
+      platforms JSONB NOT NULL DEFAULT '[]'::jsonb,
+      scheduled_at TIMESTAMPTZ NOT NULL,
+      status TEXT NOT NULL DEFAULT 'scheduled',
+      automation_mode TEXT NOT NULL DEFAULT 'manual',
+      metadata JSONB NOT NULL DEFAULT '{}'::jsonb,
+      result JSONB NOT NULL DEFAULT '{}'::jsonb,
+      error TEXT,
+      created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+      published_at TIMESTAMPTZ,
+      updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+    )
+  `);
+  await query(`
+    CREATE INDEX IF NOT EXISTS social_publish_jobs_due_idx
+    ON social_publish_jobs (status, scheduled_at)
+  `);
+}
+
+function isMissingRelation(error, relation = '') {
+  if (error?.code === '42P01') return true;
+  const message = String(error?.message || '');
+  if (!relation) return /relation .* does not exist/i.test(message);
+  return new RegExp('relation ["\\\']?' + relation + '["\\\']? does not exist', 'i').test(message);
+}
+
 export async function savePublishJob(job) {
   const record = {
     id: job.id,
@@ -753,7 +799,7 @@ export async function savePublishJob(job) {
   };
   memory.publishJobs.set(record.id, record);
   if (!hasDatabase) return record;
-  try {
+  const persist = async () => {
     const result = await query(`
       INSERT INTO social_publish_jobs
         (id, brand_slug, message, media_url, link_url, media_type, platforms, scheduled_at, status, automation_mode, metadata, result, error, created_at, published_at, updated_at)
@@ -771,7 +817,22 @@ export async function savePublishJob(job) {
       record.error, record.created_at, record.published_at
     ]);
     return result.rows[0];
+
+  };
+
+  try {
+    return await persist();
   } catch (error) {
+    if (isMissingRelation(error, 'social_publish_jobs')) {
+      await ensurePublishJobsStorage();
+      try {
+        return await persist();
+      } catch (retryError) {
+        const detail = postgresErrorDetail(retryError);
+        console.error('PostgreSQL savePublishJob après auto-réparation:', detail);
+        throw new Error('Enregistrement du job de publication impossible après auto-réparation: ' + detail);
+      }
+    }
     const detail = postgresErrorDetail(error);
     console.error('PostgreSQL savePublishJob indisponible:', detail);
     throw new Error('Enregistrement du job de publication impossible: ' + detail);
@@ -786,13 +847,21 @@ export async function listPublishJobs(brand, limit = 100) {
       .sort((a, b) => b.scheduled_at.localeCompare(a.scheduled_at))
       .slice(0, safeLimit);
   }
-  try {
+  const load = async () => {
     const result = await query(
       'SELECT * FROM social_publish_jobs WHERE ($1::text IS NULL OR brand_slug=$1) ORDER BY scheduled_at DESC LIMIT $2',
       [brand || null, safeLimit]
     );
     return result.rows;
+  };
+
+  try {
+    return await load();
   } catch (error) {
+    if (isMissingRelation(error, 'social_publish_jobs')) {
+      await ensurePublishJobsStorage();
+      return await load();
+    }
     const detail = postgresErrorDetail(error);
     console.error('PostgreSQL listPublishJobs indisponible:', detail);
     throw new Error('Lecture des publications programmées impossible: ' + detail);
@@ -846,13 +915,21 @@ export async function listDuePublishJobs(limit = 20) {
       .sort((a, b) => a.scheduled_at.localeCompare(b.scheduled_at))
       .slice(0, safeLimit);
   }
-  try {
+  const loadDue = async () => {
     const result = await query(
       "SELECT * FROM social_publish_jobs WHERE status='scheduled' AND scheduled_at<=NOW() ORDER BY scheduled_at ASC LIMIT $1",
       [safeLimit]
     );
     return result.rows;
+  };
+
+  try {
+    return await loadDue();
   } catch (error) {
+    if (isMissingRelation(error, 'social_publish_jobs')) {
+      await ensurePublishJobsStorage();
+      return await loadDue();
+    }
     const detail = postgresErrorDetail(error);
     console.error('PostgreSQL listDuePublishJobs indisponible:', detail);
     throw new Error('Lecture de la file de publication impossible: ' + detail);
