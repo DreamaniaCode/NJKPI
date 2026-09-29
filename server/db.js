@@ -24,6 +24,23 @@ export const isDbConnected = () => _dbConnected;
 async function ensureCriticalTables() {
   if (!pool) return;
 
+  // Bootstrap minimal et indépendant du schéma legacy.
+  // Ces tables sont nécessaires au fonctionnement de l'application elle-même :
+  // upload persistant + scheduler + séparation des marques.
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS brands (
+      slug TEXT PRIMARY KEY,
+      name TEXT NOT NULL,
+      created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+    )
+  `);
+
+  await pool.query(`
+    INSERT INTO brands (slug, name)
+    VALUES ('nidal', 'Nidal'), ('nidal-junior', 'Nidal Junior')
+    ON CONFLICT (slug) DO UPDATE SET name=EXCLUDED.name
+  `);
+
   await pool.query(`
     CREATE TABLE IF NOT EXISTS media_assets (
       id TEXT PRIMARY KEY,
@@ -38,6 +55,67 @@ async function ensureCriticalTables() {
   await pool.query(`
     CREATE INDEX IF NOT EXISTS media_assets_created_idx
     ON media_assets (created_at DESC)
+  `);
+
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS social_publish_jobs (
+      id TEXT PRIMARY KEY,
+      brand_slug TEXT NOT NULL REFERENCES brands(slug),
+      message TEXT NOT NULL DEFAULT '',
+      media_url TEXT,
+      link_url TEXT,
+      media_type TEXT NOT NULL DEFAULT 'text',
+      platforms JSONB NOT NULL DEFAULT '[]'::jsonb,
+      scheduled_at TIMESTAMPTZ NOT NULL,
+      status TEXT NOT NULL DEFAULT 'scheduled',
+      automation_mode TEXT NOT NULL DEFAULT 'manual',
+      metadata JSONB NOT NULL DEFAULT '{}'::jsonb,
+      result JSONB NOT NULL DEFAULT '{}'::jsonb,
+      error TEXT,
+      created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+      published_at TIMESTAMPTZ,
+      updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+    )
+  `);
+
+  // Réparer aussi une table scheduler déjà existante mais ancienne.
+  const publishColumns = [
+    "ALTER TABLE social_publish_jobs ADD COLUMN IF NOT EXISTS brand_slug TEXT",
+    "ALTER TABLE social_publish_jobs ADD COLUMN IF NOT EXISTS message TEXT NOT NULL DEFAULT ''",
+    "ALTER TABLE social_publish_jobs ADD COLUMN IF NOT EXISTS media_url TEXT",
+    "ALTER TABLE social_publish_jobs ADD COLUMN IF NOT EXISTS link_url TEXT",
+    "ALTER TABLE social_publish_jobs ADD COLUMN IF NOT EXISTS media_type TEXT NOT NULL DEFAULT 'text'",
+    "ALTER TABLE social_publish_jobs ADD COLUMN IF NOT EXISTS platforms JSONB NOT NULL DEFAULT '[]'::jsonb",
+    "ALTER TABLE social_publish_jobs ADD COLUMN IF NOT EXISTS scheduled_at TIMESTAMPTZ",
+    "ALTER TABLE social_publish_jobs ADD COLUMN IF NOT EXISTS status TEXT NOT NULL DEFAULT 'scheduled'",
+    "ALTER TABLE social_publish_jobs ADD COLUMN IF NOT EXISTS automation_mode TEXT NOT NULL DEFAULT 'manual'",
+    "ALTER TABLE social_publish_jobs ADD COLUMN IF NOT EXISTS metadata JSONB NOT NULL DEFAULT '{}'::jsonb",
+    "ALTER TABLE social_publish_jobs ADD COLUMN IF NOT EXISTS result JSONB NOT NULL DEFAULT '{}'::jsonb",
+    "ALTER TABLE social_publish_jobs ADD COLUMN IF NOT EXISTS error TEXT",
+    "ALTER TABLE social_publish_jobs ADD COLUMN IF NOT EXISTS created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()",
+    "ALTER TABLE social_publish_jobs ADD COLUMN IF NOT EXISTS published_at TIMESTAMPTZ",
+    "ALTER TABLE social_publish_jobs ADD COLUMN IF NOT EXISTS updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()"
+  ];
+
+  for (const statement of publishColumns) {
+    await pool.query(statement);
+  }
+
+  await pool.query(`
+    UPDATE social_publish_jobs
+    SET brand_slug='nidal-junior'
+    WHERE brand_slug IS NULL OR brand_slug=''
+  `);
+
+  await pool.query(`
+    UPDATE social_publish_jobs
+    SET scheduled_at=COALESCE(scheduled_at, created_at, NOW())
+    WHERE scheduled_at IS NULL
+  `);
+
+  await pool.query(`
+    CREATE INDEX IF NOT EXISTS social_publish_jobs_due_idx
+    ON social_publish_jobs (status, scheduled_at)
   `);
 }
 
