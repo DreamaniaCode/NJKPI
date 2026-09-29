@@ -119,6 +119,109 @@ async function ensureCriticalTables() {
   `);
 }
 
+function splitSqlStatements(sql = '') {
+  const statements = [];
+  let current = '';
+  let single = false;
+  let double = false;
+  let lineComment = false;
+  let blockComment = false;
+
+  for (let i = 0; i < sql.length; i++) {
+    const ch = sql[i];
+    const next = sql[i + 1] || '';
+
+    if (lineComment) {
+      current += ch;
+      if (ch === '\n') lineComment = false;
+      continue;
+    }
+
+    if (blockComment) {
+      current += ch;
+      if (ch === '*' && next === '/') {
+        current += next;
+        i++;
+        blockComment = false;
+      }
+      continue;
+    }
+
+    if (!single && !double && ch === '-' && next === '-') {
+      current += ch + next;
+      i++;
+      lineComment = true;
+      continue;
+    }
+
+    if (!single && !double && ch === '/' && next === '*') {
+      current += ch + next;
+      i++;
+      blockComment = true;
+      continue;
+    }
+
+    if (!double && ch === "'") {
+      current += ch;
+      if (single && next === "'") {
+        current += next;
+        i++;
+      } else {
+        single = !single;
+      }
+      continue;
+    }
+
+    if (!single && ch === '"') {
+      current += ch;
+      double = !double;
+      continue;
+    }
+
+    if (!single && !double && ch === ';') {
+      const statement = current.trim();
+      if (statement) statements.push(statement);
+      current = '';
+      continue;
+    }
+
+    current += ch;
+  }
+
+  const tail = current.trim();
+  if (tail) statements.push(tail);
+  return statements;
+}
+
+async function applySchemaResiliently(schema) {
+  const statements = splitSqlStatements(schema);
+  const failures = [];
+
+  for (let index = 0; index < statements.length; index++) {
+    const statement = statements[index];
+    try {
+      await pool.query(statement);
+    } catch (error) {
+      failures.push({
+        index: index + 1,
+        code: error.code || null,
+        message: error.message,
+        preview: statement.replace(/\s+/g, ' ').slice(0, 180)
+      });
+      console.warn(
+        `Migration SQL ${index + 1}/${statements.length} ignorée: ${error.code || ''} ${error.message}`
+      );
+    }
+  }
+
+  return {
+    total: statements.length,
+    applied: statements.length - failures.length,
+    failed: failures.length,
+    failures
+  };
+}
+
 async function repairLegacyContentsSchema() {
   if (!pool) return;
 
@@ -434,7 +537,15 @@ export async function initDatabase(retries = 5, delay = 3000) {
       }
 
       const schema = await fs.readFile(new URL('./schema.sql', import.meta.url), 'utf8');
-      await pool.query(schema);
+      const schemaReport = await applySchemaResiliently(schema);
+      if (schemaReport.failed) {
+        console.warn(
+          `Schéma PostgreSQL initialisé partiellement: ${schemaReport.applied}/${schemaReport.total} instructions appliquées, ${schemaReport.failed} legacy/migration(s) ignorée(s).`
+        );
+      }
+
+      // Revalider les tables critiques APRES toutes les migrations aussi.
+      await ensureCriticalTables();
 
       // Les jobs de publication existants doivent conserver titre, hashtags,
       // prompt/script et contexte horaire avec le post.
@@ -465,8 +576,19 @@ export async function databaseHealth() {
   if (!pool) return { configured: false, connected: false };
   try {
     await pool.query('SELECT 1');
+    const critical = await pool.query(`
+      SELECT
+        to_regclass('public.brands') IS NOT NULL AS brands,
+        to_regclass('public.media_assets') IS NOT NULL AS media_assets,
+        to_regclass('public.social_publish_jobs') IS NOT NULL AS social_publish_jobs,
+        to_regclass('public.contents') IS NOT NULL AS contents
+    `);
     _dbConnected = true;
-    return { configured: true, connected: true };
+    return {
+      configured: true,
+      connected: true,
+      tables: critical.rows?.[0] || {}
+    };
   } catch (error) {
     _dbConnected = false;
     return { configured: true, connected: false, error: error.message };
