@@ -2388,31 +2388,34 @@ async function runPublishQueue() {
 
 const server = app.listen(port, '0.0.0.0', () => {
   console.log(`Nidal Content Hub demarre sur http://0.0.0.0:${port}`);
-  initDatabase().then(async () => {
-    await initAuth();
 
-    // PRIORITÉ ABSOLUE : démarrer la publication programmée indépendamment de
-    // toute synchronisation Meta/KPI. Une lecture Insights lente ne doit jamais
-    // empêcher une publication arrivée à échéance.
-    const publishQueueSeconds = Math.max(2, Number(process.env.PUBLISH_QUEUE_SECONDS || 5));
-    const recoveredPublishingJobs = await recoverStuckPublishJobs(
-      Number(process.env.PUBLISH_STUCK_MINUTES || 10)
-    );
+  // Le scheduler est un service critique : il démarre immédiatement.
+  // Il ne dépend plus de la fin des migrations legacy ni de la synchro KPI.
+  const publishQueueSeconds = Math.max(2, Number(process.env.PUBLISH_QUEUE_SECONDS || 5));
+  publishQueueState.startedAt = new Date().toISOString();
+  publishQueueState.intervalSeconds = publishQueueSeconds;
+
+  recoverStuckPublishJobs(
+    Number(process.env.PUBLISH_STUCK_MINUTES || 10)
+  ).then(recoveredPublishingJobs => {
     if (recoveredPublishingJobs) {
       console.warn(`${recoveredPublishingJobs} publication(s) interrompue(s) marquée(s) à vérifier après redémarrage.`);
     }
+  }).catch(error => {
+    console.warn('Récupération initiale de la file différée:', error.message);
+  });
 
-    publishQueueState.startedAt = new Date().toISOString();
-    publishQueueState.intervalSeconds = publishQueueSeconds;
+  runPublishQueue().catch(err => console.warn('File publication initiale:', err.message));
+  setInterval(
+    () => runPublishQueue().catch(err => console.warn('File publication:', err.message)),
+    publishQueueSeconds * 1000
+  );
+  console.log(`File de publication active toutes les ${publishQueueSeconds}s.`);
 
-    runPublishQueue().catch(err => console.warn('File publication initiale:', err.message));
-    setInterval(
-      () => runPublishQueue().catch(err => console.warn('File publication:', err.message)),
-      publishQueueSeconds * 1000
-    );
-    console.log(`File de publication active toutes les ${publishQueueSeconds}s.`);
+  // Initialisation complète et services non critiques en parallèle.
+  initDatabase().then(async () => {
+    await initAuth();
 
-    // Les KPI/Insights tournent en arrière-plan et ne bloquent plus le scheduler.
     if (process.env.META_HOURLY_SYNC_ENABLED !== 'false') {
       const metaSyncSeconds = Math.max(120, Number(process.env.META_BACKGROUND_SYNC_SECONDS || 300));
       runHourlyAudienceSync().catch(err => console.warn('Sync Meta initiale:', err.message));
