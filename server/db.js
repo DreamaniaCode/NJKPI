@@ -21,6 +21,26 @@ if (pool) {
 let _dbConnected = false;
 export const isDbConnected = () => _dbConnected;
 
+async function ensureCriticalTables() {
+  if (!pool) return;
+
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS media_assets (
+      id TEXT PRIMARY KEY,
+      filename TEXT NOT NULL,
+      mime_type TEXT NOT NULL,
+      bytes BYTEA NOT NULL,
+      size_bytes BIGINT NOT NULL,
+      created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+    )
+  `);
+
+  await pool.query(`
+    CREATE INDEX IF NOT EXISTS media_assets_created_idx
+    ON media_assets (created_at DESC)
+  `);
+}
+
 async function repairLegacyContentsSchema() {
   if (!pool) return;
 
@@ -324,7 +344,17 @@ export async function initDatabase(retries = 5, delay = 3000) {
   for (let i = 1; i <= retries; i++) {
     try {
       console.log(`Connexion a PostgreSQL en cours (tentative ${i}/${retries})...`);
-      await repairLegacyContentsSchema();
+
+      // Les tables critiques utilisées par les uploads et le scheduler doivent
+      // exister même si une migration legacy de "contents" rencontre un problème.
+      await ensureCriticalTables();
+
+      try {
+        await repairLegacyContentsSchema();
+      } catch (legacyError) {
+        console.warn('Migration legacy contents non bloquante:', legacyError.message);
+      }
+
       const schema = await fs.readFile(new URL('./schema.sql', import.meta.url), 'utf8');
       await pool.query(schema);
 
