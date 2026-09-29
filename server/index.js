@@ -233,7 +233,7 @@ async function getAiKpiContext(brand) {
 
 app.get('/api/version', (_req, res) => {
   res.setHeader('Cache-Control', 'no-store, max-age=0, must-revalidate');
-  res.json({ build: '20260928-52', appVersion: process.env.APP_VERSION || null, now: new Date().toISOString() });
+  res.json({ build: '20260929-53', appVersion: process.env.APP_VERSION || null, now: new Date().toISOString() });
 });
 
 app.get('/api/health', async (_req, res) => {
@@ -2214,7 +2214,7 @@ app.use((req, res, next) => {
     res.setHeader('Surrogate-Control', 'no-store');
     res.setHeader('Pragma', 'no-cache');
     res.setHeader('Expires', '0');
-    res.setHeader('X-Nidal-Build', '20260928-52');
+    res.setHeader('X-Nidal-Build', '20260929-53');
   }
   next();
 });
