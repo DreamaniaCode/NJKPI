@@ -118,6 +118,23 @@ export async function resetAllData() {
   memory.kpiTargets.set('nidal', { brand_slug: 'nidal', targets: ZERO_KPI_TARGETS['nidal'], updated_at: new Date().toISOString() });
 }
 
+async function ensureMediaAssetsStorage() {
+  await query(`
+    CREATE TABLE IF NOT EXISTS media_assets (
+      id TEXT PRIMARY KEY,
+      filename TEXT NOT NULL,
+      mime_type TEXT NOT NULL,
+      bytes BYTEA NOT NULL,
+      size_bytes BIGINT NOT NULL,
+      created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+    )
+  `);
+  await query(`
+    CREATE INDEX IF NOT EXISTS media_assets_created_idx
+    ON media_assets (created_at DESC)
+  `);
+}
+
 export async function saveMediaAsset(asset) {
   const record = {
     id: String(asset.id || '').trim(),
@@ -132,7 +149,7 @@ export async function saveMediaAsset(asset) {
 
   if (!hasDatabase) return { ...record, bytes: undefined };
 
-  try {
+  const insertAsset = async () => {
     const result = await query(
       `INSERT INTO media_assets (id, filename, mime_type, bytes, size_bytes)
        VALUES ($1,$2,$3,$4,$5)
@@ -145,7 +162,19 @@ export async function saveMediaAsset(asset) {
       [record.id, record.filename, record.mime_type, record.bytes, record.size_bytes]
     );
     return result.rows[0];
+  };
+
+  try {
+    return await insertAsset();
   } catch (error) {
+    if (error?.code === '42P01' || /relation ["']?media_assets["']? does not exist/i.test(String(error?.message || ''))) {
+      await ensureMediaAssetsStorage();
+      try {
+        return await insertAsset();
+      } catch (retryError) {
+        throw new Error('Enregistrement média PostgreSQL impossible après auto-réparation: ' + postgresErrorDetail(retryError));
+      }
+    }
     throw new Error('Enregistrement média PostgreSQL impossible: ' + postgresErrorDetail(error));
   }
 }
@@ -158,13 +187,21 @@ export async function getMediaAsset(id) {
     return memory.mediaAssets.get(key) || null;
   }
 
-  try {
+  const readAsset = async () => {
     const result = await query(
       'SELECT id, filename, mime_type, bytes, size_bytes, created_at FROM media_assets WHERE id=$1',
       [key]
     );
     return result.rows[0] || null;
+  };
+
+  try {
+    return await readAsset();
   } catch (error) {
+    if (error?.code === '42P01' || /relation ["']?media_assets["']? does not exist/i.test(String(error?.message || ''))) {
+      await ensureMediaAssetsStorage();
+      return await readAsset();
+    }
     throw new Error('Lecture média PostgreSQL impossible: ' + postgresErrorDetail(error));
   }
 }
