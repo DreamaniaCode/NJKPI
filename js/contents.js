@@ -11,8 +11,9 @@ const ContentsView = (() => {
     view.innerHTML = `
       <header class="view__header workspace-header">
         <div><span class="section-kicker">Production</span><h1 class="view__title">Contenus</h1><p class="view__subtitle">Messages, statuts, objectifs et resultats au meme endroit</p></div>
-        <div class="header-actions"><button class="btn btn--secondary" id="export-btn">📤 Exporter</button><button class="btn btn--secondary" id="import-url-btn">🔗 Importer</button><button class="btn btn--secondary" id="weekly-content-btn">📅 Planifier 7 jours</button><button class="btn btn--secondary" id="bulk-content-btn">＋ Création en masse</button><button class="btn btn--primary" id="add-content-btn">+ Nouveau contenu</button></div>
+        <div class="header-actions"><button class="btn btn--secondary" id="meta-library-sync-btn">↻ Récupérer les publications Meta</button><button class="btn btn--secondary" id="export-btn">📤 Exporter</button><button class="btn btn--secondary" id="import-url-btn">🔗 Importer</button><button class="btn btn--secondary" id="weekly-content-btn">📅 Planifier 7 jours</button><button class="btn btn--secondary" id="bulk-content-btn">＋ Création en masse</button><button class="btn btn--primary" id="add-content-btn">+ Nouveau contenu</button></div>
       </header>
+      <p id="meta-library-status" aria-live="polite">Les publications récupérées depuis Meta incluent les contenus publiés hors de l’application. Stories : celles encore accessibles, puis conservées après récupération.</p>
       <div class="contents-toolbar">
         <input type="search" id="content-search" class="search-input" placeholder="Rechercher un titre, une classe ou un album" value="${escapeHtml(_query)}" aria-label="Rechercher">
         <select id="filter-format" class="select-input" aria-label="Filtrer par format"><option value="">Tous les formats</option>${CONTENT_TYPES.map(type => `<option value="${type.id}" ${_format === type.id ? 'selected' : ''}>${type.label}</option>`).join('')}</select>
@@ -21,6 +22,20 @@ const ContentsView = (() => {
       </div>
       <div class="table-responsive"><table class="data-table"><thead><tr><th>Date</th><th>Contenu</th><th>Public</th><th>Format</th><th>Statut</th><th>Controle</th><th class="actions-column">Actions</th></tr></thead><tbody id="contents-tbody"></tbody></table></div>`;
     document.getElementById('add-content-btn').onclick = () => openCreateForm();
+    const metaSyncButton = document.getElementById('meta-library-sync-btn');
+    metaSyncButton.disabled = !NidalAPI.isOnline() || (typeof NidalAuth !== 'undefined' && NidalAuth.isAuthEnabled() && !NidalAuth.canEdit());
+    metaSyncButton.onclick = async () => {
+      const brand = getActiveBrand();
+      metaSyncButton.disabled = true; metaSyncButton.textContent = 'Récupération…';
+      try {
+        const result = await NidalAPI.request('/api/meta/library/sync', { method: 'POST', body: JSON.stringify({ brand }) });
+        await NidalStore.syncRemote({ includeMeta: false });
+        if (brand !== getActiveBrand()) return;
+        _renderRows();
+        document.getElementById('meta-library-status').textContent = `${result.imported} publication(s) récupérée(s). ${result.storiesNote} ${result.errors.join(' · ')}`;
+      } catch (error) { showToast('Récupération Meta impossible : ' + error.message, 'error'); }
+      finally { metaSyncButton.disabled = false; metaSyncButton.textContent = '↻ Récupérer les publications Meta'; }
+    };
     document.getElementById('bulk-content-btn').onclick = () => openBulkCreateForm();
     document.getElementById('weekly-content-btn').onclick = () => openWeeklyCreateForm();
     document.getElementById('export-btn').onclick = () => { ReportsDataView.setDataset('contents'); App.navigateTo('report-data'); };
@@ -60,6 +75,8 @@ const ContentsView = (() => {
         <td><strong>${formatDate(content.datePublication, 'compact')}</strong><small>${escapeHtml(content.heure)}</small></td>
         <td>
           <strong>${escapeHtml(content.titre)}</strong>
+          ${content.importedFromMeta ? '<small>Récupéré depuis Meta</small>' : ''}
+          ${content.finalUrl ? `<a href="${escapeHtml(content.finalUrl)}" target="_blank" rel="noopener noreferrer">Voir la publication ↗</a>` : ''}
           <small>${escapeHtml(content.album || content.objectif)}</small>
           ${Array.isArray(content.tags) && content.tags.length
             ? `<small style="color:var(--primary);margin-top:2px;">${escapeHtml(content.tags.join(' '))}</small>`
@@ -116,7 +133,8 @@ const ContentsView = (() => {
           </div>
 
           <div class="media-upload-box social-composer__media">
-            <input type="file" id="form-media-file" accept="image/jpeg,image/png,image/webp,image/gif,video/mp4,video/quicktime,video/webm" hidden>
+            <input type="file" id="form-media-file" accept="image/jpeg,image/png,image/webp,image/gif,video/mp4,video/quicktime,video/webm" multiple hidden>
+            <input type="hidden" id="form-media-items" value="${escapeHtml(JSON.stringify(content.mediaItems?.length ? content.mediaItems : content.mediaUrl ? [{ url: content.mediaUrl, type: content.mediaType === 'reel' || content.format === 'video' ? 'video/mp4' : 'image/jpeg' }] : []))}">
             <div class="social-composer__media-actions">
               <button type="button" class="btn btn--secondary" id="form-media-upload-btn">📷 Ajouter photo / vidéo</button>
               <span id="form-media-upload-status" class="media-upload-box__status">${content.mediaUrl ? 'Média déjà associé' : 'Aucun média'}</span>
@@ -266,6 +284,7 @@ const ContentsView = (() => {
       datePublication: value('form-date'),
       heure: value('form-time', '18:30'),
       mediaUrl: value('form-media-url'),
+      mediaItems: JSON.parse(value('form-media-items', '[]')),
       linkUrl: value('form-link-url'),
       finalUrl: value('form-final-url'),
       plateforme: value('form-platform', getActiveBrand() === 'nidal-junior' ? 'Instagram (IG)' : 'Instagram + Facebook (IG + FB)'),
@@ -309,45 +328,16 @@ const ContentsView = (() => {
     const preview = modal.querySelector('#form-media-preview');
     if (!fileInput || !uploadBtn || !urlInput) return;
 
-    const renderPreview = (url, type = '') => {
-      if (!preview) return;
-      if (!url) { preview.innerHTML = ''; return; }
-      preview.innerHTML = type.startsWith('video/')
-        ? `<video src="${escapeHtml(url)}" controls preload="metadata"></video>`
-        : `<img src="${escapeHtml(url)}" alt="Aperçu du média">`;
-    };
-
-    uploadBtn.onclick = () => fileInput.click();
-    fileInput.onchange = async () => {
-      const file = fileInput.files?.[0];
-      if (!file) return;
-      uploadBtn.disabled = true;
-      uploadBtn.textContent = 'Téléversement…';
-      if (status) status.textContent = `${file.name} · envoi en cours`;
-
-      try {
-        const uploaded = await NidalAPI.uploadMedia(file);
-        urlInput.value = uploaded.url || '';
-        if (status) status.textContent = uploaded.convertedForMeta
-          ? `${file.name} · converti automatiquement en JPG · prêt`
-          : `${file.name} · prêt`;
-        renderPreview(uploaded.url, uploaded.mime || file.type);
-        showToast(
-          uploaded.convertedForMeta
-            ? 'Image convertie automatiquement en JPG et prête pour Facebook + Instagram.'
-            : 'Média envoyé et prêt pour Meta.',
-          'success'
-        );
-      } catch (error) {
-        if (status) status.textContent = 'Échec du téléversement';
-        showToast('Upload impossible : ' + error.message, 'error');
-      } finally {
-        uploadBtn.disabled = false;
-        uploadBtn.textContent = '📷 Choisir une photo / vidéo';
+    const itemsInput = modal.querySelector('#form-media-items');
+    modal.mediaPicker = NidalMediaPicker.bind({
+      fileInput, button: uploadBtn, urlInput, status, preview,
+      initialItems: JSON.parse(itemsInput.value || '[]'),
+      onChange: items => {
+        itemsInput.value = JSON.stringify(items);
+        if (items.length > 1) modal.querySelector('#form-format').value = 'carrousel';
       }
-    };
+    });
   }
-
   function _bindFormSync(modal) {
     const btnSync = modal.querySelector('#btn-sync-url-metrics');
     if (!btnSync) return;
@@ -423,7 +413,9 @@ const ContentsView = (() => {
   }
 
   function _mediaTypeForContent(values = {}) {
+    if (values.mediaItems?.length > 1) return 'carousel';
     const text = `${values.format || ''} ${values.plateforme || ''}`.toLowerCase();
+    if (text.includes('carrousel') || text.includes('carousel')) return 'carousel';
     if (text.includes('reel') || text.includes('video') || text.includes('vidéo')) return 'reel';
     return values.mediaUrl ? 'image' : 'text';
   }
@@ -483,6 +475,7 @@ const ContentsView = (() => {
       scheduledAt: scheduledAt.toISOString(),
       automationMode: mode === 'schedule' ? 'scheduled' : 'manual',
       metadata: {
+        mediaItems: values.mediaItems || [],
         title: values.titre || '',
         hashtags: Array.isArray(values.tags) ? values.tags : (values.hashtags || []),
         contentId: values.id || null,
@@ -729,6 +722,7 @@ const ContentsView = (() => {
         _bindMediaUpload(modal);
 
         const runAction = async (mode, button) => {
+          if (modal.mediaPicker?.isBusy()) return showToast('Attendez la fin du téléversement.', 'error');
           const values = _readForm(modal);
           if (!values.message && !values.mediaUrl) return showToast('Ajoutez un texte, une photo ou une vidéo.', 'error');
           if (mode === 'schedule' && !values.datePublication) return showToast('Choisissez la date de programmation.', 'error');
@@ -815,6 +809,7 @@ const ContentsView = (() => {
           _bindMediaUpload(modal);
 
           const runExistingAction = async (mode, button) => {
+            if (modal.mediaPicker?.isBusy()) return showToast('Attendez la fin du téléversement.', 'error');
             const values = { ..._readForm(modal), id };
             if (!values.message && !values.mediaUrl) return showToast('Ajoutez un texte, une photo ou une vidéo.', 'error');
             if (mode === 'schedule' && !values.datePublication) {

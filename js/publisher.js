@@ -38,6 +38,7 @@ const PublisherView = (() => {
           error: error.message || String(error)
         }))
       ]);
+      if (brand !== getActiveBrand()) return;
       _jobs = Array.isArray(jobs) ? jobs : [];
       _metaDiagnostic = diagnostic || null;
       _queueStatus = queueStatus || null;
@@ -150,7 +151,10 @@ const PublisherView = (() => {
       if (!activeView || activeView.offsetParent === null) return;
       try {
         await _load();
-        render();
+        const hasDraft = ['publisher-title', 'publisher-message', 'publisher-hashtags', 'publisher-media-url', 'publisher-link-url', 'publisher-scheduled-at']
+          .some(id => document.getElementById(id)?.value?.trim());
+        if (hasDraft || document.getElementById('publisher-media-upload-btn')?.disabled) _scheduleAutoRefresh();
+        else render();
       } catch {}
     }, 5000);
   }
@@ -216,7 +220,7 @@ const PublisherView = (() => {
             <div>
               <label class="form-label">Photo / vidéo</label>
               <div class="media-upload-box">
-                <input id="publisher-media-file" type="file" accept="image/jpeg,image/png,image/webp,image/gif,video/mp4,video/quicktime,video/webm" hidden>
+                <input id="publisher-media-file" type="file" accept="image/jpeg,image/png,image/webp,image/gif,video/mp4,video/quicktime,video/webm" multiple hidden>
                 <button class="btn btn--secondary" type="button" id="publisher-media-upload-btn">📷 Choisir une photo / vidéo</button>
                 <span id="publisher-media-upload-status" class="media-upload-box__status">Aucun fichier choisi</span>
                 <div id="publisher-media-preview" class="media-upload-preview"></div>
@@ -233,6 +237,7 @@ const PublisherView = (() => {
               <select id="publisher-media-type" class="form-control">
                 <option value="text">Texte / lien</option>
                 <option value="image">Image</option>
+                <option value="carousel">Carrousel (2 à 10 photos)</option>
                 <option value="reel">Reel / vidéo</option>
               </select>
             </div>
@@ -349,46 +354,15 @@ const PublisherView = (() => {
     const mediaStatus = document.getElementById('publisher-media-upload-status');
     const mediaPreview = document.getElementById('publisher-media-preview');
 
-    if (mediaUploadBtn && mediaFileInput) {
-      mediaUploadBtn.onclick = () => mediaFileInput.click();
-      mediaFileInput.onchange = async () => {
-        const file = mediaFileInput.files?.[0];
-        if (!file) return;
-        mediaUploadBtn.disabled = true;
-        mediaUploadBtn.textContent = 'Téléversement…';
-        if (mediaStatus) mediaStatus.textContent = `${file.name} · envoi en cours`;
-        try {
-          const uploaded = await NidalAPI.uploadMedia(file);
-          mediaUrlInput.value = uploaded.url || '';
-          if (mediaStatus) mediaStatus.textContent = uploaded.convertedForMeta
-            ? `${file.name} · converti automatiquement en JPG · prêt`
-            : `${file.name} · prêt`;
-          if (mediaPreview) {
-            const finalMime = uploaded.mime || file.type;
-            mediaPreview.innerHTML = finalMime.startsWith('video/')
-              ? `<video src="${escapeHtml(uploaded.url)}" controls preload="metadata"></video>`
-              : `<img src="${escapeHtml(uploaded.url)}" alt="Aperçu du média">`;
-          }
-          document.getElementById('publisher-media-type').value = (uploaded.mime || file.type).startsWith('video/') ? 'reel' : 'image';
-          showToast(
-            uploaded.convertedForMeta
-              ? (isNidalJunior
-                  ? 'Image convertie automatiquement en JPG et prête pour Instagram.'
-                  : 'Image convertie automatiquement en JPG et prête pour Facebook + Instagram.')
-              : 'Média envoyé et prêt pour publication.',
-            'success'
-          );
-        } catch (error) {
-          if (mediaStatus) mediaStatus.textContent = 'Échec du téléversement';
-          showToast('Upload impossible : ' + error.message, 'error');
-        } finally {
-          mediaUploadBtn.disabled = false;
-          mediaUploadBtn.textContent = '📷 Choisir une photo / vidéo';
-        }
-      };
-    }
-
+    const mediaPicker = mediaUploadBtn && mediaFileInput ? NidalMediaPicker.bind({
+      fileInput: mediaFileInput, button: mediaUploadBtn, urlInput: mediaUrlInput,
+      status: mediaStatus, preview: mediaPreview,
+      onChange: items => {
+        document.getElementById('publisher-media-type').value = items.length > 1 ? 'carousel' : items[0]?.type?.startsWith('video/') ? 'reel' : 'image';
+      }
+    }) : null;
     const submitPublication = async mode => {
+      if (mediaPicker?.isBusy()) return showToast('Attendez la fin du téléversement.', 'error');
       const platforms = [];
       if (isNidalJunior) {
         platforms.push('instagram');
@@ -433,6 +407,7 @@ const PublisherView = (() => {
         scheduledAt: mode === 'schedule' ? new Date(scheduledRaw).toISOString() : new Date().toISOString(),
         automationMode: mode === 'schedule' ? 'scheduled' : 'manual',
         metadata: {
+          mediaItems: mediaPicker?.getItems() || [],
           title: document.getElementById('publisher-title')?.value?.trim() || '',
           hashtags,
           timezone: Intl.DateTimeFormat().resolvedOptions().timeZone || '',

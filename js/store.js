@@ -95,6 +95,8 @@ const NidalStore = (() => {
 
       // Conserver le média et tous les livrables IA avec le post.
       mediaUrl: content.mediaUrl || content.media_url || '',
+      mediaItems: Array.isArray(content.mediaItems) ? content.mediaItems : [],
+      importedFromMeta: Boolean(content.importedFromMeta),
       linkUrl: content.linkUrl || content.link_url || '',
       mediaType: content.mediaType || content.media_type || '',
       postComplet: content.postComplet || content.post_complet || content.message || '',

@@ -1,5 +1,6 @@
 import { listContents, upsertContent, saveMetrics, saveAds, saveLeads, getKpiTargets, saveKpiTargets } from '../repository.js';
 import { metaConfigured, syncContentFromUrl, syncAds, syncLeads, syncFollowers } from './meta.js';
+import { syncMetaLibrary } from './meta-library.js';
 
 const statuses = new Map();
 const running = new Map();
@@ -20,6 +21,12 @@ async function run(brand) {
   const attempt = async (label, action) => {
     try { await action(); } catch (error) { status.errors.push(`${label} : ${error.message}`); }
   };
+  if (metaConfigured(brand) && process.env.DEMO_MODE !== 'true') {
+    await attempt('Bibliothèque Meta', async () => {
+      status.library = await syncMetaLibrary(brand);
+      status.errors.push(...status.library.errors);
+    });
+  }
   status.leads = { ...status.leads, running: true, error: null };
   try {
     const rows = await saveLeads(brand, await syncLeads(brand));
@@ -32,6 +39,7 @@ async function run(brand) {
   await attempt('Publications', async () => {
     if (!metaConfigured(brand) || process.env.DEMO_MODE === 'true') return;
     for (const content of await listContents(brand)) {
+      if (content.data?.importedFromMeta) continue;
       const finalUrl = content.final_url || content.data?.finalUrl;
       if (!finalUrl) continue;
       await attempt(content.data?.titre || content.id, async () => {

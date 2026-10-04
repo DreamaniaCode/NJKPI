@@ -1278,7 +1278,68 @@ async function checkPublicMediaUrl(url) {
   }
 }
 
+export async function listAccountMedia(brand) {
+  if (process.env.DEMO_MODE === 'true') throw new Error('Désactivez DEMO_MODE pour récupérer les publications réelles.');
+  const result = { items: [], errors: [], syncedAt: new Date().toISOString() };
+  async function collect(platform, edge, request, fields, story = false) {
+    let after = null;
+    const cursors = new Set();
+    try {
+      do {
+        const page = await request(edge, { fields, limit: 100, after });
+        for (const item of page.data || []) result.items.push({ ...item, ...(edge.endsWith('/video_reels') ? { media_type: 'VIDEO' } : {}), platform, story });
+        const next = page.paging?.cursors?.after;
+        if (!page.paging?.next || !next) break;
+        if (cursors.has(next)) throw new Error('Pagination Meta interrompue : curseur répété.');
+        cursors.add(next); after = next;
+      } while (after);
+    } catch (error) { result.errors.push(`${platform}${story ? ' stories' : ''} : ${error.message}`); }
+  }
+  const userId = resolvedInstagramUserId(brand);
+  const fields = 'id,caption,media_type,permalink,timestamp,media_url,thumbnail_url,like_count,comments_count,children{id,media_type,media_url,thumbnail_url}';
+  if (userId) {
+    const request = (path, params) => instagramGraph(brand, path, params);
+    await collect('instagram', `${userId}/media`, request, fields);
+    await collect('instagram', `${userId}/stories`, request, 'id,media_type,media_url,thumbnail_url,permalink,timestamp', true);
+  } else if (brand === 'nidal-junior') result.errors.push('Instagram : identifiant du compte non configuré.');
+  if (brand === 'nidal' && resolvedFacebookPageId(brand)) {
+    try {
+      const pageId = resolvedFacebookPageId(brand);
+      const token = await resolvePageAccessToken(brand);
+      await collect('facebook', `${pageId}/published_posts`, (path, params) => graph(path, params, token), 'id,message,created_time,permalink_url,full_picture,attachments{media_type,type,url,media,subattachments}');
+      await collect('facebook', `${pageId}/video_reels`, (path, params) => graph(path, params, token), 'id,description,created_time,permalink_url');
+      await collect('facebook', `${pageId}/stories`, (path, params) => graph(path, params, token), 'id,created_time', true);
+    } catch (error) { result.errors.push('Facebook : ' + error.message); }
+  }
+  return result;
+}
+
+export function getCarouselItems(job) {
+  const type = String(job.media_type || job.mediaType || '').toLowerCase();
+  const items = job.metadata?.mediaItems || [];
+  if (type !== 'carousel' && type !== 'carrousel') return [];
+  if (!Array.isArray(items) || items.length < 2 || items.length > 10) throw new Error('Un carrousel doit contenir entre 2 et 10 photos.');
+  for (const item of items) {
+    if (!item?.url || !/^https:\/\//i.test(item.url)) throw new Error('Chaque photo du carrousel doit avoir une URL HTTPS.');
+    if (item.type && !String(item.type).startsWith('image/')) throw new Error('Ce carrousel accepte uniquement des photos.');
+  }
+  return items;
+}
+
+async function createInstagramCarousel(brand, userId, job) {
+  const children = [];
+  for (const item of getCarouselItems(job)) {
+    const prepared = await ensureInstagramCompatibleMediaUrl(item.url, 'image');
+    const child = await instagramGraphPost(brand, `${userId}/media`, { image_url: prepared.url || item.url, is_carousel_item: 'true' });
+    if (!child.id) throw new Error('Meta n’a pas retourné de conteneur pour une photo du carrousel.');
+    await waitForInstagramContainer(brand, child.id);
+    children.push(child.id);
+  }
+  return instagramGraphPost(brand, `${userId}/media`, { media_type: 'CAROUSEL', children: children.join(','), caption: job.message || '' });
+}
+
 export async function preflightSocialPublishJob(job) {
+  const carouselItems = getCarouselItems(job);
   const brand = job.brand_slug || job.brand || 'nidal-junior';
   const requestedPlatforms = Array.isArray(job.platforms) ? job.platforms : [];
   const platforms = brand === 'nidal-junior'
@@ -1326,6 +1387,10 @@ export async function preflightSocialPublishJob(job) {
     if (!mediaCheck.ok) {
       throw new Error('Média inaccessible pour Instagram : ' + mediaCheck.error);
     }
+    for (const item of carouselItems.slice(1)) {
+      const check = await checkPublicMediaUrl(item.url);
+      if (!check.ok) throw new Error('Photo du carrousel inaccessible : ' + check.error);
+    }
 
     let quota = null;
     let quotaWarning = null;
@@ -1363,7 +1428,9 @@ export async function preflightSocialPublishJob(job) {
         createParams.image_url = publishMediaUrl;
       }
 
-      const container = await instagramGraphPost(brand, `${igUserId}/media`, createParams);
+      const container = carouselItems.length
+        ? await createInstagramCarousel(brand, igUserId, job)
+        : await instagramGraphPost(brand, `${igUserId}/media`, createParams);
       if (!container?.id) {
         throw new Error('Meta n’a pas retourné de conteneur pendant le pré-test Instagram.');
       }
@@ -1415,7 +1482,16 @@ async function publishFacebookPost(brand, job) {
   const pageToken = await resolvePageAccessToken(brand);
 
   let published;
-  if (job.media_url && job.media_type === 'image') {
+  const carouselItems = getCarouselItems(job);
+  if (carouselItems.length) {
+    const attached = [];
+    for (const item of carouselItems) {
+      const photo = await graphPost(`${pageId}/photos`, { url: item.url, published: 'false' }, pageToken);
+      if (!photo.id) throw new Error('Facebook n’a pas retourné l’identifiant de la photo.');
+      attached.push({ media_fbid: photo.id });
+    }
+    published = await graphPost(`${pageId}/feed`, { message: job.message || '', attached_media: JSON.stringify(attached) }, pageToken);
+  } else if (job.media_url && job.media_type === 'image') {
     published = await graphPost(`${pageId}/photos`, {
       url: job.media_url,
       caption: job.message || '',
@@ -1518,6 +1594,7 @@ async function verifyInstagramPublishedMedia(brand, igUserId, mediaId, attempts 
 }
 
 async function publishInstagramPost(brand, job) {
+  const carouselItems = getCarouselItems(job);
   appendPublishTrace(job, 'instagram:start', {
     brand,
     mediaType: job.media_type || job.mediaType || 'image'
@@ -1644,7 +1721,9 @@ async function publishInstagramPost(brand, job) {
       mediaUrl: publishMediaUrl,
       isVideo
     });
-    container = await instagramGraphPost(brand, `${igUserId}/media`, createParams);
+    container = carouselItems.length
+      ? await createInstagramCarousel(brand, igUserId, job)
+      : await instagramGraphPost(brand, `${igUserId}/media`, createParams);
     if (!container?.id) throw new Error('Meta n’a pas retourné de conteneur Instagram.');
 
     appendPublishTrace(job, 'instagram:container-created', { containerId: container.id });

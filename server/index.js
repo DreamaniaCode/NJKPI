@@ -18,6 +18,7 @@ import {
 } from './repository.js';
 import { metaConfigured, syncContentFromUrl, syncAds, syncSocialProfiles, syncAudienceConversions, publishSocialJob, diagnoseMetaAccess, preflightSocialPublishJob } from './services/meta.js';
 import { startMetaSync, synchronizeBrand, syncStatus, intervalMinutes } from './services/meta-sync.js';
+import { syncMetaLibrary } from './services/meta-library.js';
 import { tableWorkbook } from './services/table-export.js';
 import { normalizeUploadedMedia } from './services/media.js';
 import { getMetaLiveCache, setMetaLiveCache, isMetaLiveCacheFresh } from './services/meta-live.js';
@@ -235,7 +236,7 @@ async function getAiKpiContext(brand) {
 
 app.get('/api/version', (_req, res) => {
   res.setHeader('Cache-Control', 'no-store, max-age=0, must-revalidate');
-  res.json({ build: '20261004-9', appVersion: process.env.APP_VERSION || null, now: new Date().toISOString() });
+  res.json({ build: '20261004-10', appVersion: process.env.APP_VERSION || null, now: new Date().toISOString() });
 });
 
 app.get('/api/health', async (_req, res) => {
@@ -829,6 +830,19 @@ app.post('/api/publish/jobs', authenticate, authorize('admin', 'editor'), async 
     };
 
     let persistentMediaUrl = req.body.mediaUrl || null;
+    if (req.body.mediaType === 'carousel' || req.body.mediaType === 'carrousel') {
+      if (!Array.isArray(rawMetadata.mediaItems) || rawMetadata.mediaItems.length < 2 || rawMetadata.mediaItems.length > 10) {
+        return res.status(400).json({ error: 'Sélectionnez entre 2 et 10 photos pour le carrousel.' });
+      }
+      metadata.mediaItems = [];
+      for (const item of rawMetadata.mediaItems) {
+        if (!item?.url || !/^https:\/\//i.test(item.url) || (item.type && !String(item.type).startsWith('image/'))) {
+          return res.status(400).json({ error: 'Le carrousel accepte uniquement des photos avec une URL HTTPS.' });
+        }
+        metadata.mediaItems.push({ url: await persistLegacyUploadUrl(item.url, req), type: item.type || 'image/jpeg' });
+      }
+      persistentMediaUrl = metadata.mediaItems[0].url;
+    }
     if (persistentMediaUrl) {
       try {
         persistentMediaUrl = await persistLegacyUploadUrl(persistentMediaUrl, req);
@@ -1114,6 +1128,12 @@ app.get('/api/meta/diagnostics', async (req, res, next) => {
     const brand = req.query.brand === 'nidal' ? 'nidal' : 'nidal-junior';
     res.json(await diagnoseMetaAccess(brand));
   } catch (error) { next(error); }
+});
+
+app.post('/api/meta/library/sync', authenticate, authorize('admin', 'editor'), async (req, res, next) => {
+  const brand = req.body.brand || 'nidal-junior';
+  if (!validBrand(brand)) return res.status(400).json({ error: 'Marque invalide' });
+  try { res.json(await syncMetaLibrary(brand)); } catch (error) { next(error); }
 });
 
 app.get('/api/social/live', async (req, res, next) => {
@@ -2263,7 +2283,7 @@ app.use((req, res, next) => {
     res.setHeader('Surrogate-Control', 'no-store');
     res.setHeader('Pragma', 'no-cache');
     res.setHeader('Expires', '0');
-    res.setHeader('X-Nidal-Build', '20261004-9');
+    res.setHeader('X-Nidal-Build', '20261004-10');
   }
   next();
 });
