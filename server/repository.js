@@ -222,7 +222,8 @@ export async function listBrands() {
 
 export async function saveLeads(brand, leads) {
   for (const lead of leads) {
-    const record = { ...lead, last_synced_at: new Date().toISOString() };
+    const previous = memory.leads.get(`${brand}:${lead.id}`)?.record;
+    const record = { ...lead, workflow_status: previous?.workflow_status || 'En attente', last_synced_at: new Date().toISOString() };
     if (hasDatabase) {
       await query(`INSERT INTO meta_leads (brand_slug,external_id,data) VALUES ($1,$2,$3::jsonb)
         ON CONFLICT (brand_slug,external_id) DO UPDATE SET data=EXCLUDED.data,last_synced_at=NOW()`,
@@ -235,11 +236,28 @@ export async function saveLeads(brand, leads) {
 
 export async function listLeads(brand) {
   if (hasDatabase) {
-    const result = await query('SELECT data,last_synced_at FROM meta_leads WHERE brand_slug=$1 ORDER BY data->>\'created_time\' DESC', [brand]);
-    return result.rows.map(row => ({ ...row.data, last_synced_at: row.last_synced_at }));
+    const result = await query('SELECT data,workflow_status,last_synced_at FROM meta_leads WHERE brand_slug=$1 ORDER BY data->>\'created_time\' DESC', [brand]);
+    return result.rows.map(row => ({ ...row.data, workflow_status: row.workflow_status, last_synced_at: row.last_synced_at }));
   }
   return [...memory.leads.values()].filter(item => item.brand === brand).map(item => item.record)
     .sort((a, b) => String(b.created_time).localeCompare(String(a.created_time)));
+}
+
+export const LEAD_STATUSES = ['RDV', 'Refus', 'Reporté', 'En attente'];
+export async function updateLeadStatus(brand, id, status) {
+  if (!LEAD_STATUSES.includes(status)) throw new Error('Statut de lead invalide');
+  if (hasDatabase) {
+    const result = await query('UPDATE meta_leads SET workflow_status=$3 WHERE brand_slug=$1 AND external_id=$2 RETURNING data,workflow_status,last_synced_at', [brand,id,status]);
+    const row = result.rows[0];
+    if (!row) return null;
+    const record = { ...row.data, workflow_status: row.workflow_status, last_synced_at: row.last_synced_at };
+    memory.leads.set(`${brand}:${id}`, { brand, record });
+    return record;
+  }
+  const stored = memory.leads.get(`${brand}:${id}`);
+  if (!stored) return null;
+  stored.record.workflow_status = status;
+  return stored.record;
 }
 
 export async function listContents(brand) {

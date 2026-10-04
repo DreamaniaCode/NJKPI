@@ -129,6 +129,10 @@ configurez-la avant d'exposer les contacts en production.
 - **Rapports & Meta** réunit performance, audience, connexion Meta et données exportables.
 - **Contacts & leads** permet de rechercher, filtrer par campagne/formulaire, trier chaque colonne
   et sélectionner les contacts. La sélection est limitée aux résultats visibles par les filtres.
+  Le nom, le téléphone et l'email sont directement visibles ; les autres données et réponses
+  se trouvent dans un accordéon. L'état du contact peut être **RDV**, **Refus**, **Reporté**
+  ou **En attente** (par défaut). Les éditeurs et administrateurs peuvent le modifier.
+  L'état est conservé lors des synchronisations Meta, filtrable et inclus dans les exports.
 - **Données & exports** propose les KPI, campagnes Ads et contenus dans le même tableau.
 
 Les exports portent sur les résultats filtrés, la sélection ou l'ensemble des données chargées.

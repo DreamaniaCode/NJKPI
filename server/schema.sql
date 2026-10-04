@@ -161,9 +161,11 @@ CREATE TABLE IF NOT EXISTS meta_leads (
   brand_slug TEXT NOT NULL REFERENCES brands(slug),
   external_id TEXT NOT NULL,
   data JSONB NOT NULL,
+  workflow_status TEXT NOT NULL DEFAULT 'En attente',
   last_synced_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
   PRIMARY KEY (brand_slug, external_id)
 );
+ALTER TABLE meta_leads ADD COLUMN IF NOT EXISTS workflow_status TEXT NOT NULL DEFAULT 'En attente';
 
 
 

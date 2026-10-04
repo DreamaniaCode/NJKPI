@@ -27,6 +27,22 @@
 .data-summary span { margin-right:auto; }
 .grid-sort { background:none; border:0; padding:0; text-align:left; font-weight:700; cursor:pointer; white-space:nowrap; }
 .grid-selected { background:var(--soft-blue); }
+.lead-name { font-size:15px; font-weight:750; white-space:nowrap; }
+.lead-contact { font-size:14px; font-weight:600; color:var(--blue); text-decoration:none; white-space:nowrap; }
+.lead-contact:hover { text-decoration:underline; }
+.lead-missing { color:var(--muted); font-size:12px; }
+.lead-status { min-width:124px; padding:8px 10px; border:1px solid var(--line); border-radius:8px; font-weight:600; font-size:12px; }
+.lead-status--rdv { background:var(--soft-green); color:var(--green); }
+.lead-status--refus { background:var(--soft-red); color:var(--red); }
+.lead-status--reporte { background:var(--soft-blue); color:var(--blue); }
+.lead-status--attente { background:var(--soft-yellow); color:var(--ink); }
+.lead-status:disabled { opacity:.6; cursor:wait; }
+.lead-details { min-width:210px; max-width:360px; }
+.lead-details summary { color:var(--muted); cursor:pointer; font-weight:600; font-size:12px; }
+.lead-details dl { margin:12px 0 0; padding:12px; background:var(--surface); border-radius:8px; }
+.lead-details dl div { margin-bottom:10px; }
+.lead-details dt { color:var(--muted); font-size:11px; }
+.lead-details dd { margin:3px 0 0; font-size:13px; overflow-wrap:anywhere; }
 .data-table td { user-select:text; }
 .login-shell { min-height:100vh; display:grid; grid-template-columns:minmax(0,1.05fr) minmax(0,1fr); background:var(--panel); }
 .login-story { position:relative; padding:64px clamp(32px,6vw,96px); background:linear-gradient(135deg,#11295a,#1746a5); color:#fff; display:flex; flex-direction:column; justify-content:center; overflow:hidden; }

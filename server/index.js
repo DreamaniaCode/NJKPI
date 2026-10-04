@@ -7,7 +7,7 @@ import express from 'express';
 import { initDatabase, databaseHealth } from './db.js';
 import {
   listBrands, listContents, getContent, upsertContent, deleteContent,
-  saveMetrics, saveAds, listAds, saveAgentRun, listLeads,
+  saveMetrics, saveAds, listAds, saveAgentRun, listLeads, updateLeadStatus, LEAD_STATUSES,
   saveEditorialGeneration, listEditorialGenerations, getEditorialGeneration,
   deleteEditorialGeneration, saveEditorialTransfer,
   getKpiTargets, saveKpiTargets,
@@ -235,7 +235,7 @@ async function getAiKpiContext(brand) {
 
 app.get('/api/version', (_req, res) => {
   res.setHeader('Cache-Control', 'no-store, max-age=0, must-revalidate');
-  res.json({ build: '20261004-3', appVersion: process.env.APP_VERSION || null, now: new Date().toISOString() });
+  res.json({ build: '20261004-4', appVersion: process.env.APP_VERSION || null, now: new Date().toISOString() });
 });
 
 app.get('/api/health', async (_req, res) => {
@@ -638,6 +638,16 @@ app.get('/api/leads', async (req, res, next) => {
   const brand = req.query.brand || 'nidal-junior';
   if (!validBrand(brand)) return res.status(400).json({ error: 'Marque invalide' });
   try { res.json(await listLeads(brand)); } catch (error) { next(error); }
+});
+app.put('/api/leads/:id/status', authorize('admin', 'editor'), async (req, res, next) => {
+  const brand = req.body.brand || 'nidal-junior';
+  if (!validBrand(brand)) return res.status(400).json({ error: 'Marque invalide' });
+  if (!LEAD_STATUSES.includes(req.body.status)) return res.status(400).json({ error: 'Statut invalide : RDV, Refus, Reporté ou En attente' });
+  try {
+    const lead = await updateLeadStatus(brand, req.params.id, req.body.status);
+    if (!lead) return res.status(404).json({ error: 'Lead introuvable' });
+    res.json(lead);
+  } catch (error) { next(error); }
 });
 app.post('/api/meta/sync', authorize('admin', 'editor'), async (req, res, next) => {
   const brand = req.body.brand || 'nidal-junior';
@@ -2242,7 +2252,7 @@ app.use((req, res, next) => {
     res.setHeader('Surrogate-Control', 'no-store');
     res.setHeader('Pragma', 'no-cache');
     res.setHeader('Expires', '0');
-    res.setHeader('X-Nidal-Build', '20261004-3');
+    res.setHeader('X-Nidal-Build', '20261004-4');
   }
   next();
 });
