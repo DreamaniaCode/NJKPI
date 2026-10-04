@@ -112,31 +112,14 @@ const NidalAuth = (() => {
 
   /* ── Page de connexion ───────────────────────────────────────────── */
   function renderLoginPage() {
-    return `
-      <div style="min-height:100vh;display:flex;align-items:center;justify-content:center;background:var(--bg, #f4f5f7);padding:20px;">
-        <div style="background:var(--surface, #fff);border-radius:12px;box-shadow:0 4px 24px rgba(0,0,0,0.1);padding:40px;max-width:380px;width:100%;text-align:center;">
-          <img src="./assets/mascot.png" alt="Nounou" style="width:64px;height:auto;margin-bottom:12px;">
-          <h1 style="font-size:20px;color:var(--ink, #1a1a2e);margin:0 0 4px;">Nidal Junior</h1>
-          <p style="color:var(--muted, #667);font-size:13px;margin:0 0 24px;">Pilotage éditorial — Connexion</p>
-          <form id="login-form">
-            <div style="margin-bottom:14px;text-align:left;">
-              <label for="login-username" style="display:block;font-size:12px;font-weight:600;color:var(--ink);margin-bottom:4px;">Nom d'utilisateur</label>
-              <input type="text" id="login-username" class="form-control" required autocomplete="username" placeholder="admin" style="width:100%;box-sizing:border-box;">
-            </div>
-            <div style="margin-bottom:20px;text-align:left;">
-              <label for="login-password" style="display:block;font-size:12px;font-weight:600;color:var(--ink);margin-bottom:4px;">Mot de passe</label>
-              <input type="password" id="login-password" class="form-control" required autocomplete="current-password" placeholder="••••••" style="width:100%;box-sizing:border-box;">
-            </div>
-            <button type="submit" class="btn btn--primary" style="width:100%;padding:10px;">Se connecter</button>
-          </form>
-          <p id="login-error" style="color:var(--red, #b42318);font-size:12px;margin-top:12px;display:none;"></p>
-        </div>
-      </div>`;
+    return `<main class="login-shell"><section class="login-story"><div class="login-logo"><img src="./assets/logo-cropped.png" alt="Groupe Scolaire Nidal"></div><span class="login-eyebrow">GROUPE SCOLAIRE NIDAL</span><h1>Un espace commun.<br>Une vision claire.</h1><p>Le système de gestion de votre communication, de vos campagnes et de vos contacts.</p><div class="login-features"><div><strong>01</strong><span>Organiser les contenus et les publications</span></div><div><strong>02</strong><span>Suivre les performances et les campagnes</span></div><div><strong>03</strong><span>Exploiter les contacts et les rapports</span></div></div><footer>PLUS QU’UNE ÉCOLE, UN AVENIR</footer></section><section class="login-access"><div class="login-card"><span class="section-kicker">Espace de gestion</span><h2>Bienvenue chez Nidal</h2><p>Connectez-vous pour accéder à votre espace de travail.</p><form id="login-form"><div class="form-group"><label for="login-username">Identifiant</label><input id="login-username" class="form-control" required autocomplete="username" placeholder="Votre identifiant"></div><div class="form-group"><label for="login-password">Mot de passe</label><div class="password-field"><input type="password" id="login-password" class="form-control" required autocomplete="current-password" placeholder="Votre mot de passe"><button type="button" id="login-show-password" aria-label="Afficher le mot de passe">Afficher</button></div></div><button type="submit" class="btn btn--primary login-submit">Se connecter</button><p id="login-error" role="alert" style="display:none"></p></form><small>Accès réservé aux équipes du Groupe Scolaire Nidal.</small></div><footer>Nidal · Nidal Junior</footer></section></main>`;
   }
 
   function bindLoginEvents(container) {
     const form = container.querySelector('#login-form');
     if (!form) return;
+    const toggle = container.querySelector('#login-show-password');
+    if (toggle) toggle.onclick = () => { const input = form.querySelector('#login-password'); const visible = input.type === 'password'; input.type = visible ? 'text' : 'password'; toggle.textContent = visible ? 'Masquer' : 'Afficher'; toggle.setAttribute('aria-label', visible ? 'Masquer le mot de passe' : 'Afficher le mot de passe'); };
     form.onsubmit = async (e) => {
       e.preventDefault();
       const btn = form.querySelector('button[type="submit"]');

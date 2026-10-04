@@ -3,7 +3,7 @@ const App = (() => {
   let _currentView = 'dashboard';
   let _metaLiveTimer = null;
   let _remoteSyncTimer = null;
-  const VIEWS = ['dashboard', 'planning', 'contents', 'agent', 'performance', 'insights', 'audience', 'publisher', 'leads', 'quality', 'settings'];
+  const VIEWS = ['dashboard', 'planning', 'contents', 'agent', 'performance', 'insights', 'audience', 'publisher', 'leads', 'report-data', 'quality', 'settings'];
 
   async function init() {
     // Vérifier AVANT le rendu que le navigateur n'a pas assemblé des assets
@@ -227,7 +227,8 @@ const App = (() => {
     _currentView = viewId;
     if (updateHash) window.location.hash = viewId;
     document.querySelectorAll('[data-view]').forEach(element => {
-      const active = element.dataset.view === viewId;
+      const grouped = ['planning', 'publisher'].includes(viewId) ? 'contents' : ['insights', 'audience', 'report-data'].includes(viewId) ? 'performance' : viewId;
+      const active = element.dataset.view === grouped;
       element.classList.toggle('active', active);
       element.setAttribute('aria-current', active ? 'page' : 'false');
     });
@@ -252,12 +253,20 @@ const App = (() => {
       insights: typeof InsightsView !== 'undefined' ? InsightsView : null,
       audience: typeof AudienceView !== 'undefined' ? AudienceView : null,
       publisher: typeof PublisherView !== 'undefined' ? PublisherView : null,
+      'report-data': typeof ReportsDataView !== 'undefined' ? ReportsDataView : null,
       leads: typeof LeadsView !== 'undefined' ? LeadsView : null,
       quality: typeof QualityView !== 'undefined' ? QualityView : null,
       settings: typeof SettingsView !== 'undefined' ? SettingsView : null
     };
     try {
       renderers[_currentView]?.render();
+      const tabs = document.getElementById('workspace-tabs');
+      const contentGroup = [['contents','Bibliothèque'],['planning','Calendrier'],['publisher','Publier & programmer']];
+      const reportGroup = [['performance','Performance'],['audience','Audience & conversions'],['insights','Connexion & campagnes'],['report-data','Données & exports']];
+      const group = contentGroup.some(([key]) => key === _currentView) ? contentGroup : reportGroup.some(([key]) => key === _currentView) ? reportGroup : [];
+      tabs.hidden = !group.length;
+      tabs.innerHTML = group.filter(([key]) => key !== 'publisher' || typeof NidalAuth === 'undefined' || !NidalAuth.isAuthEnabled() || NidalAuth.canEdit()).map(([key,label]) => '<button class="btn ' + (key === _currentView ? 'btn--primary' : 'btn--secondary') + '" aria-current="' + (key === _currentView ? 'page' : 'false') + '" data-section="' + key + '">' + label + '</button>').join('');
+      tabs.querySelectorAll('[data-section]').forEach(button => button.onclick = () => navigateTo(button.dataset.section));
     } catch (err) {
       console.error(`Erreur lors du rendu de la vue ${_currentView}:`, err);
       const panel = document.getElementById(`view-${_currentView}`);

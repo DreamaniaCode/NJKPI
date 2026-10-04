@@ -123,6 +123,24 @@ Une erreur Meta conserve les dernières valeurs et ne les remplace pas par une d
 Les leads utilisent la protection API existante (`APP_ACCESS_TOKEN` et/ou JWT) :
 configurez-la avant d'exposer les contacts en production.
 
+## Navigation et exploitation des données
+
+- **Contenus & publication** réunit la bibliothèque, le calendrier et la publication programmée.
+- **Rapports & Meta** réunit performance, audience, connexion Meta et données exportables.
+- **Contacts & leads** permet de rechercher, filtrer par campagne/formulaire, trier chaque colonne
+  et sélectionner les contacts. La sélection est limitée aux résultats visibles par les filtres.
+- **Données & exports** propose les KPI, campagnes Ads et contenus dans le même tableau.
+
+Les exports portent sur les résultats filtrés, la sélection ou l'ensemble des données chargées.
+Formats : Excel `.xlsx` (filtres, en-tête figé, valeurs numériques et téléphones conservés en texte),
+CSV UTF-8, TSV, JSON, HTML et Markdown. L'option PDF ouvre l'impression du navigateur :
+choisir « Enregistrer au format PDF ». « Copier » transfère un tableau TSV vers le presse-papiers.
+Les réponses personnalisées des formulaires et les identifiants Meta sont incluses dans les exports.
+L'export Excel nécessite le backend connecté et accepte au maximum 10 000 lignes / 100 colonnes,
+dans la limite de taille JSON de l'API. Les exports des contacts ne sont pas stockés dans localStorage.
+
+`npm run test:data` vérifie les exports, la sélection, la récupération Meta et le rendu client.
+
 ## KPI
 
 - Interactions = reactions + commentaires + partages + enregistrements.

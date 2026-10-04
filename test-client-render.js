@@ -127,6 +127,8 @@ const scripts = [
   'js/store.js',
   'js/charts.js',
   'js/export.js',
+  'js/data-grid.js',
+  'js/reports.js',
   'js/dashboard.js',
   'js/planning.js',
   'js/contents.js',
@@ -161,7 +163,7 @@ try {
 }
 
 // Test rendering of all 7 views
-const views = ['dashboard', 'planning', 'contents', 'agent', 'performance', 'insights', 'leads', 'quality'];
+const views = ['dashboard', 'planning', 'contents', 'agent', 'performance', 'insights', 'leads', 'report-data', 'quality'];
 for (const v of views) {
   try {
     vm.runInContext(`App.navigateTo('${v}', false);`, context);

@@ -18,6 +18,7 @@ import {
 } from './repository.js';
 import { metaConfigured, syncContentFromUrl, syncAds, syncSocialProfiles, syncAudienceConversions, publishSocialJob, diagnoseMetaAccess, preflightSocialPublishJob } from './services/meta.js';
 import { startMetaSync, synchronizeBrand, syncStatus, intervalMinutes } from './services/meta-sync.js';
+import { tableWorkbook } from './services/table-export.js';
 import { normalizeUploadedMedia } from './services/media.js';
 import { getMetaLiveCache, setMetaLiveCache, isMetaLiveCacheFresh } from './services/meta-live.js';
 import { getAudienceCache, setAudienceCache, isAudienceCacheFresh } from './services/audience-cache.js';
@@ -234,7 +235,7 @@ async function getAiKpiContext(brand) {
 
 app.get('/api/version', (_req, res) => {
   res.setHeader('Cache-Control', 'no-store, max-age=0, must-revalidate');
-  res.json({ build: '20261004-2', appVersion: process.env.APP_VERSION || null, now: new Date().toISOString() });
+  res.json({ build: '20261004-3', appVersion: process.env.APP_VERSION || null, now: new Date().toISOString() });
 });
 
 app.get('/api/health', async (_req, res) => {
@@ -519,6 +520,15 @@ app.post('/api/import/bulk-urls', async (req, res, next) => {
   } catch (error) { next(error); }
 });
 
+app.post('/api/export/table.xlsx', authorize('admin', 'editor', 'viewer'), async (req, res, next) => {
+  try {
+    const buffer = await tableWorkbook(req.body);
+    res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
+    res.setHeader('Content-Disposition', 'attachment; filename="nidal-donnees.xlsx"');
+    res.setHeader('Cache-Control', 'no-store');
+    res.send(Buffer.from(buffer));
+  } catch (error) { next(error); }
+});
 app.get('/api/brands', async (_req, res, next) => { try { res.json(await listBrands()); } catch (error) { next(error); } });
 app.get('/api/contents', async (req, res, next) => { try { res.json(await listContents(req.query.brand)); } catch (error) { next(error); } });
 app.post('/api/contents', async (req, res, next) => { try { if (!req.body.id) return res.status(400).json({ error: 'id obligatoire' }); res.status(201).json(await upsertContent(req.body)); } catch (error) { next(error); } });
@@ -2232,7 +2242,7 @@ app.use((req, res, next) => {
     res.setHeader('Surrogate-Control', 'no-store');
     res.setHeader('Pragma', 'no-cache');
     res.setHeader('Expires', '0');
-    res.setHeader('X-Nidal-Build', '20261004-2');
+    res.setHeader('X-Nidal-Build', '20261004-3');
   }
   next();
 });

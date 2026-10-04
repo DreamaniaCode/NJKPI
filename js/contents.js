@@ -23,7 +23,7 @@ const ContentsView = (() => {
     document.getElementById('add-content-btn').onclick = () => openCreateForm();
     document.getElementById('bulk-content-btn').onclick = () => openBulkCreateForm();
     document.getElementById('weekly-content-btn').onclick = () => openWeeklyCreateForm();
-    document.getElementById('export-btn').onclick = () => NidalExport.openExportModal();
+    document.getElementById('export-btn').onclick = () => { ReportsDataView.setDataset('contents'); App.navigateTo('report-data'); };
     document.getElementById('import-url-btn').onclick = () => { if (typeof NidalImport !== 'undefined') NidalImport.openImportModal(); else showToast('Module d\'import non disponible', 'error'); };
     document.getElementById('content-search').oninput = debounce(event => { _query = event.target.value.toLowerCase(); _renderRows(); });
     document.getElementById('filter-format').onchange = event => { _format = event.target.value; _renderRows(); };
