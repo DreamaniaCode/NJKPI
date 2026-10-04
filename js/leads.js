@@ -32,7 +32,7 @@ const LeadsView = (() => {
     columns.push({key:'details',label:'Autres informations',export:false});
     [['created_time','Date'],['campaign','Campagne'],['ad','Annonce'],['form','Formulaire'],['id','Identifiant Meta']].forEach(([key,label]) => columns.push({key,label,display:false}));
     answerNames.forEach((name,index) => columns.push({key:'answer_' + index,label:'Réponse : ' + name,display:false}));
-    if (!_grid) _grid = NidalDataGrid.create({id:'leads-table',title:getActiveBrandLabel() + ' leads',columns,filters:[{key:'status',label:'État',options:STATUSES},{key:'campaign',label:'Campagne'},{key:'form',label:'Formulaire'}],renderCell,onRowsRendered:bindStatuses});
+    if (!_grid) _grid = NidalDataGrid.create({id:'leads-table',title:getActiveBrandLabel() + ' leads',columns,filters:[{key:'status',label:'État',options:STATUSES},{key:'campaign',label:'Campagne'},{key:'form',label:'Formulaire'}],renderCell,onRowsRendered:bindStatuses,onRowClick:row => openDetails(row.id)});
     const rows = _rows.map(row => ({id:String(row.id),status:row.workflow_status || 'En attente',created_time:row.created_time,name:field(row,'full_name') || [field(row,'first_name'),field(row,'last_name')].filter(Boolean).join(' '),phone:field(row,'phone_number'),email:field(row,'email'),campaign:row.campaign_name || row.campaign_id || '',ad:row.ad_name || row.ad_id || '',form:row.form_name || row.form_id || '',...Object.fromEntries(answerNames.map((name,index) => ['answer_' + index,field(row,name)]))}));
     _grid.setRows(rows,columns);
   }
@@ -71,6 +71,19 @@ const LeadsView = (() => {
     });
   }
 
+  function openDetails(id) {
+    const lead = _rows.find(row => String(row.id) === String(id));
+    if (!lead) return;
+    const name = field(lead,'full_name') || [field(lead,'first_name'),field(lead,'last_name')].filter(Boolean).join(' ') || 'Nom non renseigné';
+    const phone = field(lead,'phone_number'), email = field(lead,'email');
+    const status = lead.workflow_status || 'En attente';
+    const labels = {full_name:'Nom complet',first_name:'Prénom',last_name:'Nom',phone_number:'Téléphone',email:'Email',city:'Ville',country:'Pays',street_address:'Adresse',zip_code:'Code postal'};
+    const label = key => labels[key] || String(key || 'Question').replace(/_/g,' ').replace(/^./,char => char.toLocaleUpperCase('fr'));
+    const answers = lead.field_data || [];
+    const meta = [['Formulaire',lead.form_name || lead.form_id],['Campagne',lead.campaign_name || lead.campaign_id],['Annonce',lead.ad_name || lead.ad_id],['Reçu le',lead.created_time ? new Date(lead.created_time).toLocaleString('fr-FR') : null],['Identifiant Meta',lead.id]];
+    openModal('Réponses du formulaire', `<article class="lead-sheet"><header class="lead-sheet__identity"><div><span class="section-kicker">${escapeHtml(lead.form_name || 'Formulaire Meta')}</span><h3>${escapeHtml(name)}</h3></div><span class="lead-status lead-status--${statusClass(status)}">${escapeHtml(status)}</span></header><div class="lead-sheet__contacts"><div><span>Téléphone</span>${phone ? `<a href="tel:${escapeHtml(phone.replace(/[^\d+]/g,''))}">${escapeHtml(phone)}</a>` : '<strong>Non renseigné</strong>'}</div><div><span>Email</span>${email ? `<a href="mailto:${encodeURIComponent(email)}">${escapeHtml(email)}</a>` : '<strong>Non renseigné</strong>'}</div></div><section aria-label="Réponses du formulaire"><h4>Réponses du formulaire <span>(${answers.length})</span></h4><dl class="lead-sheet__answers">${answers.map((answer,index) => `<div><dt><span>${String(index + 1).padStart(2,'0')}</span>${escapeHtml(label(answer.name))}</dt><dd dir="auto">${escapeHtml((answer.values || []).join('\n') || 'Aucune réponse')}</dd></div>`).join('') || '<p>Aucune réponse disponible pour ce formulaire.</p>'}</dl></section><details class="lead-sheet__origin"><summary>Origine et informations de la demande</summary><dl>${meta.map(([key,value]) => `<div><dt>${key}</dt><dd dir="auto">${escapeHtml(String(value || 'Non renseigné'))}</dd></div>`).join('')}</dl></details></article>`, {kicker:'Fiche du contact',footer:'<button type="button" class="btn btn--secondary" data-close-modal>Fermer</button>'});
+  }
+
   async function refresh(sync = false) {
     if (_loading || !NidalAPI.isOnline()) return;
     const brand = getActiveBrand(); _loading = true;
@@ -84,5 +97,5 @@ const LeadsView = (() => {
     } catch (error) { if (brand === getActiveBrand()) _error = error.message; }
     finally { if (brand === getActiveBrand()) { _loading = false; if (location.hash === '#leads') render(); } }
   }
-  return { render, refresh };
+  return { render, refresh, openDetails };
 })();

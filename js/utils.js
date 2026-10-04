@@ -255,7 +255,7 @@ function openModal(title, contentHtml, options = {}) {
   container.innerHTML = `
     <div class="modal" role="dialog" aria-modal="true" aria-label="${escapeHtml(title)}">
       <div class="modal__header">
-        <div><span class="section-kicker">Mise a jour</span><h2 class="modal__title">${escapeHtml(title)}</h2></div>
+        <div><span class="section-kicker">${escapeHtml(options.kicker || 'Mise a jour')}</span><h2 class="modal__title">${escapeHtml(title)}</h2></div>
         <button type="button" class="modal__close" aria-label="Fermer" data-close-modal>&times;</button>
       </div>
       <div class="modal__body">${contentHtml}</div>

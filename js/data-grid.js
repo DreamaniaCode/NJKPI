@@ -43,7 +43,7 @@ const NidalDataGrid = (() => {
     }
     download(new Blob([html], { type: 'text/html;charset=utf-8' }), `${filename}.html`);
   }
-  function create({ id, title, columns, filters = [], renderCell, onRowsRendered }) {
+  function create({ id, title, columns, filters = [], renderCell, onRowsRendered, onRowClick }) {
     let rows = [], search = '', sortKey = columns[0].key, direction = -1, page = 0, scope = 'filtered', format = 'xlsx';
     const selected = new Set(), values = {};
     const filtered = () => rows.filter(row => (!search || columns.some(c => String(row[c.key] ?? '').toLocaleLowerCase('fr').includes(search.toLocaleLowerCase('fr')))) && filters.every(f => !values[f.key] || String(row[f.key] ?? '') === values[f.key]))
@@ -69,6 +69,19 @@ const NidalDataGrid = (() => {
       const visibleColumns = columns.filter(c => c.display !== false);
       document.getElementById(`${id}-results`).innerHTML = `<div class="data-summary"><span>${all.length} résultat(s) sur ${rows.length} · ${count} sélectionné(s) dans les résultats</span><button class="btn btn--secondary btn--sm" id="${id}-select">Sélectionner les résultats</button><button class="btn btn--secondary btn--sm" id="${id}-clear">Effacer la sélection</button></div><div class="table-responsive"><table class="data-table"><thead><tr><th>Sélection</th>${visibleColumns.map(c => `<th aria-sort="${sortKey === c.key ? direction === 1 ? 'ascending' : 'descending' : 'none'}"><button class="grid-sort" data-grid-sort="${c.key}">${escapeHtml(c.label)} ${sortKey === c.key ? direction === 1 ? '↑' : '↓' : '↕'}</button></th>`).join('')}</tr></thead><tbody>${visible.map(row => `<tr class="${selected.has(row.id) ? 'grid-selected' : ''}"><td><input type="checkbox" data-grid-id="${escapeHtml(String(row.id))}" ${selected.has(row.id) ? 'checked' : ''} aria-label="Sélectionner ${escapeHtml(String(row.name || row.id))}"></td>${visibleColumns.map(c => `<td>${renderCell ? renderCell(row,c) : escapeHtml(String(row[c.key] ?? ''))}</td>`).join('')}</tr>`).join('') || `<tr><td colspan="${visibleColumns.length + 1}">Aucune donnée ne correspond aux filtres.</td></tr>`}</tbody></table></div><div class="data-summary"><button class="btn btn--secondary btn--sm" id="${id}-prev" ${page === 0 ? 'disabled' : ''}>Précédent</button><span>Page ${page + 1} / ${Math.max(1, Math.ceil(all.length / 50))}</span><button class="btn btn--secondary btn--sm" id="${id}-next" ${(page + 1) * 50 >= all.length ? 'disabled' : ''}>Suivant</button></div>`;
       const host = document.getElementById(`${id}-results`);
+      if (onRowClick) host.querySelectorAll('tbody tr').forEach(tr => {
+        const rowId = tr.querySelector('[data-grid-id]')?.dataset.gridId;
+        if (!rowId) return;
+        const row = visible.find(item => item.id === rowId);
+        tr.classList.add('grid-row-clickable'); tr.tabIndex = 0;
+        tr.setAttribute('aria-label', `Ouvrir la fiche de ${row.name || row.id}`);
+        tr.onclick = event => {
+          if (event.target.closest('a,button,input,select,textarea,summary,details,label')) return;
+          if (typeof window !== 'undefined' && window.getSelection?.()?.toString()) return;
+          onRowClick(row);
+        };
+        tr.onkeydown = event => { if (event.target === tr && ['Enter',' '].includes(event.key)) { event.preventDefault(); onRowClick(row); } };
+      });
       host.querySelectorAll('[data-grid-sort]').forEach(button => button.onclick = () => { direction = sortKey === button.dataset.gridSort ? -direction : 1; sortKey = button.dataset.gridSort; table(); });
       host.querySelectorAll('[data-grid-id]').forEach(input => input.onchange = () => { input.checked ? selected.add(input.dataset.gridId) : selected.delete(input.dataset.gridId); table(); });
       document.getElementById(`${id}-select`).onclick = () => { all.forEach(r => selected.add(r.id)); table(); };
