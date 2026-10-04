@@ -20,6 +20,15 @@ async function run(brand) {
   const attempt = async (label, action) => {
     try { await action(); } catch (error) { status.errors.push(`${label} : ${error.message}`); }
   };
+  status.leads = { ...status.leads, running: true, error: null };
+  try {
+    const rows = await saveLeads(brand, await syncLeads(brand));
+    status.leads = { running: false, error: null, count: rows.length, lastSyncedAt: new Date().toISOString() };
+  } catch (error) {
+    status.leads.running = false;
+    status.leads.error = error.message;
+    status.errors.push(`Leads : ${error.message}`);
+  }
   await attempt('Publications', async () => {
     if (!metaConfigured(brand) || process.env.DEMO_MODE === 'true') return;
     for (const content of await listContents(brand)) {
@@ -35,7 +44,6 @@ async function run(brand) {
   });
   let campaigns;
   await attempt('Campagnes', async () => { campaigns = await syncAds(brand); await saveAds(brand, campaigns); });
-  await attempt('Leads', async () => saveLeads(brand, await syncLeads(brand)));
   await attempt('KPI', async () => {
     if (process.env.DEMO_MODE === 'true') return;
     const { targets } = await getKpiTargets(brand);

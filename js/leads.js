@@ -15,9 +15,10 @@ const LeadsView = (() => {
     const campaigns = [...new Set(_rows.map(row => row.campaign_name).filter(Boolean))];
     panel.innerHTML = `<header class="view__header workspace-header"><div><span class="section-kicker">Formulaires instantanés Meta</span><h1 class="view__title">Leads Ads</h1><p class="view__subtitle">Contacts des campagnes de ${escapeHtml(getActiveBrandLabel())}</p></div><button class="btn btn--secondary" id="leads-sync" ${_loading || !NidalAPI.isOnline() ? 'disabled' : ''}>${_loading ? 'Chargement…' : 'Synchroniser maintenant'}</button></header>
       <p>${!NidalAPI.isOnline() ? 'Backend hors ligne.' : _status?.demo ? 'Mode démonstration : aucun contact réel récupéré.' : _status?.automatic ? `Synchronisation automatique toutes les ${_status.intervalMinutes} minutes.` : 'Synchronisation automatique désactivée.'}
-      ${_status?.lastSyncedAt ? `Dernière synchronisation complète : ${escapeHtml(new Date(_status.lastSyncedAt).toLocaleString('fr-FR'))}.` : ''}</p>
+      ${_status?.leads?.lastSyncedAt ? `Dernière récupération des leads : ${escapeHtml(new Date(_status.leads.lastSyncedAt).toLocaleString('fr-FR'))}.` : ''}</p>
       ${_error ? `<p role="alert" class="status-muted">${escapeHtml(_error)}</p>` : ''}
-      ${_status?.errors?.length ? `<p role="alert">${_status.errors.map(escapeHtml).join('<br>')}</p>` : ''}
+      ${_status?.leads?.error ? `<p role="alert"><strong>Récupération des leads bloquée :</strong> ${escapeHtml(_status.leads.error)}<br>Vérifiez l’accès à la Page et l’autorisation leads_retrieval dans Meta Business.</p>` : ''}
+      ${_status?.errors?.filter(error => !error.startsWith('Leads :')).length ? `<details><summary>Erreurs des autres synchronisations Meta</summary><p>${_status.errors.filter(error => !error.startsWith('Leads :')).map(escapeHtml).join('<br>')}</p></details>` : ''}
       <section class="sync-panel"><div class="form-group"><label for="leads-search">Rechercher un contact</label><input class="form-control" id="leads-search" value="${escapeHtml(_search)}" placeholder="Nom, téléphone, email…"></div><div class="form-group"><label for="leads-campaign">Campagne</label><select class="form-control" id="leads-campaign"><option value="">Toutes les campagnes</option>${campaigns.map(name => `<option ${name === _campaign ? 'selected' : ''} value="${escapeHtml(name)}">${escapeHtml(name)}</option>`).join('')}</select></div><div id="leads-table"></div></section>`;
     document.getElementById('leads-search').oninput = event => { _search = event.target.value; table(); };
     document.getElementById('leads-campaign').onchange = event => { _campaign = event.target.value; table(); };
@@ -34,6 +35,7 @@ const LeadsView = (() => {
   async function refresh(sync = false) {
     if (_loading || !NidalAPI.isOnline()) return;
     const brand = getActiveBrand(); _loading = true;
+    if (sync) render();
     try {
       if (sync) await NidalAPI.request('/api/meta/sync', { method: 'POST', body: JSON.stringify({ brand }) });
       const [rows, status] = await Promise.all([NidalAPI.request(`/api/leads?brand=${brand}`), NidalAPI.request(`/api/meta/status?brand=${brand}`)]);

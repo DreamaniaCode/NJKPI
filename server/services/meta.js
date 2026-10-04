@@ -1170,8 +1170,8 @@ export async function syncLeads(brand) {
   if (process.env.DEMO_MODE === 'true') return [];
   const pageId = brandEnv('META_PAGE_ID', brand);
   if (!pageId) throw new Error('Page Meta non configuree pour les leads');
-  const token = configuredPageToken(brand) || process.env.META_ACCESS_TOKEN;
-  if (!token) throw new Error('Jeton Meta non configure pour les leads');
+  // Les formulaires exigent un jeton de Page, jamais le jeton utilisateur global.
+  const token = await resolvePageAccessToken(brand);
   const forms = await graphAll(`${pageId}/leadgen_forms`, { fields: 'id,name', limit: 100 }, token);
   const leads = [];
   for (const form of forms) {
