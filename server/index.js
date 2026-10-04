@@ -235,7 +235,7 @@ async function getAiKpiContext(brand) {
 
 app.get('/api/version', (_req, res) => {
   res.setHeader('Cache-Control', 'no-store, max-age=0, must-revalidate');
-  res.json({ build: '20261004-6', appVersion: process.env.APP_VERSION || null, now: new Date().toISOString() });
+  res.json({ build: '20261004-8', appVersion: process.env.APP_VERSION || null, now: new Date().toISOString() });
 });
 
 app.get('/api/health', async (_req, res) => {
@@ -632,6 +632,17 @@ app.get('/api/meta/status', (req, res) => {
   const brand = req.query.brand || 'nidal-junior';
   if (!validBrand(brand)) return res.status(400).json({ error: 'Marque invalide' });
   res.json({ ...syncStatus(brand), intervalMinutes, automatic: process.env.META_AUTO_SYNC !== 'false' && process.env.DEMO_MODE !== 'true', demo: process.env.DEMO_MODE === 'true' });
+});
+app.get('/api/leads/summary', async (req, res, next) => {
+  res.setHeader('Cache-Control', 'no-store');
+  const brand = req.query.brand || 'nidal-junior';
+  if (!validBrand(brand)) return res.status(400).json({ error: 'Marque invalide' });
+  try {
+    const rows = await listLeads(brand);
+    const byStatus = Object.fromEntries(LEAD_STATUSES.map(status => [status, 0]));
+    for (const row of rows) byStatus[row.workflow_status || 'En attente'] = (byStatus[row.workflow_status || 'En attente'] || 0) + 1;
+    res.json({ brand, total: rows.length, forms: new Set(rows.map(row => row.form_id).filter(Boolean)).size, byStatus, sync: syncStatus(brand).leads || null, demo: process.env.DEMO_MODE === 'true' });
+  } catch (error) { next(error); }
 });
 app.get('/api/leads', async (req, res, next) => {
   res.setHeader('Cache-Control', 'no-store');
@@ -2252,7 +2263,7 @@ app.use((req, res, next) => {
     res.setHeader('Surrogate-Control', 'no-store');
     res.setHeader('Pragma', 'no-cache');
     res.setHeader('Expires', '0');
-    res.setHeader('X-Nidal-Build', '20261004-6');
+    res.setHeader('X-Nidal-Build', '20261004-8');
   }
   next();
 });

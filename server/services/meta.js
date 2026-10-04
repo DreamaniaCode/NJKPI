@@ -53,6 +53,7 @@ async function directInstagramGraph(brand, path, params = {}, method = 'GET') {
 
   const response = await fetch(url, {
     method,
+    signal: AbortSignal.timeout(30000),
     headers: { Authorization: `Bearer ${token}` }
   });
   const payload = await response.json().catch(() => ({}));
@@ -656,6 +657,10 @@ async function syncFacebookProfile(brand) {
 }
 
 export async function syncSocialProfiles({ brand, instagramUrl = '', facebookUrl = '' }) {
+  if (brand === 'nidal-junior' && process.env.DEMO_MODE !== 'true') {
+    if (!configuredInstagramToken(brand)) throw new Error('Instagram Nidal Junior non connecté : configurez META_IG_ACCESS_TOKEN_NIDAL_JUNIOR sur le serveur avec un jeton Instagram Login.');
+    if (!resolvedInstagramUserId(brand)) throw new Error('Instagram Nidal Junior non connecté : configurez META_IG_USER_ID_NIDAL_JUNIOR avec le compte associé au jeton Instagram Login.');
+  }
   const result = {
     brand,
     syncedAt: new Date().toISOString(),
@@ -688,7 +693,7 @@ export async function syncSocialProfiles({ brand, instagramUrl = '', facebookUrl
   }
 
   if (!result.instagram && !result.facebook) {
-    throw new Error('Aucun profil social synchronisé. Configurez Meta API ou fournissez un lien Instagram/Facebook public.');
+    throw new Error(result.errors.map(item => `${item.platform} : ${item.message}`).join(' · ') || 'Aucun profil social synchronisé. Configurez Meta API ou fournissez un lien Instagram/Facebook public.');
   }
 
   return result;

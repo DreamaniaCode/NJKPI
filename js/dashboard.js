@@ -1,6 +1,8 @@
 /** Vue d'ensemble : production, KPI et priorite. */
 const DashboardView = (() => {
+  let renderVersion = 0;
   function render() {
+    const version = ++renderVersion;
     const view = document.getElementById('view-dashboard');
     if (!view) return;
     const activeBrand = getActiveBrand();
@@ -61,7 +63,7 @@ const DashboardView = (() => {
         <div>
           <span class="section-kicker">Semaine active</span>
           <h1 class="view__title">Vue d’ensemble</h1>
-          <p class="view__subtitle">21–27 septembre 2026 · ${escapeHtml(getActiveBrandLabel())} <span style="opacity:.55;">· Frontend 20261004-6</span></p>
+          <p class="view__subtitle">21–27 septembre 2026 · ${escapeHtml(getActiveBrandLabel())} <span style="opacity:.55;">· Frontend 20261004-8</span></p>
         </div>
         <div class="header-actions">
           ${isMock ? `
@@ -102,6 +104,18 @@ const DashboardView = (() => {
         ${_kpi('A controler', stats.controls, 'Validation ou charte', '#172033')}
       </section>
 
+      <section class="analysis-panel" style="margin-top:24px" aria-label="KPI des formulaires">
+        <div class="section-heading"><div><span class="section-kicker">Formulaires instantanés Meta</span><h2>Contacts & suivi · ${escapeHtml(getActiveBrandLabel())}</h2></div><button class="btn btn--secondary btn--sm" onclick="App.navigateTo('leads')">Voir les formulaires</button></div>
+        <div id="dashboard-leads-summary" aria-live="polite">
+          <section class="kpi-strip">
+            ${_kpi('Formulaires reçus', '—', 'Total des contacts enregistrés', '#1746d1')}
+            ${_kpi('Contacts traités', '—', 'RDV + refus + reportés', '#0f8871')}
+            ${_kpi('En attente', '—', 'Contacts à traiter', '#ffc928')}
+          </section>
+          <p>${NidalAPI.isOnline() ? 'Chargement des KPI…' : 'Backend hors ligne : KPI indisponibles.'}</p>
+        </div>
+      </section>
+
       ${(isNidalJunior || liveInstagram || liveFacebook) ? `
         <section class="meta-live-panel" aria-label="KPI Meta Live">
           <div class="meta-live-panel__header">
@@ -120,6 +134,7 @@ const DashboardView = (() => {
           </div>
 
           <div class="social-platform-grid">
+            ${!liveInstagram ? '<p id="dashboard-meta-diagnostic" role="alert">Connexion Instagram indisponible. Cliquez sur Actualiser pour vérifier les accès Meta.</p>' : ''}
             <article class="social-platform-card social-platform-card--instagram">
               <div class="social-platform-card__head">
                 <div class="social-platform-card__identity">
@@ -264,6 +279,39 @@ ${facebookCardHtml}
       `}
     `;
 
+    if (NidalAPI.isOnline()) {
+      NidalAPI.request(`/api/leads/summary?brand=${encodeURIComponent(activeBrand)}`).catch(async () => {
+        // Compatibilité avec un backend qui expose déjà les leads mais pas encore le résumé.
+        const rows = await NidalAPI.request(`/api/leads?brand=${encodeURIComponent(activeBrand)}`);
+        const status = await NidalAPI.request(`/api/meta/status?brand=${encodeURIComponent(activeBrand)}`).catch(() => null);
+        const byStatus = { RDV: 0, Refus: 0, 'Reporté': 0, 'En attente': 0 };
+        for (const row of rows) {
+          const key = row.workflow_status || 'En attente';
+          byStatus[key] = (byStatus[key] || 0) + 1;
+        }
+        return { total: rows.length, forms: new Set(rows.map(row => row.form_id).filter(Boolean)).size, byStatus, sync: status?.leads, demo: status?.demo };
+      }).then(summary => {
+        if (version !== renderVersion || activeBrand !== getActiveBrand()) return;
+        const host = document.getElementById('dashboard-leads-summary');
+        if (!host) return;
+        host.innerHTML = `<section class="kpi-strip">
+          ${_kpi('Formulaires reçus', summary.total, 'Total des contacts enregistrés', '#1746d1')}
+          ${_kpi('Contacts traités', (summary.byStatus.RDV || 0) + (summary.byStatus.Refus || 0) + (summary.byStatus['Reporté'] || 0), 'RDV + refus + reportés', '#0f8871')}
+          ${_kpi('En attente', summary.byStatus['En attente'] || 0, 'À traiter', '#ffc928')}
+          ${_kpi('RDV', summary.byStatus.RDV || 0, 'Rendez-vous', '#0f8871')}
+          ${_kpi('Reportés', summary.byStatus['Reporté'] || 0, 'À relancer', '#31b9cc')}
+          ${_kpi('Refus', summary.byStatus.Refus || 0, 'Contacts refusés', '#d91b5c')}
+        </section><p>${summary.forms} formulaire(s) avec des contacts enregistrés.${summary.demo ? ' Mode démonstration.' : ''} ${summary.sync?.lastSyncedAt ? 'Dernière récupération : ' + escapeHtml(new Date(summary.sync.lastSyncedAt).toLocaleString('fr-FR')) : 'Aucune récupération Meta confirmée.'}</p>${summary.sync?.error ? `<p role="alert">${escapeHtml(summary.sync.error)}</p>` : ''}`;
+      }).catch(error => {
+        if (version !== renderVersion || activeBrand !== getActiveBrand()) return;
+        const host = document.getElementById('dashboard-leads-summary');
+        if (host) {
+          const message = host.querySelector('p');
+          if (message) message.textContent = 'KPI des formulaires indisponibles : ' + error.message;
+        }
+      });
+    }
+
     if (!isEmpty) {
       NidalCharts.barChart('chart-by-format', CONTENT_TYPES.map(type => ({
         id: type.id,
@@ -280,13 +328,19 @@ ${facebookCardHtml}
       btnMetaRefresh.onclick = async () => {
         btnMetaRefresh.disabled = true;
         btnMetaRefresh.textContent = 'Synchronisation…';
-        const live = await NidalStore.syncMetaLive(getActiveBrand(), true);
-        if (getActiveBrand() === 'nidal-junior' && !live?.instagram) {
-          const diagnostic = await NidalAPI.request('/api/meta/diagnostics?brand=nidal-junior').catch(() => null);
+        const brand = getActiveBrand();
+        const live = await NidalStore.syncMetaLive(brand, true);
+        if (brand !== getActiveBrand()) return;
+        if (!live?.instagram) {
+          const diagnostic = await NidalAPI.request(`/api/meta/diagnostics?brand=${brand}`).catch(() => null);
           const detail = diagnostic?.errors?.[0]
             || diagnostic?.configurationWarnings?.[0]
             || 'Le compte Instagram Nidal Junior n’a pas renvoyé de profil/KPI.';
           showToast('KPI Instagram indisponibles : ' + detail, 'error', 9000);
+          DashboardView.render();
+          const diagnosticHost = document.getElementById('dashboard-meta-diagnostic');
+          if (diagnosticHost) diagnosticHost.textContent = 'Connexion Instagram bloquée : ' + detail;
+          return;
         } else {
           showToast('KPI Instagram actualisés depuis Meta.', 'success');
         }
@@ -400,5 +454,5 @@ ${facebookCardHtml}
     return `<div class="status-bar-row"><span>${status.label}</span><div class="status-track"><i style="width:${pct}%;background:${status.color}"></i></div><strong>${value}</strong></div>`;
   }
 
-  return { render, build: '20261004-6' };
+  return { render, build: '20261004-8' };
 })();
