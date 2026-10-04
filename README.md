@@ -8,7 +8,8 @@ Le MVP regroupe :
 - Stories, Posts, Carrousels et Videos/Reels ;
 - objectifs, statuts, resultats et controles de conformite ;
 - ajout du lien final Facebook ou Instagram ;
-- synchronisation manuelle des insights Meta ;
+- synchronisation automatique des insights Meta et des KPI toutes les 15 minutes ;
+- page Leads Ads : coordonnées, campagnes, formulaires et réponses ;
 - suivi des campagnes Meta Ads sur les 30 derniers jours ;
 - agent IA pour les plans de semaine, legendes et prompts photo/video ;
 - mode demo lorsqu'une integration n'est pas encore configuree ;
@@ -94,6 +95,33 @@ Le backend recherche le media dans les publications recentes du compte configure
 ## Agent IA
 
 L'agent prepare uniquement des brouillons. Il ne publie rien automatiquement. Chaque sortie doit etre verifiee avant utilisation, notamment les faits, dates, autorisations concernant les mineurs et elements de charte.
+
+## Actualisation Meta et leads formulaires
+
+En production, configurez `DEMO_MODE=false`, `META_ACCESS_TOKEN`, les Pages,
+les comptes Instagram et les comptes publicitaires pour chaque marque dans Coolify.
+Le jeton doit avoir accès aux actifs concernés et les autorisations nécessaires,
+dont `leads_retrieval` pour les contacts, `ads_read` pour les campagnes et les
+autorisations de lecture des Pages / insights Instagram selon votre configuration Meta.
+Vérifiez également l'accès aux leads dans Meta Business et l'approbation de votre application.
+
+`META_AUTO_SYNC=true` active une récupération au démarrage puis toutes les
+`META_SYNC_INTERVAL_MINUTES` minutes (15 par défaut), même sans navigateur ouvert.
+La page `Leads Ads` permet une synchronisation immédiate et affiche les erreurs
+de connexion. Les formulaires et leurs leads sont paginés, enregistrés par identifiant
+sans doublon et conservés dans PostgreSQL. Sans PostgreSQL, ils restent en mémoire
+jusqu'au redémarrage. Aucun contact fictif n'est créé en mode démonstration.
+Les contacts organiques explicitement signalés par Meta sont exclus.
+
+Les publications doivent avoir leur lien final enregistré pour actualiser leurs métriques.
+Les objectifs KPI restent inchangés ; seules leurs valeurs courantes sont actualisées.
+Les vues et interactions couvrent les publications reliées ; la portée est cumulée
+par publication et ne déduplique pas les personnes. Les conversions correspondent
+aux actions `lead` des campagnes sur les 30 derniers jours. Les abonnés sont cumulés
+sur Facebook et Instagram. Le navigateur relit les données chaque minute.
+Une erreur Meta conserve les dernières valeurs et ne les remplace pas par une démo.
+Les leads utilisent la protection API existante (`APP_ACCESS_TOKEN` et/ou JWT) :
+configurez-la avant d'exposer les contacts en production.
 
 ## KPI
 

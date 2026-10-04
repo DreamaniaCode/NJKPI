@@ -1,6 +1,8 @@
 /** Synchronisation des liens publies et lecture des campagnes Meta Ads. */
 const InsightsView = (() => {
   let _ads = [];
+  let _brand = null;
+  let _loaded = false;
 
   function render() {
     const view = document.getElementById('view-insights');
@@ -8,6 +10,7 @@ const InsightsView = (() => {
     const online = NidalAPI.isOnline();
     const health = NidalAPI.getHealth();
     const brand = getActiveBrand();
+    if (_brand !== brand) { _brand = brand; _ads = []; _loaded = false; }
     const contents = NidalStore.getAll();
     const metaReady = brand === 'nidal' ? health?.integrations?.metaNidal : health?.integrations?.metaNidalJunior;
     view.innerHTML = `
@@ -20,7 +23,7 @@ const InsightsView = (() => {
     document.getElementById('sync-form').onsubmit = _syncContent;
     document.getElementById('sync-ads').onclick = _syncAds;
     document.getElementById('configure-api').onclick = _configure;
-    if (online && !_ads.length) _loadAds();
+    if (online && !_loaded) { _loaded = true; _loadAds(); }
   }
 
   function _statusLine(label, ok) {
@@ -46,7 +49,7 @@ const InsightsView = (() => {
     } catch (error) { showToast(error.message, 'error'); button.disabled = false; button.textContent = 'Recuperer les insights'; }
   }
 
-  async function _loadAds() { try { _ads = await NidalAPI.listAds(getActiveBrand()); if (_ads.length) render(); } catch (error) { console.warn(error); } }
+  async function _loadAds() { const brand = getActiveBrand(); try { const rows = await NidalAPI.listAds(brand); if (brand !== getActiveBrand()) return; _ads = rows; if (location.hash === '#insights') render(); } catch (error) { console.warn(error); } }
   async function _syncAds() { const button = document.getElementById('sync-ads'); button.disabled = true; button.textContent = 'Actualisation...'; try { _ads = await NidalAPI.syncAds(getActiveBrand()); render(); showToast(_ads.some(item => item.is_demo || item.isDemo) ? 'Campagnes de demonstration chargees' : 'Campagnes Meta actualisees', 'success'); } catch (error) { showToast(error.message, 'error'); button.disabled = false; button.textContent = 'Actualiser les campagnes'; } }
 
   function _renderAds() {
@@ -58,5 +61,5 @@ const InsightsView = (() => {
     const config = NidalAPI.getConfig();
     openModal('Connexion au backend', `<div class="form-group"><label for="api-url">Adresse API Coolify</label><input id="api-url" class="form-control" value="${escapeHtml(config.baseUrl)}" placeholder="Laisser vide si l’API utilise le meme domaine"></div><div class="form-group"><label for="api-token">Jeton d’acces de l’application</label><input type="password" id="api-token" class="form-control" value="${escapeHtml(config.accessToken)}" autocomplete="off"></div><p class="form-help">Ce jeton protege l’application. Les jetons Meta et OpenAI restent uniquement dans les variables d’environnement Coolify.</p>`, { footer: `<button type="button" class="btn btn--secondary" data-close-modal>Annuler</button><button type="button" class="btn btn--primary" id="save-api">Enregistrer et recharger</button>`, onOpen: modal => modal.querySelector('#save-api').onclick = () => { NidalAPI.saveConfig({ baseUrl: modal.querySelector('#api-url').value.trim(), accessToken: modal.querySelector('#api-token').value }); location.reload(); } });
   }
-  return { render };
+  return { render, refresh: _loadAds };
 })();

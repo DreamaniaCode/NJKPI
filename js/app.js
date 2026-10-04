@@ -3,7 +3,7 @@ const App = (() => {
   let _currentView = 'dashboard';
   let _metaLiveTimer = null;
   let _remoteSyncTimer = null;
-  const VIEWS = ['dashboard', 'planning', 'contents', 'agent', 'performance', 'insights', 'audience', 'publisher', 'quality', 'settings'];
+  const VIEWS = ['dashboard', 'planning', 'contents', 'agent', 'performance', 'insights', 'audience', 'publisher', 'leads', 'quality', 'settings'];
 
   async function init() {
     // Vérifier AVANT le rendu que le navigateur n'a pas assemblé des assets
@@ -49,6 +49,13 @@ const App = (() => {
       _startRemoteSyncPolling();
       _startMetaLivePolling();
       _renderCurrentView();
+      window.setInterval(async () => {
+        if (document.hidden || !NidalAPI.isOnline()) return;
+        await NidalStore.syncRemote();
+        if (_currentView === 'leads') await LeadsView.refresh();
+        if (_currentView === 'insights') await InsightsView.refresh();
+        _renderCurrentView();
+      }, 60000);
     } catch (err) {
       console.warn('Synchronisation initiale différée:', err);
     }
@@ -245,6 +252,7 @@ const App = (() => {
       insights: typeof InsightsView !== 'undefined' ? InsightsView : null,
       audience: typeof AudienceView !== 'undefined' ? AudienceView : null,
       publisher: typeof PublisherView !== 'undefined' ? PublisherView : null,
+      leads: typeof LeadsView !== 'undefined' ? LeadsView : null,
       quality: typeof QualityView !== 'undefined' ? QualityView : null,
       settings: typeof SettingsView !== 'undefined' ? SettingsView : null
     };

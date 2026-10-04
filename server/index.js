@@ -7,7 +7,7 @@ import express from 'express';
 import { initDatabase, databaseHealth } from './db.js';
 import {
   listBrands, listContents, getContent, upsertContent, deleteContent,
-  saveMetrics, saveAds, listAds, saveAgentRun,
+  saveMetrics, saveAds, listAds, saveAgentRun, listLeads,
   saveEditorialGeneration, listEditorialGenerations, getEditorialGeneration,
   deleteEditorialGeneration, saveEditorialTransfer,
   getKpiTargets, saveKpiTargets,
@@ -17,6 +17,7 @@ import {
   saveMediaAsset, getMediaAsset
 } from './repository.js';
 import { metaConfigured, syncContentFromUrl, syncAds, syncSocialProfiles, syncAudienceConversions, publishSocialJob, diagnoseMetaAccess, preflightSocialPublishJob } from './services/meta.js';
+import { startMetaSync, synchronizeBrand, syncStatus, intervalMinutes } from './services/meta-sync.js';
 import { normalizeUploadedMedia } from './services/media.js';
 import { getMetaLiveCache, setMetaLiveCache, isMetaLiveCacheFresh } from './services/meta-live.js';
 import { getAudienceCache, setAudienceCache, isAudienceCacheFresh } from './services/audience-cache.js';
@@ -233,7 +234,7 @@ async function getAiKpiContext(brand) {
 
 app.get('/api/version', (_req, res) => {
   res.setHeader('Cache-Control', 'no-store, max-age=0, must-revalidate');
-  res.json({ build: '20260929-54', appVersion: process.env.APP_VERSION || null, now: new Date().toISOString() });
+  res.json({ build: '20261004-1', appVersion: process.env.APP_VERSION || null, now: new Date().toISOString() });
 });
 
 app.get('/api/health', async (_req, res) => {
@@ -616,6 +617,23 @@ app.post('/api/contents/sync-all', async (req, res, next) => {
 });
 
 app.get('/api/ads', async (req, res, next) => { try { res.json(await listAds(req.query.brand || 'nidal-junior')); } catch (error) { next(error); } });
+const validBrand = value => ['nidal', 'nidal-junior'].includes(value);
+app.get('/api/meta/status', (req, res) => {
+  const brand = req.query.brand || 'nidal-junior';
+  if (!validBrand(brand)) return res.status(400).json({ error: 'Marque invalide' });
+  res.json({ ...syncStatus(brand), intervalMinutes, automatic: process.env.META_AUTO_SYNC !== 'false' && process.env.DEMO_MODE !== 'true', demo: process.env.DEMO_MODE === 'true' });
+});
+app.get('/api/leads', async (req, res, next) => {
+  res.setHeader('Cache-Control', 'no-store');
+  const brand = req.query.brand || 'nidal-junior';
+  if (!validBrand(brand)) return res.status(400).json({ error: 'Marque invalide' });
+  try { res.json(await listLeads(brand)); } catch (error) { next(error); }
+});
+app.post('/api/meta/sync', authorize('admin', 'editor'), async (req, res, next) => {
+  const brand = req.body.brand || 'nidal-junior';
+  if (!validBrand(brand)) return res.status(400).json({ error: 'Marque invalide' });
+  try { res.json(await synchronizeBrand(brand)); } catch (error) { next(error); }
+});
 app.post('/api/ads/sync', async (req, res, next) => { try { const brand = req.body.brand || 'nidal-junior'; const campaigns = await syncAds(brand); res.json(await saveAds(brand, campaigns)); } catch (error) { next(error); } });
 
 app.post('/api/uploads', authenticate, authorize('admin', 'editor'), async (req, res, next) => {
@@ -2214,7 +2232,7 @@ app.use((req, res, next) => {
     res.setHeader('Surrogate-Control', 'no-store');
     res.setHeader('Pragma', 'no-cache');
     res.setHeader('Expires', '0');
-    res.setHeader('X-Nidal-Build', '20260929-54');
+    res.setHeader('X-Nidal-Build', '20261004-1');
   }
   next();
 });
@@ -2415,6 +2433,7 @@ const server = app.listen(port, '0.0.0.0', () => {
   // Initialisation complète et services non critiques en parallèle.
   initDatabase().then(async () => {
     await initAuth();
+    startMetaSync();
 
     if (process.env.META_HOURLY_SYNC_ENABLED !== 'false') {
       const metaSyncSeconds = Math.max(120, Number(process.env.META_BACKGROUND_SYNC_SECONDS || 300));

@@ -112,6 +112,7 @@ const mockWindow = {
   JSON,
   setTimeout,
   clearTimeout,
+  setInterval: () => 0,
   console
 };
 
@@ -132,6 +133,7 @@ const scripts = [
   'js/agent.js',
   'js/performance.js',
   'js/insights.js',
+  'js/leads.js',
   'js/quality.js',
   'js/app.js'
 ];
@@ -159,7 +161,7 @@ try {
 }
 
 // Test rendering of all 7 views
-const views = ['dashboard', 'planning', 'contents', 'agent', 'performance', 'insights', 'quality'];
+const views = ['dashboard', 'planning', 'contents', 'agent', 'performance', 'insights', 'leads', 'quality'];
 for (const v of views) {
   try {
     vm.runInContext(`App.navigateTo('${v}', false);`, context);

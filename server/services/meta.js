@@ -116,7 +116,7 @@ async function graph(path, params = {}, accessToken = process.env.META_ACCESS_TO
   Object.entries({ ...params, access_token: token }).forEach(([key, value]) => {
     if (value !== undefined && value !== null && value !== '') url.searchParams.set(key, value);
   });
-  const response = await fetch(url);
+  const response = await fetch(url, { signal: AbortSignal.timeout(30000) });
   const payload = await response.json();
   if (!response.ok || payload.error) throw new Error(payload.error?.message || `Meta API ${response.status}`);
   return payload;
@@ -1142,15 +1142,55 @@ export async function syncAudienceConversions(brand) {
 
 export async function syncAds(brand) {
   const accountId = brandEnv('META_AD_ACCOUNT_ID', brand);
-  const demo = process.env.DEMO_MODE === 'true' || !process.env.META_ACCESS_TOKEN || !accountId;
-  if (demo) return demoAds(brand);
-  const payload = await graph(`act_${String(accountId).replace(/^act_/, '')}/insights`, {
+  if (process.env.DEMO_MODE === 'true') return demoAds(brand);
+  if (!process.env.META_ACCESS_TOKEN || !accountId) throw new Error('Compte publicitaire Meta non configure');
+  const data = await graphAll(`act_${String(accountId).replace(/^act_/, '')}/insights`, {
     level: 'campaign',
     fields: 'campaign_id,campaign_name,impressions,reach,clicks,spend,actions,cost_per_action_type',
     date_preset: 'last_30d',
     limit: 100
   });
-  return (payload.data || []).map(item => ({ ...item, isDemo: false }));
+  return data.map(item => ({ ...item, isDemo: false }));
+}
+
+async function graphAll(path, params, token) {
+  const rows = [];
+  let after;
+  do {
+    const payload = await graph(path, { ...params, after }, token);
+    rows.push(...(payload.data || []));
+    const next = payload.paging?.next ? payload.paging?.cursors?.after : null;
+    if (next && next === after) throw new Error('Pagination Meta bloquee');
+    after = next;
+  } while (after);
+  return rows;
+}
+
+export async function syncLeads(brand) {
+  if (process.env.DEMO_MODE === 'true') return [];
+  const pageId = brandEnv('META_PAGE_ID', brand);
+  if (!pageId) throw new Error('Page Meta non configuree pour les leads');
+  const token = configuredPageToken(brand) || process.env.META_ACCESS_TOKEN;
+  if (!token) throw new Error('Jeton Meta non configure pour les leads');
+  const forms = await graphAll(`${pageId}/leadgen_forms`, { fields: 'id,name', limit: 100 }, token);
+  const leads = [];
+  for (const form of forms) {
+    const rows = await graphAll(`${form.id}/leads`, {
+      fields: 'id,created_time,form_id,ad_id,ad_name,campaign_id,campaign_name,field_data,is_organic', limit: 100
+    }, token);
+    leads.push(...rows.filter(row => row.is_organic !== true).map(row => ({ ...row, form_name: form.name })));
+  }
+  return leads;
+}
+
+export async function syncFollowers(brand) {
+  let count = 0;
+  const page = brandEnv('META_PAGE_ID', brand);
+  const instagram = resolvedInstagramUserId(brand);
+  if (!page && !instagram) throw new Error('Comptes Meta non configures');
+  if (page) count += Number((await graph(page, { fields: 'followers_count' })).followers_count || 0);
+  if (instagram) count += Number((await instagramGraph(brand, instagram, { fields: 'followers_count' })).followers_count || 0);
+  return count;
 }
 
 function demoContentMetrics(finalUrl, platform) {

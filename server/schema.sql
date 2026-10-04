@@ -157,6 +157,14 @@ CREATE TABLE IF NOT EXISTS kpi_targets (
   updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 
+CREATE TABLE IF NOT EXISTS meta_leads (
+  brand_slug TEXT NOT NULL REFERENCES brands(slug),
+  external_id TEXT NOT NULL,
+  data JSONB NOT NULL,
+  last_synced_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  PRIMARY KEY (brand_slug, external_id)
+);
+
 
 
 CREATE TABLE IF NOT EXISTS social_profiles (

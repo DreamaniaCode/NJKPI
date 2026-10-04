@@ -1,6 +1,7 @@
 import { query, hasDatabase } from './db.js';
 
 const memory = {
+  leads: new Map(),
   contents: new Map(),
   metrics: [],
   ads: new Map(),
@@ -89,6 +90,7 @@ const ZERO_KPI_TARGETS = {
 export async function resetAllData() {
   if (hasDatabase) {
     try {
+      await query('DELETE FROM meta_leads');
       await query('DELETE FROM agent_transfers');
       await query('DELETE FROM agent_generations');
       await query('DELETE FROM agent_conversations');
@@ -107,6 +109,7 @@ export async function resetAllData() {
   }
   // Réinitialiser aussi la mémoire
   memory.contents.clear();
+  memory.leads.clear();
   memory.metrics.length = 0;
   memory.ads.clear();
   memory.mediaAssets.clear();
@@ -215,6 +218,28 @@ export async function listBrands() {
     console.warn('Fallback memoire listBrands:', error.message);
     return [{ slug: 'nidal', name: 'Nidal' }, { slug: 'nidal-junior', name: 'Nidal Junior' }];
   }
+}
+
+export async function saveLeads(brand, leads) {
+  for (const lead of leads) {
+    const record = { ...lead, last_synced_at: new Date().toISOString() };
+    if (hasDatabase) {
+      await query(`INSERT INTO meta_leads (brand_slug,external_id,data) VALUES ($1,$2,$3::jsonb)
+        ON CONFLICT (brand_slug,external_id) DO UPDATE SET data=EXCLUDED.data,last_synced_at=NOW()`,
+      [brand, lead.id, JSON.stringify(lead)]);
+    }
+    memory.leads.set(`${brand}:${lead.id}`, { brand, record });
+  }
+  return listLeads(brand);
+}
+
+export async function listLeads(brand) {
+  if (hasDatabase) {
+    const result = await query('SELECT data,last_synced_at FROM meta_leads WHERE brand_slug=$1 ORDER BY data->>\'created_time\' DESC', [brand]);
+    return result.rows.map(row => ({ ...row.data, last_synced_at: row.last_synced_at }));
+  }
+  return [...memory.leads.values()].filter(item => item.brand === brand).map(item => item.record)
+    .sort((a, b) => String(b.created_time).localeCompare(String(a.created_time)));
 }
 
 export async function listContents(brand) {

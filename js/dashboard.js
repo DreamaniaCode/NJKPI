@@ -61,7 +61,7 @@ const DashboardView = (() => {
         <div>
           <span class="section-kicker">Semaine active</span>
           <h1 class="view__title">Vue d’ensemble</h1>
-          <p class="view__subtitle">21–27 septembre 2026 · ${escapeHtml(getActiveBrandLabel())} <span style="opacity:.55;">· Frontend 20260929-54</span></p>
+          <p class="view__subtitle">21–27 septembre 2026 · ${escapeHtml(getActiveBrandLabel())} <span style="opacity:.55;">· Frontend 20261004-1</span></p>
         </div>
         <div class="header-actions">
           ${isMock ? `
@@ -400,5 +400,5 @@ ${facebookCardHtml}
     return `<div class="status-bar-row"><span>${status.label}</span><div class="status-track"><i style="width:${pct}%;background:${status.color}"></i></div><strong>${value}</strong></div>`;
   }
 
-  return { render, build: '20260929-54' };
+  return { render, build: '20261004-1' };
 })();
