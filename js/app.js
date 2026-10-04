@@ -308,10 +308,12 @@ const App = (() => {
   function _initBrandSwitch() {
     const select = document.getElementById('brand-switch');
     if (!select) return;
-    select.value = getActiveBrand();
+    const selects = [select, document.getElementById('mobile-brand-switch')].filter(Boolean);
+    selects.forEach(item => { item.value = getActiveBrand(); });
     _updateBrandName();
-    select.onchange = async () => {
-      setActiveBrand(select.value);
+    const changeBrand = async event => {
+      setActiveBrand(event.target.value);
+      selects.forEach(item => { item.value = getActiveBrand(); });
       _updateBrandName();
       if (NidalAPI.isOnline()) {
         await NidalStore.syncRemote({ includeMeta: false });
@@ -321,6 +323,7 @@ const App = (() => {
       await NidalStore.syncRemote();
       _renderCurrentView();
     };
+    selects.forEach(item => { item.onchange = changeBrand; });
   }
 
   function _updateBrandName() {
