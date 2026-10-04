@@ -132,9 +132,11 @@ const ContentsView = (() => {
             <small class="composer-help">Vous voyez tout le post ici. Le nom interne est facultatif et se trouve dans Options.</small>
           </div>
 
+          <div class="form-group"><label for="form-format">Format de publication</label><select id="form-format" class="form-control">${_options(CONTENT_TYPES.filter(type => ['post', 'carrousel', 'video', 'story'].includes(type.id)), content.format)}</select></div>
+          <small class="composer-help">Story : le texte à afficher doit être intégré à la photo ou vidéo. Vidéo : publiée comme Reel sur Instagram.</small>
           <div class="media-upload-box social-composer__media">
             <input type="file" id="form-media-file" accept="image/jpeg,image/png,image/webp,image/gif,video/mp4,video/quicktime,video/webm" multiple hidden>
-            <input type="hidden" id="form-media-items" value="${escapeHtml(JSON.stringify(content.mediaItems?.length ? content.mediaItems : content.mediaUrl ? [{ url: content.mediaUrl, type: content.mediaType === 'reel' || content.format === 'video' ? 'video/mp4' : 'image/jpeg' }] : []))}">
+            <input type="hidden" id="form-media-items" value="${escapeHtml(JSON.stringify(content.mediaItems?.length ? content.mediaItems : content.mediaUrl ? [{ url: content.mediaUrl, type: NidalMediaFormat.resolve(content).isVideo ? 'video/mp4' : 'image/jpeg' }] : []))}">
             <div class="social-composer__media-actions">
               <button type="button" class="btn btn--secondary" id="form-media-upload-btn">📷 Ajouter photo / vidéo</button>
               <span id="form-media-upload-status" class="media-upload-box__status">${content.mediaUrl ? 'Média déjà associé' : 'Aucun média'}</span>
@@ -155,7 +157,6 @@ const ContentsView = (() => {
               <div class="form-group"><label for="form-date">Date</label><input type="date" id="form-date" class="form-control" value="${toISODate(content.datePublication)}"></div>
               <div class="form-group"><label for="form-time">Heure</label><input type="time" id="form-time" class="form-control" value="${_value(content.heure || '18:30')}"></div>
             </div>
-            <div class="form-group"><label for="form-format">Format</label><select id="form-format" class="form-control">${_options(CONTENT_TYPES, content.format)}</select></div>
           </div>
 
           ${includePublishActions ? `<div class="composer-action-note"><strong>Prêt à publier ?</strong><small>Utilisez Enregistrer, Programmer ou Publier maintenant en bas.</small></div>` : ''}
@@ -334,7 +335,11 @@ const ContentsView = (() => {
       initialItems: JSON.parse(itemsInput.value || '[]'),
       onChange: items => {
         itemsInput.value = JSON.stringify(items);
-        if (items.length > 1) modal.querySelector('#form-format').value = 'carrousel';
+        const format = modal.querySelector('#form-format');
+        if (format.value !== 'story') {
+          if (items.length > 1) format.value = 'carrousel';
+          else if (items[0]?.type?.startsWith('video/')) format.value = 'video';
+        }
       }
     });
   }
@@ -413,11 +418,7 @@ const ContentsView = (() => {
   }
 
   function _mediaTypeForContent(values = {}) {
-    if (values.mediaItems?.length > 1) return 'carousel';
-    const text = `${values.format || ''} ${values.plateforme || ''}`.toLowerCase();
-    if (text.includes('carrousel') || text.includes('carousel')) return 'carousel';
-    if (text.includes('reel') || text.includes('video') || text.includes('vidéo')) return 'reel';
-    return values.mediaUrl ? 'image' : 'text';
+    return NidalMediaFormat.resolve(values).type;
   }
 
   function _captionForContent(values = {}) {
@@ -475,6 +476,8 @@ const ContentsView = (() => {
       scheduledAt: scheduledAt.toISOString(),
       automationMode: mode === 'schedule' ? 'scheduled' : 'manual',
       metadata: {
+        format: values.format,
+        placement: values.plateforme,
         mediaItems: values.mediaItems || [],
         title: values.titre || '',
         hashtags: Array.isArray(values.tags) ? values.tags : (values.hashtags || []),

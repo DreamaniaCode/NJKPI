@@ -238,8 +238,12 @@ const PublisherView = (() => {
                 <option value="text">Texte / lien</option>
                 <option value="image">Image</option>
                 <option value="carousel">Carrousel (2 à 10 photos)</option>
-                <option value="reel">Reel / vidéo</option>
+                <option value="reel">Reel</option>
+                <option value="video">Vidéo du fil · Reel sur Instagram</option>
+                <option value="story_image">Story photo</option>
+                <option value="story_video">Story vidéo</option>
               </select>
+              <small class="composer-help">Story : intégrez le texte à la photo ou vidéo ; la légende du fil n’y est pas affichée.</small>
             </div>
             <div>
               <label class="form-label" for="publisher-scheduled-at">Date et heure</label>
@@ -358,7 +362,10 @@ const PublisherView = (() => {
       fileInput: mediaFileInput, button: mediaUploadBtn, urlInput: mediaUrlInput,
       status: mediaStatus, preview: mediaPreview,
       onChange: items => {
-        document.getElementById('publisher-media-type').value = items.length > 1 ? 'carousel' : items[0]?.type?.startsWith('video/') ? 'reel' : 'image';
+        const type = document.getElementById('publisher-media-type');
+        type.value = type.value.startsWith('story')
+          ? (items[0]?.type?.startsWith('video/') ? 'story_video' : 'story_image')
+          : items.length > 1 ? 'carousel' : items[0]?.type?.startsWith('video/') ? 'reel' : 'image';
       }
     }) : null;
     const submitPublication = async mode => {

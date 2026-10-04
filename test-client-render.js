@@ -124,6 +124,7 @@ const context = vm.createContext(mockWindow);
 const scripts = [
   'js/utils.js',
   'js/api.js',
+  'js/media-format.js',
   'js/media-picker.js',
   'js/store.js',
   'js/charts.js',

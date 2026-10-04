@@ -1,3 +1,6 @@
+import '../../js/media-format.js';
+import { getContent } from '../repository.js';
+const NidalMediaFormat = globalThis.NidalMediaFormat;
 const GRAPH_VERSION = process.env.META_GRAPH_VERSION || 'v26.0';
 const GRAPH_URL = `https://graph.facebook.com/${GRAPH_VERSION}`;
 
@@ -1315,7 +1318,7 @@ export async function listAccountMedia(brand) {
 }
 
 export function getCarouselItems(job) {
-  const type = String(job.media_type || job.mediaType || '').toLowerCase();
+  const type = NidalMediaFormat.resolve(job).type;
   const items = job.metadata?.mediaItems || [];
   if (type !== 'carousel' && type !== 'carrousel') return [];
   if (!Array.isArray(items) || items.length < 2 || items.length > 10) throw new Error('Un carrousel doit contenir entre 2 et 10 photos.');
@@ -1339,6 +1342,7 @@ async function createInstagramCarousel(brand, userId, job) {
 }
 
 export async function preflightSocialPublishJob(job) {
+  validatePublishFormat(job);
   const carouselItems = getCarouselItems(job);
   const brand = job.brand_slug || job.brand || 'nidal-junior';
   const requestedPlatforms = Array.isArray(job.platforms) ? job.platforms : [];
@@ -1387,6 +1391,12 @@ export async function preflightSocialPublishJob(job) {
     if (!mediaCheck.ok) {
       throw new Error('Média inaccessible pour Instagram : ' + mediaCheck.error);
     }
+    job.metadata ||= {};
+    if (/^(image|video)\//i.test(mediaCheck.contentType || '')) job.metadata.mediaMime = mediaCheck.contentType.split(';')[0];
+    validatePublishFormat(job);
+    const publishFormat = NidalMediaFormat.resolve(job);
+    job.mediaType = publishFormat.type;
+    if (job.media_type) job.media_type = publishFormat.type;
     for (const item of carouselItems.slice(1)) {
       const check = await checkPublicMediaUrl(item.url);
       if (!check.ok) throw new Error('Photo du carrousel inaccessible : ' + check.error);
@@ -1411,22 +1421,7 @@ export async function preflightSocialPublishJob(job) {
     // Pour les publications proches, demander réellement à Meta de télécharger
     // et préparer le média maintenant. On ne publie rien ici.
     if (hoursUntilPublish !== null && hoursUntilPublish >= -0.1 && hoursUntilPublish <= 20) {
-      const mediaType = String(job.media_type || job.mediaType || 'image').toLowerCase();
-      const isVideo = mediaType === 'video' || mediaType === 'reel';
-      let publishMediaUrl = mediaUrl;
-
-      if (!isVideo) {
-        const prepared = await ensureInstagramCompatibleMediaUrl(mediaUrl, mediaType);
-        publishMediaUrl = prepared.url || mediaUrl;
-      }
-
-      const createParams = { caption: job.message || '' };
-      if (isVideo) {
-        createParams.media_type = 'REELS';
-        createParams.video_url = publishMediaUrl;
-      } else {
-        createParams.image_url = publishMediaUrl;
-      }
+      const { params: createParams, publishMediaUrl } = await instagramMediaParams(job);
 
       const container = carouselItems.length
         ? await createInstagramCarousel(brand, igUserId, job)
@@ -1442,7 +1437,8 @@ export async function preflightSocialPublishJob(job) {
         expiresAt: new Date(Date.now() + 23 * 60 * 60 * 1000).toISOString(),
         statusCode: containerStatus?.status_code || null,
         status: containerStatus?.status || null,
-        publishMediaUrl
+        publishMediaUrl,
+        mediaType: publishFormat.type
       };
     }
 
@@ -1462,6 +1458,15 @@ export async function preflightSocialPublishJob(job) {
   }
 
   if (platforms.includes('facebook')) {
+    const format = NidalMediaFormat.resolve(job);
+    if (format.type !== 'text') {
+      const check = await checkPublicMediaUrl(job.media_url || job.mediaUrl);
+      if (!check.ok) throw new Error('Média inaccessible pour Facebook : ' + check.error);
+      job.metadata ||= {};
+      if (/^(image|video)\//i.test(check.contentType || '')) job.metadata.mediaMime = check.contentType.split(';')[0];
+      validatePublishFormat(job);
+      job.mediaType = NidalMediaFormat.resolve(job).type;
+    }
     const pageId = resolvedFacebookPageId(brand);
     if (!pageId) throw new Error(`META_PAGE_ID non configuré pour ${brand}`);
     const token = await resolvePageAccessToken(brand);
@@ -1475,7 +1480,72 @@ export async function preflightSocialPublishJob(job) {
   return checks;
 }
 
+export function validatePublishFormat(job) {
+  const raw = String(job.media_type || job.mediaType || '').toLowerCase();
+  if (raw && !['image', 'post', 'text', 'video', 'reel', 'carousel', 'carrousel', 'story', 'story_image', 'story_video'].includes(raw)) throw new Error('Format de publication non pris en charge : ' + raw);
+  const format = NidalMediaFormat.resolve(job);
+  const items = job.metadata?.mediaItems || [];
+  if (format.isStory && items.length > 1) throw new Error('Une story contient une seule photo ou vidéo. Retirez les autres médias ou choisissez Carrousel.');
+  if (format.type !== 'carousel' && items.length > 1) throw new Error('Ce format contient un seul média. Choisissez Carrousel pour plusieurs photos.');
+  if (format.type === 'text' && (job.media_url || job.mediaUrl)) throw new Error('Choisissez le format du média à publier.');
+  if (format.type !== 'text' && !(job.media_url || job.mediaUrl)) throw new Error('Ce format exige une photo ou une vidéo.');
+  if (format.isVideo && format.mime.startsWith('image/')) throw new Error('Un Reel ou une vidéo exige un fichier vidéo.');
+  if (!format.isVideo && format.mime.startsWith('video/')) throw new Error('Ce format exige une photo. Choisissez Reel, Vidéo ou Story vidéo.');
+  if (format.type === 'carousel') getCarouselItems(job);
+  return format;
+}
+
+async function instagramMediaParams(job) {
+  const format = NidalMediaFormat.resolve(job);
+  const mediaUrl = job.media_url || job.mediaUrl;
+  const prepared = format.isVideo ? { url: mediaUrl } : await ensureInstagramCompatibleMediaUrl(mediaUrl, 'image');
+  const publishMediaUrl = prepared.url || mediaUrl;
+  let params;
+  if (format.isStory) params = { media_type: 'STORIES', [format.isVideo ? 'video_url' : 'image_url']: publishMediaUrl };
+  else if (format.isVideo) params = { media_type: 'REELS', video_url: publishMediaUrl, caption: job.message || '', share_to_feed: String(job.metadata?.shareToFeed !== false) };
+  else params = { image_url: publishMediaUrl, caption: job.message || '' };
+  return { params, publishMediaUrl, format };
+}
+
+async function publishFacebookVideoPlacement(pageId, token, job, edge) {
+  job.metadata ||= {};
+  let state = job.metadata.facebookVideo;
+  if (!state || state.edge !== edge) {
+    const start = await graphPost(`${pageId}/${edge}`, { upload_phase: edge === 'video_stories' ? 'START' : 'start' }, token);
+    if (!start.video_id || !start.upload_url) throw new Error('Facebook n’a pas initialisé l’envoi de la vidéo.');
+    const upload = new URL(start.upload_url);
+    if (upload.protocol !== 'https:' || upload.hostname !== 'rupload.facebook.com') throw new Error('URL d’envoi vidéo Facebook inattendue.');
+    state = job.metadata.facebookVideo = { edge, videoId: start.video_id, uploadUrl: start.upload_url, uploaded: false, finished: false };
+  }
+  if (!state.uploaded) {
+    const response = await fetch(state.uploadUrl, { method: 'POST', headers: { Authorization: `OAuth ${token}`, file_url: job.media_url }, signal: AbortSignal.timeout(30000) });
+    const payload = await response.json();
+    if (!response.ok || payload.error || !payload.success) throw new Error(payload.error?.message || 'Facebook n’a pas accepté le fichier vidéo.');
+    state.uploaded = true;
+  }
+  if (!state.finished) {
+    const finish = await graphPost(`${pageId}/${edge}`, { upload_phase: edge === 'video_stories' ? 'FINISH' : 'finish', video_id: state.videoId, video_state: 'PUBLISHED', ...(edge === 'video_reels' ? { description: job.message || '', title: job.metadata.title || '' } : {}) }, token);
+    if (!finish.success) throw new Error('Facebook n’a pas confirmé la fin de l’envoi vidéo.');
+    state.finished = true;
+    state.postId = finish.post_id || null;
+  }
+  const status = await waitForFacebookVideo(state.videoId, token, true);
+  return { id: state.postId || state.videoId, success: true, status };
+}
+
+async function waitForFacebookVideo(videoId, token, requirePublishing = false) {
+  for (let attempt = 0; attempt < 5; attempt++) {
+    const payload = await graph(videoId, { fields: 'status' }, token);
+    const status = payload.status || {};
+    if (status.publishing_phase?.status === 'complete' || (!requirePublishing && status.video_status === 'ready')) return status;
+    if (status.video_status === 'error' || ['error', 'failed'].includes(status.processing_phase?.status)) throw new Error('Facebook n’a pas pu traiter la vidéo.');
+    if (attempt < 4) await new Promise(resolve => setTimeout(resolve, 2000));
+  }
+  throw new Error("La vidéo Facebook n'est pas encore visible : traitement en cours. La vérification sera retentée sans republier.");
+}
+
 async function publishFacebookPost(brand, job) {
+  const format = validatePublishFormat(job);
   appendPublishTrace(job, 'facebook:start', { brand });
   const pageId = resolvedFacebookPageId(brand);
   if (!pageId) throw new Error(`META_PAGE_ID non configuré pour ${brand}`);
@@ -1483,7 +1553,23 @@ async function publishFacebookPost(brand, job) {
 
   let published;
   const carouselItems = getCarouselItems(job);
-  if (carouselItems.length) {
+  if (format.isStory && !format.isVideo) {
+    const photo = await graphPost(`${pageId}/photos`, { url: job.media_url, published: 'false' }, pageToken);
+    if (!photo.id) throw new Error('Facebook n’a pas retourné de photo pour la story.');
+    published = await graphPost(`${pageId}/photo_stories`, { photo_id: photo.id }, pageToken);
+    if (!published.success || !published.post_id) throw new Error('Facebook n’a pas confirmé la story photo.');
+  } else if (format.type === 'reel' || (format.isStory && format.isVideo)) {
+    published = await publishFacebookVideoPlacement(pageId, pageToken, job, format.isStory ? 'video_stories' : 'video_reels');
+  } else if (format.type === 'video') {
+    job.metadata ||= {};
+    if (!job.metadata.facebookFeedVideoId) {
+      const video = await graphPost(`${pageId}/videos`, { file_url: job.media_url, description: job.message || '', published: 'true' }, pageToken);
+      if (!video.id) throw new Error('Facebook n’a pas retourné d’identifiant vidéo.');
+      job.metadata.facebookFeedVideoId = video.id;
+    }
+    await waitForFacebookVideo(job.metadata.facebookFeedVideoId, pageToken);
+    published = { id: job.metadata.facebookFeedVideoId };
+  } else if (carouselItems.length) {
     const attached = [];
     for (const item of carouselItems) {
       const photo = await graphPost(`${pageId}/photos`, { url: item.url, published: 'false' }, pageToken);
@@ -1491,7 +1577,7 @@ async function publishFacebookPost(brand, job) {
       attached.push({ media_fbid: photo.id });
     }
     published = await graphPost(`${pageId}/feed`, { message: job.message || '', attached_media: JSON.stringify(attached) }, pageToken);
-  } else if (job.media_url && job.media_type === 'image') {
+  } else if (job.media_url && format.type === 'image') {
     published = await graphPost(`${pageId}/photos`, {
       url: job.media_url,
       caption: job.message || '',
@@ -1562,17 +1648,24 @@ async function waitForInstagramContainer(brand, containerId, maxAttempts = 20) {
   throw new Error('Instagram n’a pas terminé le traitement du média après 60 secondes.');
 }
 
-async function verifyInstagramPublishedMedia(brand, igUserId, mediaId, attempts = 10) {
+async function verifyInstagramPublishedMedia(brand, igUserId, mediaId, attempts = 10, isStory = false) {
   let verification = null;
   let verificationError = null;
 
   for (let attempt = 1; attempt <= attempts; attempt++) {
     try {
+      if (isStory) {
+        const stories = await instagramGraph(brand, `${igUserId}/stories`, { fields: 'id,media_type,timestamp', limit: 100 });
+        const story = (stories.data || []).find(item => String(item.id) === String(mediaId));
+        if (story) return { verification: { ...story, storyVerified: true }, error: null };
+        verificationError = 'La story n’est pas encore visible dans les stories actives du compte.';
+      } else {
       verification = await instagramGraph(brand, mediaId, {
-        fields: 'id,permalink,media_type,media_product_type,timestamp'
+        fields: usesInstagramLogin(brand) ? 'id,permalink,media_type,timestamp' : 'id,permalink,media_type,media_product_type,timestamp'
       });
       if (verification?.id && verification?.permalink) {
         return { verification, error: null };
+      }
       }
     } catch (error) {
       verificationError = error.message;
@@ -1581,11 +1674,12 @@ async function verifyInstagramPublishedMedia(brand, igUserId, mediaId, attempts 
   }
 
   try {
-    const recent = await instagramGraph(brand, `${igUserId}/media`, {
-      fields: 'id,permalink,media_type,timestamp',
+    const recent = await instagramGraph(brand, `${igUserId}/${isStory ? 'stories' : 'media'}`, {
+      fields: isStory ? 'id,media_type,timestamp' : 'id,permalink,media_type,timestamp',
       limit: 25
     });
     verification = (recent.data || []).find(item => String(item.id) === String(mediaId)) || verification;
+    if (isStory && verification?.id) verification.storyVerified = true;
   } catch (error) {
     verificationError = verificationError || error.message;
   }
@@ -1594,6 +1688,7 @@ async function verifyInstagramPublishedMedia(brand, igUserId, mediaId, attempts 
 }
 
 async function publishInstagramPost(brand, job) {
+  const format = validatePublishFormat(job);
   const carouselItems = getCarouselItems(job);
   appendPublishTrace(job, 'instagram:start', {
     brand,
@@ -1630,9 +1725,10 @@ async function publishInstagramPost(brand, job) {
       brand,
       igUserId,
       existingPublishedMediaId,
-      5
+      5,
+      format.isStory
     );
-    if (resumed.verification?.id && resumed.verification?.permalink) {
+    if (resumed.verification?.id && (format.isStory ? resumed.verification.storyVerified : resumed.verification.permalink)) {
       appendPublishTrace(job, 'instagram:verified', {
         mediaId: resumed.verification.id,
         permalink: resumed.verification.permalink,
@@ -1655,22 +1751,8 @@ async function publishInstagramPost(brand, job) {
     );
   }
 
-    const mediaType = String(job.media_type || 'image').toLowerCase();
-  const createParams = { caption: job.message || '' };
-  const isVideo = mediaType === 'video' || mediaType === 'reel';
-
-  let publishMediaUrl = job.media_url;
-  if (!isVideo) {
-    const prepared = await ensureInstagramCompatibleMediaUrl(job.media_url, mediaType);
-    publishMediaUrl = prepared.url || job.media_url;
-  }
-
-  if (isVideo) {
-    createParams.media_type = 'REELS';
-    createParams.video_url = publishMediaUrl;
-  } else {
-    createParams.image_url = publishMediaUrl;
-  }
+  const { params: createParams, publishMediaUrl } = await instagramMediaParams(job);
+  const isVideo = format.isVideo;
 
   let container = null;
   let containerStatus = null;
@@ -1680,6 +1762,7 @@ async function publishInstagramPost(brand, job) {
     preparedContainer?.id
     && preparedContainer?.expiresAt
     && new Date(preparedContainer.expiresAt).getTime() > Date.now()
+    && (preparedContainer.mediaType === format.type || (!preparedContainer.mediaType && !format.isStory && format.type === job.media_type))
   ) {
     try {
       const status = await instagramGraph(brand, preparedContainer.id, {
@@ -1750,11 +1833,11 @@ async function publishInstagramPost(brand, job) {
   // Ne jamais considérer media_publish comme "terminé" uniquement parce
   // qu'un ID a été renvoyé. Vérifier que le média est réellement lisible depuis
   // le compte Instagram et qu'un permalink est disponible.
-  const verifiedResult = await verifyInstagramPublishedMedia(brand, igUserId, published.id, 10);
+  const verifiedResult = await verifyInstagramPublishedMedia(brand, igUserId, published.id, 10, format.isStory);
   const verification = verifiedResult.verification;
   const verificationError = verifiedResult.error;
 
-  if (!verification?.id || !verification?.permalink) {
+  if (!verification?.id || !(format.isStory ? verification.storyVerified : verification.permalink)) {
     appendPublishTrace(job, 'instagram:verification-failed', {
       mediaId: published.id,
       error: verificationError || null
@@ -1781,6 +1864,21 @@ async function publishInstagramPost(brand, job) {
 }
 
 export async function publishSocialJob(job) {
+  job.metadata ||= {};
+  if (job.metadata.contentId && !job.metadata.format) {
+    const content = await getContent(job.metadata.contentId);
+    if (content && content.brand_slug === (job.brand_slug || job.brand || 'nidal-junior')) {
+      job.metadata.format = content.data?.format || '';
+      job.metadata.placement = content.data?.plateforme || '';
+      job.metadata.mediaMime ||= content.data?.mediaItems?.[0]?.type || '';
+    }
+  }
+  if (NidalMediaFormat.resolve(job).isStory && !job.metadata.mediaMime) {
+    const check = await checkPublicMediaUrl(job.media_url || job.mediaUrl);
+    if (!check.ok) throw new Error('Média story inaccessible : ' + check.error);
+    job.metadata.mediaMime = check.contentType?.split(';')[0] || '';
+  }
+  validatePublishFormat(job);
   const brand = job.brand_slug || job.brand || 'nidal-junior';
   const requestedPlatforms = Array.isArray(job.platforms) ? job.platforms : [];
   const platforms = brand === 'nidal-junior'
@@ -1790,12 +1888,12 @@ export async function publishSocialJob(job) {
   const errors = {};
 
   if (platforms.includes('instagram')) {
-    try { result.instagram = await publishInstagramPost(brand, job); }
+    try { result.instagram = job.result?.instagram?.verified ? job.result.instagram : await publishInstagramPost(brand, job); }
     catch (error) { errors.instagram = error.message; }
   }
 
   if (platforms.includes('facebook')) {
-    try { result.facebook = await publishFacebookPost(brand, job); }
+    try { result.facebook = job.result?.facebook?.verified ? job.result.facebook : await publishFacebookPost(brand, job); }
     catch (error) { errors.facebook = error.message; }
   }
 

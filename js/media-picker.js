@@ -29,7 +29,7 @@ const NidalMediaPicker = (() => {
       } catch (error) { showToast('Téléversement interrompu : ' + error.message, 'error'); }
       finally { busy = false; button.disabled = false; fileInput.value = ''; draw(); }
     };
-    urlInput.oninput = () => { items = urlInput.value ? [{ url: urlInput.value, type: 'image/jpeg' }] : []; onChange?.(items); };
+    urlInput.oninput = () => { items = urlInput.value ? [{ url: urlInput.value, type: /\.(mp4|mov|webm)(?:[?#]|$)/i.test(urlInput.value) ? 'video/mp4' : '' }] : []; onChange?.(items); };
     draw();
     return { getItems: () => items.map(item => ({ ...item })), isBusy: () => busy };
   }

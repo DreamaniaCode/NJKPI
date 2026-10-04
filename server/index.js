@@ -236,7 +236,7 @@ async function getAiKpiContext(brand) {
 
 app.get('/api/version', (_req, res) => {
   res.setHeader('Cache-Control', 'no-store, max-age=0, must-revalidate');
-  res.json({ build: '20261004-10', appVersion: process.env.APP_VERSION || null, now: new Date().toISOString() });
+  res.json({ build: '20261004-11', appVersion: process.env.APP_VERSION || null, now: new Date().toISOString() });
 });
 
 app.get('/api/health', async (_req, res) => {
@@ -814,6 +814,9 @@ app.post('/api/publish/jobs', authenticate, authorize('admin', 'editor'), async 
     }
 
     const metadata = {
+      format: String(rawMetadata.format || '').slice(0, 30),
+      placement: String(rawMetadata.placement || '').slice(0, 100),
+      mediaMime: String(rawMetadata.mediaItems?.[0]?.type || '').slice(0, 100),
       title: String(rawMetadata.title || '').slice(0, 250),
       hashtags: Array.isArray(rawMetadata.hashtags)
         ? rawMetadata.hashtags.map(tag => String(tag).slice(0, 100)).slice(0, 30)
@@ -828,6 +831,7 @@ app.post('/api/publish/jobs', authenticate, authorize('admin', 'editor'), async 
       localTime: String(rawMetadata.localTime || '').slice(0, 10),
       scheduledUtc: scheduledAt.toISOString()
     };
+    if (Array.isArray(rawMetadata.mediaItems)) metadata.mediaItems = rawMetadata.mediaItems.slice(0, 10).map(item => ({ url: String(item?.url || ''), type: String(item?.type || '') }));
 
     let persistentMediaUrl = req.body.mediaUrl || null;
     if (req.body.mediaType === 'carousel' || req.body.mediaType === 'carrousel') {
@@ -927,7 +931,8 @@ async function markContentPublishedFromJob(job, outcome) {
     const result = outcome?.result || {};
     const platformResult = result.instagram || result.facebook || {};
     const now = new Date().toISOString();
-    const finalUrl = platformResult.permalink || content.final_url || content.data?.finalUrl || '';
+    const publishFormat = globalThis.NidalMediaFormat.resolve(job);
+    const finalUrl = platformResult.permalink || (publishFormat.isStory ? '' : content.final_url || content.data?.finalUrl || '');
     const externalMediaId = platformResult.id || platformResult.media_id || content.external_media_id || null;
 
     await upsertContent({
@@ -939,6 +944,7 @@ async function markContentPublishedFromJob(job, outcome) {
         validation: 'approuve',
         finalUrl,
         publishedAt: now,
+        mediaType: publishFormat.type,
         mediaUrl: content.data?.mediaUrl || job.media_url || '',
         tags: Array.isArray(content.data?.tags) && content.data.tags.length
           ? content.data.tags
@@ -2283,7 +2289,7 @@ app.use((req, res, next) => {
     res.setHeader('Surrogate-Control', 'no-store');
     res.setHeader('Pragma', 'no-cache');
     res.setHeader('Expires', '0');
-    res.setHeader('X-Nidal-Build', '20261004-10');
+    res.setHeader('X-Nidal-Build', '20261004-11');
   }
   next();
 });
