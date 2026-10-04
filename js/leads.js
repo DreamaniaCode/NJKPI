@@ -32,7 +32,7 @@ const LeadsView = (() => {
     columns.push({key:'details',label:'Autres informations',export:false});
     [['created_time','Date'],['campaign','Campagne'],['ad','Annonce'],['form','Formulaire'],['id','Identifiant Meta']].forEach(([key,label]) => columns.push({key,label,display:false}));
     answerNames.forEach((name,index) => columns.push({key:'answer_' + index,label:'Réponse : ' + name,display:false}));
-    if (!_grid) _grid = NidalDataGrid.create({id:'leads-table',title:getActiveBrandLabel() + ' leads',columns,filters:[{key:'status',label:'État',options:STATUSES},{key:'campaign',label:'Campagne'},{key:'form',label:'Formulaire'}],renderCell,onRowsRendered:bindStatuses,onRowClick:row => openDetails(row.id)});
+    if (!_grid) _grid = NidalDataGrid.create({id:'leads-table',title:getActiveBrandLabel() + ' leads',columns,initialSortKey:'created_time',filters:[{key:'status',label:'État',options:STATUSES},{key:'campaign',label:'Campagne'},{key:'form',label:'Formulaire'}],renderCell,onRowsRendered:bindStatuses,onRowClick:row => openDetails(row.id)});
     const rows = _rows.map(row => ({id:String(row.id),status:row.workflow_status || 'En attente',created_time:row.created_time,name:field(row,'full_name') || [field(row,'first_name'),field(row,'last_name')].filter(Boolean).join(' '),phone:field(row,'phone_number'),email:field(row,'email'),campaign:row.campaign_name || row.campaign_id || '',ad:row.ad_name || row.ad_id || '',form:row.form_name || row.form_id || '',...Object.fromEntries(answerNames.map((name,index) => ['answer_' + index,field(row,name)]))}));
     _grid.setRows(rows,columns);
   }

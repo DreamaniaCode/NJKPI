@@ -43,8 +43,8 @@ const NidalDataGrid = (() => {
     }
     download(new Blob([html], { type: 'text/html;charset=utf-8' }), `${filename}.html`);
   }
-  function create({ id, title, columns, filters = [], renderCell, onRowsRendered, onRowClick }) {
-    let rows = [], search = '', sortKey = columns[0].key, direction = -1, page = 0, scope = 'filtered', format = 'xlsx';
+  function create({ id, title, columns, filters = [], renderCell, onRowsRendered, onRowClick, initialSortKey }) {
+    let rows = [], search = '', sortKey = initialSortKey || columns[0].key, direction = -1, page = 0, scope = 'filtered', format = 'xlsx';
     const selected = new Set(), values = {};
     const filtered = () => rows.filter(row => (!search || columns.some(c => String(row[c.key] ?? '').toLocaleLowerCase('fr').includes(search.toLocaleLowerCase('fr')))) && filters.every(f => !values[f.key] || String(row[f.key] ?? '') === values[f.key]))
       .sort((a, b) => { const x = a[sortKey] ?? '', y = b[sortKey] ?? ''; return direction * (typeof x === 'number' && typeof y === 'number' ? x - y : String(x).localeCompare(String(y), 'fr', { numeric: true })); });
