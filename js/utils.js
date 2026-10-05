@@ -288,3 +288,42 @@ function confirmAction(message, onConfirm) {
     onOpen: modal => modal.querySelector('#confirm-btn').addEventListener('click', () => { closeModal(); onConfirm(); })
   });
 }
+
+/** Copy on HTTPS and local HTTP, preserving focus and selection. */
+async function copyText(text) {
+  const value = String(text ?? '');
+  try {
+    if (navigator.clipboard?.writeText) {
+      await navigator.clipboard.writeText(value);
+      return;
+    }
+  } catch { /* Try the legacy browser command. */ }
+  const active = document.activeElement;
+  const start = active?.selectionStart;
+  const end = active?.selectionEnd;
+  const direction = active?.selectionDirection;
+  const selection = window.getSelection?.();
+  const ranges = selection ? Array.from({ length: selection.rangeCount }, (_, i) => selection.getRangeAt(i).cloneRange()) : [];
+  const field = document.createElement('textarea');
+  field.value = value;
+  field.readOnly = true;
+  field.style.cssText = 'position:fixed;left:-9999px;top:0;opacity:0';
+  document.body.appendChild(field);
+  try {
+    field.focus({ preventScroll: true });
+    field.select();
+    if (!document.execCommand?.('copy')) throw new Error('Copie indisponible. Sélectionnez le texte et utilisez Ctrl+C.');
+  } finally {
+    field.remove();
+    active?.focus({ preventScroll: true });
+    if (typeof start === 'number') active.setSelectionRange?.(start, end, direction);
+    if (selection && ranges.length) {
+      selection.removeAllRanges();
+      ranges.forEach(range => selection.addRange(range));
+    }
+  }
+}
+
+function copyTextWithFeedback(text, message = 'Copié dans le presse-papiers !') {
+  return copyText(text).then(() => showToast(message, 'success')).catch(error => showToast(error.message, 'error'));
+}

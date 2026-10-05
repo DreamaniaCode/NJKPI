@@ -503,7 +503,7 @@ const AgentView = (() => {
     const view = document.getElementById('view-agent');
     if (!view) return;
     if (!_initialized) {
-      initData().then(() => render());
+      initData().then(() => App.requestRefresh('agent'));
     }
 
     const online = NidalAPI.isOnline();
@@ -1048,7 +1048,7 @@ const AgentView = (() => {
           <div class="strategy-plan-output">
             <div class="strategy-plan-output__head">
               <div><span class="section-kicker">Diagnostic & solutions</span><h3>Ce qui manque, pourquoi et quoi faire</h3></div>
-              <button class="btn btn--secondary btn--sm" id="btn-copy-all" type="button">📋 Copier l'analyse</button>
+              <button class="btn btn--secondary btn--sm" id="btn-copy-analysis" type="button">📋 Copier l'analyse</button>
             </div>
             <pre>${escapeHtml(humanAnalysis || 'Analyse non disponible.')}</pre>
           </div>
@@ -1477,7 +1477,12 @@ const AgentView = (() => {
     });
     const btnCopyAll = document.getElementById('btn-copy-all');
     if (btnCopyAll && gen) {
-      btnCopyAll.onclick = () => navigator.clipboard.writeText(gen.output).then(() => showToast('Contenu complet copié dans le presse-papiers', 'success'));
+      btnCopyAll.onclick = () => copyTextWithFeedback(gen.output, 'Contenu complet copié dans le presse-papiers');
+    }
+
+    const btnCopyAnalysis = document.getElementById('btn-copy-analysis');
+    if (btnCopyAnalysis && gen) {
+      btnCopyAnalysis.onclick = () => copyTextWithFeedback(String(gen.output || '').split('===PLAN_JSON===')[0].trim(), 'Analyse copiée dans le presse-papiers');
     }
 
     const btnCopyPost = document.getElementById('btn-copy-post');
@@ -1486,7 +1491,7 @@ const AgentView = (() => {
         persistGeneratedEdits();
         const { postText, tags } = _extractPostAndPrompt(gen, _activeAgentKey);
         const fullPost = `${postText}\n\n${tags.join(' ')}`.trim();
-        navigator.clipboard.writeText(fullPost).then(() => showToast('Post et hashtags copiés dans le presse-papiers !', 'success'));
+        copyTextWithFeedback(fullPost, 'Post et hashtags copiés dans le presse-papiers !');
       };
     }
 
@@ -1495,7 +1500,7 @@ const AgentView = (() => {
       btnCopyImgPrompt.onclick = () => {
         persistGeneratedEdits();
         const { imagePrompt } = _extractPostAndPrompt(gen, _activeAgentKey);
-        navigator.clipboard.writeText(imagePrompt).then(() => showToast('Prompt Image IA copié ! Collez-le dans Midjourney / DALL-E / Canva.', 'success'));
+        copyTextWithFeedback(imagePrompt, 'Prompt Image IA copié ! Collez-le dans Midjourney / DALL-E / Canva.');
       };
     }
 
@@ -1542,7 +1547,7 @@ const AgentView = (() => {
       btn.onclick = () => {
         const txt = btn.dataset.copyText || '';
         if (txt) {
-          navigator.clipboard.writeText(txt).then(() => showToast('Copié dans le presse-papiers !', 'success'));
+          copyTextWithFeedback(txt);
         }
       };
     });

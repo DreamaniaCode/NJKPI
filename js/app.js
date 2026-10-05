@@ -19,7 +19,7 @@ const App = (() => {
       button.onclick = () => navigateTo(button.dataset.view);
     });
     window.onpopstate = _routeFromHash;
-    NidalStore.subscribe(_renderCurrentView);
+    NidalStore.subscribe(() => requestRefresh());
 
     // 2. Auth check — si le module NidalAuth est disponible
     if (typeof NidalAuth !== 'undefined') {
@@ -48,13 +48,13 @@ const App = (() => {
       await NidalStore.syncRemote();
       _startRemoteSyncPolling();
       _startMetaLivePolling();
-      _renderCurrentView();
+      requestRefresh();
       window.setInterval(async () => {
         if (document.hidden || !NidalAPI.isOnline()) return;
         await NidalStore.syncRemote();
         if (_currentView === 'leads') await LeadsView.refresh();
         if (_currentView === 'insights') await InsightsView.refresh();
-        _renderCurrentView();
+        requestRefresh();
       }, 60000);
     } catch (err) {
       console.warn('Synchronisation initiale différée:', err);
@@ -129,7 +129,7 @@ const App = (() => {
     const refresh = async () => {
       if (document.hidden || !NidalAPI.isOnline()) return;
       const ok = await NidalStore.syncRemote({ includeMeta: false });
-      if (ok) _renderCurrentView();
+      if (ok) requestRefresh();
     };
 
     _remoteSyncTimer = window.setInterval(() => {
@@ -152,7 +152,7 @@ const App = (() => {
       if (document.hidden || !NidalAPI.isOnline()) return;
       const live = await NidalStore.syncMetaLive(getActiveBrand(), force);
       if (live && ['dashboard', 'performance', 'insights', 'audience'].includes(_currentView)) {
-        _renderCurrentView();
+        requestRefresh();
       }
     };
 
@@ -210,7 +210,7 @@ const App = (() => {
   function onLoginSuccess() {
     _applyAuth();
     _routeFromHash();
-    NidalAPI.init().then(() => NidalStore.syncRemote()).then(() => { _startRemoteSyncPolling(); _startMetaLivePolling(); _renderCurrentView(); }).catch(() => {});
+    NidalAPI.init().then(() => NidalStore.syncRemote()).then(() => { _startRemoteSyncPolling(); _startMetaLivePolling(); requestRefresh(); }).catch(() => {});
   }
 
   function _routeFromHash() {
@@ -241,6 +241,26 @@ const App = (() => {
     const mainEl = document.getElementById('main-content');
     if (mainEl) mainEl.focus({ preventScroll: true });
     announceToScreenReader(`Affichage de la vue ${viewId}`);
+  }
+
+  let _refreshTimer = null;
+  function requestRefresh(viewId = _currentView) {
+    if (viewId !== _currentView || _refreshTimer !== null) return;
+    const requestedView = _currentView;
+    const flush = () => {
+      _refreshTimer = null;
+      if (requestedView !== _currentView) return;
+      const active = document.activeElement;
+      const editing = active?.matches?.('input, textarea, select, [contenteditable]:not([contenteditable="false"])');
+      const selection = window.getSelection?.();
+      const modal = document.querySelector('[role="dialog"]');
+      if (editing || (selection && !selection.isCollapsed) || (modal && modal.getClientRects().length)) {
+        _refreshTimer = window.setTimeout(flush, 500);
+        return;
+      }
+      _renderCurrentView();
+    };
+    _refreshTimer = window.setTimeout(flush, 0);
   }
 
   function _renderCurrentView() {
@@ -330,6 +350,6 @@ const App = (() => {
     const name = document.querySelector('.sidebar__brand strong');
     if (name) name.textContent = getActiveBrandLabel();
   }
-  return { init, navigateTo, onLoginSuccess };
+  return { init, navigateTo, onLoginSuccess, requestRefresh };
 })();
 document.addEventListener('DOMContentLoaded', App.init);

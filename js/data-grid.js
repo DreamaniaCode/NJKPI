@@ -22,7 +22,7 @@ const NidalDataGrid = (() => {
     }
     if (format === 'csv' || format === 'tsv' || format === 'copy') {
       const text = delimited(columns, rows, format === 'csv' ? ';' : '\t');
-      if (format === 'copy') { await navigator.clipboard.writeText(text); return; }
+      if (format === 'copy') { await copyText(text); return; }
       download(new Blob(['\uFEFF' + text], { type: 'text/plain;charset=utf-8' }), `${filename}.${format}`); return;
     }
     if (format === 'json') {
