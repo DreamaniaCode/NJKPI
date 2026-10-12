@@ -1,3 +1,15 @@
+.perf-account-summary {display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:16px;margin-bottom:24px}
+.perf-account-summary article {background:var(--panel);border:1px solid var(--line);border-top:3px solid var(--blue);border-radius:12px;padding:20px;display:flex;flex-direction:column;gap:8px}
+.perf-account-summary strong {font-size:30px;line-height:1.2}
+.perf-account-summary small,.perf-result-count {color:var(--muted)}
+.perf-filters {display:flex;flex-wrap:wrap;gap:12px;align-items:flex-end;margin-bottom:12px}
+.perf-filters label {display:flex;flex:1 1 150px;flex-direction:column;gap:6px;font-weight:600}
+.perf-filters label:first-child {flex:2 1 220px}
+.perf-publications table {min-width:1150px}
+.perf-publications td:first-child {min-width:280px;max-width:380px}
+.perf-publication-meta {display:block;margin-top:6px;line-height:1.5}
+.perf-empty {text-align:center;padding:30px!important;color:var(--muted)}
+@media(max-width:640px){.perf-account-summary {grid-template-columns:1fr}.perf-filters label {flex-basis:100%}}
 :root {
   --font: Inter, "Segoe UI", Arial, sans-serif;
   --blue: #1746d1;

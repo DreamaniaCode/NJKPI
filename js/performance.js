@@ -4,6 +4,41 @@
 const PerformanceView = (() => {
   let _refreshing = false;
   let _lastAutoRefreshAt = 0;
+  const _filters = { search: '', platform: '', status: '', format: '', sort: 'recent' };
+  function _dateValue(c) {
+    const value = Date.parse(c.publishedAt || (c.datePublication ? c.datePublication + 'T' + (c.heure || '00:00') : ''));
+    return Number.isFinite(value) ? value : null;
+  }
+  function _visibleContents() {
+    const query = _filters.search.trim().toLocaleLowerCase('fr');
+    return NidalStore.getAll(getActiveBrand()).filter(c =>
+      (!query || [c.titre, c.plateforme, c.format].join(' ').toLocaleLowerCase('fr').includes(query)) &&
+      (!_filters.platform || c.plateforme === _filters.platform) &&
+      (!_filters.status || c.statut === _filters.status) &&
+      (!_filters.format || c.format === _filters.format)).sort((a,b) => {
+        let x, y;
+        if (['recent','oldest'].includes(_filters.sort)) {
+          x = _dateValue(a); y = _dateValue(b);
+          if (x == null || y == null) return x == y ? 0 : x == null ? 1 : -1;
+          return _filters.sort === 'recent' ? y-x : x-y;
+        }
+        x = _filters.sort === 'interactions' ? NidalStore.getInteractions(a) : a.resultats?.[_filters.sort];
+        y = _filters.sort === 'interactions' ? NidalStore.getInteractions(b) : b.resultats?.[_filters.sort];
+        if (x == null || y == null) return x == y ? 0 : x == null ? 1 : -1;
+        return Number(y)-Number(x) || (_dateValue(b) || 0)-(_dateValue(a) || 0);
+      });
+  }
+  function _filterOptions(contents, field, key, label) {
+    return '<option value="">'+label+'</option>'+[...new Set(contents.map(c => c[field]).filter(Boolean))].sort().map(value =>
+      '<option value="'+escapeHtml(value)+'"'+(_filters[key] === value ? ' selected' : '')+'>'+escapeHtml(field === 'statut' ? getStatus(value).label : field === 'format' ? getContentType(value).label : value)+'</option>').join('');
+  }
+  function _refreshTable() {
+    const items = _visibleContents();
+    const body = document.getElementById('perf-publications-body');
+    if (body) body.innerHTML = items.length ? items.map(_row).join('') : '<tr><td colspan="10" class="perf-empty">Aucune publication ne correspond à ces filtres.</td></tr>';
+    const count = document.getElementById('perf-result-count');
+    if (count) count.textContent = items.length+' publication(s) affichée(s) sur '+NidalStore.getAll(getActiveBrand()).length;
+  }
 
   async function _refreshLiveKpis({ silent = false } = {}) {
     if (_refreshing || !NidalAPI.isOnline()) return;
@@ -22,7 +57,7 @@ const PerformanceView = (() => {
       ]);
 
       await NidalStore.syncRemote({ includeMeta: false });
-      render();
+      App.requestRefresh('performance');
 
       if (!silent) {
         if (brand === 'nidal-junior') {
@@ -75,6 +110,11 @@ const PerformanceView = (() => {
         </div>
       </header>
 
+      <section class="perf-account-summary" aria-label="Abonnés des comptes">
+        <article><span>Abonnés Instagram</span><strong>${formatNumber(targets.followers.current)}</strong><small>${targets.followers.source === 'meta-api' ? 'Synchronisés depuis Meta' : targets.followers.source === 'meta-unavailable' ? 'Donnée indisponible' : 'Valeur enregistrée'}</small></article>
+        ${!isNidalJunior ? `<article><span>Abonnés Facebook</span><strong>${formatNumber(targets.facebookFollowers.current)}</strong><small>${targets.facebookFollowers.source === 'meta-api' ? 'Synchronisés depuis Meta' : targets.facebookFollowers.source === 'meta-unavailable' ? 'Donnée indisponible' : 'Valeur enregistrée'}</small></article>` : ''}
+        <article><span>Publications suivies</span><strong>${contents.length}</strong><small>${contents.filter(c => c.statut === 'publie').length} publiées · ${contents.filter(c => c.statut === 'planifie').length} planifiées</small></article>
+      </section>
       <!-- Section 1 : Cartes des Objectifs Stratégiques KPI & Échéances (ETA) -->
       <section class="kpi-goals-section" aria-label="Objectifs KPI prioritaires">
         <div class="section-heading" style="margin-bottom:12px;">
@@ -152,7 +192,16 @@ const PerformanceView = (() => {
         </div>
       </div>
 
-      <div class="table-responsive">
+      <div class="perf-filters" role="search" aria-label="Filtrer les publications">
+        <label>Rechercher<input id="perf-search" class="form-control" type="search" placeholder="Titre, plateforme, format…" value="${escapeHtml(_filters.search)}"></label>
+        <label>Plateforme<select id="perf-platform" class="form-control">${_filterOptions(contents, 'plateforme', 'platform', 'Toutes les plateformes')}</select></label>
+        <label>Statut<select id="perf-status" class="form-control">${_filterOptions(contents, 'statut', 'status', 'Tous les statuts')}</select></label>
+        <label>Format<select id="perf-format" class="form-control">${_filterOptions(contents, 'format', 'format', 'Tous les formats')}</select></label>
+        <label>Trier par<select id="perf-sort" class="form-control">${[['recent','Plus récentes'],['oldest','Plus anciennes'],['portee','Portée décroissante'],['vues','Vues décroissantes'],['interactions','Interactions décroissantes'],['commentaires','Commentaires décroissants'],['conversions','Conversions décroissantes']].map(([value,label]) => '<option value="'+value+'"'+(_filters.sort === value ? ' selected' : '')+'>'+label+'</option>').join('')}</select></label>
+        <button id="perf-reset" class="btn btn--secondary btn--sm" type="button">Réinitialiser</button>
+      </div>
+      <p id="perf-result-count" class="perf-result-count" aria-live="polite"></p>
+      <div class="table-responsive perf-publications">
         <table class="data-table">
           <thead>
             <tr>
@@ -160,20 +209,22 @@ const PerformanceView = (() => {
               <th>Portée (Réel / Obj.)</th>
               <th>Vues (Réel / Obj.)</th>
               <th>Commentaires (Réel / Obj.)</th>
+              <th>Interactions</th>
+              <th>Engagement</th>
               <th>Conversions</th>
               <th>Échéance (ETA)</th>
               <th>Progression</th>
               <th class="actions-column">Action</th>
             </tr>
           </thead>
-          <tbody>
-            ${contents.length ? contents.map(c => _row(c)).join('') : '<tr><td colspan="8" style="text-align:center;padding:30px;color:var(--muted);">Aucun contenu enregistré pour cette marque.</td></tr>'}
+          <tbody id="perf-publications-body">
           </tbody>
         </table>
       </div>
     `;
 
     _bindEvents();
+    _refreshTable();
 
     if (NidalAPI.isOnline() && !_refreshing && Date.now() - _lastAutoRefreshAt > 60000) {
       _refreshLiveKpis({ silent: true });
@@ -250,7 +301,9 @@ const PerformanceView = (() => {
       <tr>
         <td>
           <strong>${escapeHtml(content.titre)}</strong>
-          <small>${formatDate(content.datePublication, 'compact')} · ${escapeHtml(content.plateforme)}</small>
+          <small class="perf-publication-meta">${formatDate(content.publishedAt || content.datePublication, 'compact')} ${escapeHtml(content.heure || '')} · ${escapeHtml(content.plateforme)}</small>
+          <small class="perf-publication-meta">${escapeHtml(getContentType(content.format).label)} · ${escapeHtml(getStatus(content.statut).label)}</small>
+          <small class="perf-publication-meta">${content.lastSyncedAt ? 'Synchronisé le '+formatDate(content.lastSyncedAt, 'compact') : 'Pas encore synchronisé'}</small>
         </td>
         <td>
           <b>${formatNumber(reach)}</b>
@@ -264,6 +317,10 @@ const PerformanceView = (() => {
           <b>${formatNumber(comments)}</b>
           <small>/ ${formatNumber(commentsTarget)}</small>
         </td>
+        <td>
+          <b>${formatNumber(NidalStore.getInteractions(content))}</b>
+        </td>
+        <td><b>${formatPercent(NidalStore.getEngagement(content))}</b><small>Interactions / portée</small></td>
         <td>
           <b style="color:var(--magenta);">${formatNumber(conversions)}</b>
           <small>/ ${formatNumber(conversionsTarget)}</small>
@@ -291,6 +348,16 @@ const PerformanceView = (() => {
   }
 
   function _bindEvents() {
+    ['search','platform','status','format','sort'].forEach(key => {
+      const field = document.getElementById('perf-'+key);
+      field?.addEventListener(key === 'search' ? 'input' : 'change', () => { _filters[key] = field.value; _refreshTable(); });
+    });
+    const reset = document.getElementById('perf-reset');
+    if (reset) reset.onclick = () => {
+      Object.assign(_filters, { search: '', platform: '', status: '', format: '', sort: 'recent' });
+      ['search','platform','status','format','sort'].forEach(key => { const field = document.getElementById('perf-'+key); if (field) field.value = _filters[key]; });
+      _refreshTable();
+    };
     const btnRefreshAll = document.getElementById('btn-refresh-all-kpi');
     if (btnRefreshAll) {
       btnRefreshAll.onclick = async () => {
@@ -329,7 +396,7 @@ const PerformanceView = (() => {
     if (btnExport) {
       btnExport.onclick = () => {
         const brand = getActiveBrand();
-        NidalExport.exportCSV(NidalStore.getAll(brand), `${brand}-kpi-performance`);
+        NidalExport.exportCSV(_visibleContents(), `${brand}-kpi-performance`);
       };
     }
 
