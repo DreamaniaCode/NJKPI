@@ -7,8 +7,8 @@ const contents = [
  { id:'missing',titre:'Brouillon',plateforme:'Instagram',statut:'brouillon',format:'post',resultats:{portee:null}},
  { id:'zero',titre:'Zero',datePublication:'2026-10-10',plateforme:'Instagram',statut:'publie',format:'post',resultats:{portee:0,commentaires:0}}
 ];
-const context = vm.createContext({ getActiveBrand:()=> 'nidal', NidalStore:{getAll:()=>contents,getInteractions:c=>c.resultats.commentaires ?? null} });
-const source=fs.readFileSync('js/performance.js','utf8').replace('return { render, openKpiTargetsModal };','return { render, openKpiTargetsModal, visible: _visibleContents, filters: _filters };');
+const context = vm.createContext({ URL, escapeHtml: value => String(value).replace(/&/g,'&amp;').replace(/"/g,'&quot;').replace(/</g,'&lt;'), getActiveBrand:()=> 'nidal', NidalStore:{getAll:()=>contents,getInteractions:c=>c.resultats.commentaires ?? null} });
+const source=fs.readFileSync('js/performance.js','utf8').replace('return { render, openKpiTargetsModal };','return { render, openKpiTargetsModal, visible: _visibleContents, filters: _filters, postLink: _postLink };');
 vm.runInContext(source,context);
 const run=code=>vm.runInContext(code,context);
 const ids=()=>Array.from(run('PerformanceView.visible()'), c=>c.id);
@@ -19,3 +19,9 @@ run("PerformanceView.filters.search='REEL'");assert.deepEqual(ids(),['new']);
 run("PerformanceView.filters.search=''; PerformanceView.filters.platform='Instagram'; PerformanceView.filters.status='publie'");assert.deepEqual(ids(),['old','zero']);
 assert.deepEqual(contents.map(c=>c.id),['old','new','missing','zero']);
 console.log('PASS: performance date sorting, metric sorting, missing values, search, combined filters');
+const link = run("PerformanceView.postLink({titre:'Post',finalUrl:'https://www.instagram.com/p/example/'})");
+assert.match(link, /href="https:\/\/www.instagram.com\/p\/example\/"/);
+assert.match(link, /target="_blank" rel="noopener noreferrer"/);
+assert.match(run("PerformanceView.postLink({titre:'Post',finalUrl:''})"), /disabled/);
+assert.match(run("PerformanceView.postLink({titre:'Post',finalUrl:'javascript:alert(1)'})"), /disabled/);
+console.log('PASS: publication links, new tab, missing and unsafe URLs');

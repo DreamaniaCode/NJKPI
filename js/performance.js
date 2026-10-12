@@ -278,6 +278,17 @@ const PerformanceView = (() => {
     return `<article><span>${label}</span><strong>${value}</strong></article>`;
   }
 
+  function _postLink(content) {
+    let url = '';
+    try {
+      const parsed = new URL(content.finalUrl || '');
+      if (['https:', 'http:'].includes(parsed.protocol)) url = parsed.href;
+    } catch { /* No usable publication URL yet. */ }
+    return url
+      ? `<a class="btn btn--secondary btn--sm" href="${escapeHtml(url)}" target="_blank" rel="noopener noreferrer" aria-label="Voir le post : ${escapeHtml(content.titre)} (nouvel onglet)">Voir le post ↗</a>`
+      : '<button class="btn btn--secondary btn--sm" type="button" disabled title="Ajoutez le lien de la publication via Saisir KPI">Voir le post ↗</button><small>Lien non renseigné</small>';
+  }
+
   function _row(content) {
     const reach = content.resultats.portee;
     const reachTarget = content.objectifs.portee;
@@ -339,6 +350,7 @@ const PerformanceView = (() => {
           </div>
         </td>
         <td class="actions-column">
+          ${_postLink(content)}
           <button class="btn btn--secondary btn--sm" onclick="ContentsView.openEditForm('${content.id}')">
             Saisir KPI
           </button>
